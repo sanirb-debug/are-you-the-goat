@@ -153,24 +153,44 @@ button {
 }
 .btn-row button { flex: 1; min-width: 140px; }
 
-.candidate-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+.roster-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--navy);
 }
 
-.candidate-card {
-  background: var(--navy);
-  border: 1px solid var(--gold);
-  border-radius: 12px;
-  padding: 20px 12px;
-  text-align: center;
+.roster-row {
+  display: grid;
+  grid-template-columns: 1fr 70px 60px;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--card-border);
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
 }
-.candidate-card:hover {
-  border-color: var(--gold-bright);
-  background: #16233c;
+.roster-row:last-child { border-bottom: none; }
+.roster-row:hover:not(:disabled) { background: #16233c; }
+.roster-row.locked { opacity: 0.35; cursor: not-allowed; }
+
+.roster-name { font-weight: 600; color: white; }
+.era-tag {
+  font-size: 10px;
+  color: var(--text-dim);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 6px;
+  white-space: nowrap;
 }
+.roster-rating { color: var(--gold-bright); font-weight: 700; text-align: right; }
+.roster-cost { color: var(--text-dim); font-size: 12px; text-align: right; }
 
 .position-grid {
   display: grid;

@@ -2,7 +2,6 @@
 
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Defense", "Rebounding"];
 const BUDGET_CAP = 100;
-const TOTAL_REROLLS = 3;
 const COST_MULT = 0.15;
 
 const state = {
@@ -11,7 +10,6 @@ const state = {
   frame: null,         // { name, label, rating, cost }
   skills: {},          // { Shooting: {name, rating, cost}, ... }
   budgetSpent: 0,
-  rerollsUsed: 0,
   position: null,
   positionFit: null,   // true/false
   team: null,
@@ -29,14 +27,36 @@ function budgetRemaining() {
   return BUDGET_CAP - state.budgetSpent;
 }
 
-const CANDIDATES_PER_SPIN = 3;
+function categoryRating(player, category) {
+  if (category === "height") return player.height.rating;
+  if (category === "frame") return player.frame.rating;
+  return player.skills[category];
+}
 
-function getCandidates(pool, count = CANDIDATES_PER_SPIN) {
+// Full roster of the locked-in team for one category, best to worst.
+// Unaffordable players stay in the list (flagged) so the player sees what
+// they're missing; if nothing on a skill list is affordable, the budget bin
+// keeps the game from dead-ending.
+function getRosterOptions(category) {
+  const roster = TEAM_ROSTERS[state.team.abbr] || [];
   const remaining = budgetRemaining();
-  let affordable = pool.filter(p => wheelCost(p.rating) <= remaining);
-  if (affordable.length === 0) affordable = [...BUDGET_BIN];
-  const shuffled = [...affordable].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count).map(p => ({ ...p, cost: wheelCost(p.rating) }));
+  const options = roster.map(p => {
+    const rating = categoryRating(p, category);
+    const cost = wheelCost(rating);
+    const label = category === "height" ? p.height.label
+      : category === "frame" ? p.frame.label
+      : null;
+    return { name: p.name, era: p.era, label, rating, cost, affordable: cost <= remaining };
+  }).sort((a, b) => b.rating - a.rating);
+
+  if (SKILL_ORDER.includes(category) && !options.some(o => o.affordable)) {
+    BUDGET_BIN.forEach(p => {
+      // cost clamps to whatever is left so the game can never soft-lock
+      const cost = Math.min(wheelCost(p.rating), remaining);
+      options.push({ name: p.name, era: "—", label: null, rating: p.rating, cost, affordable: true });
+    });
+  }
+  return options;
 }
 
 function lockSkill(skillName, result) {
@@ -47,14 +67,6 @@ function lockSkill(skillName, result) {
 function lockPhysical(key, result) {
   state[key] = result;
   state.budgetSpent += result.cost;
-}
-
-function canReroll() {
-  return state.rerollsUsed < TOTAL_REROLLS;
-}
-
-function useReroll() {
-  state.rerollsUsed += 1;
 }
 
 // ---- Modifiers ----
@@ -254,9 +266,9 @@ function generateHeadline(career, tier) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    state, STEPS, SKILL_ORDER, TIERS, wheelCost, budgetRemaining, getCandidates, lockSkill, lockPhysical,
-    canReroll, useReroll, applyModifiers, finalSkills, computeOVR,
+    state, STEPS, SKILL_ORDER, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
+    lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, tierForScore, percentileForScore,
-    computeBadges, generateHeadline, topAttribute, BUDGET_CAP, TOTAL_REROLLS,
+    computeBadges, generateHeadline, topAttribute, BUDGET_CAP,
   };
 }

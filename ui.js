@@ -17,9 +17,9 @@ function render() {
 
   if (step === "name") renderNameStep();
   else if (step === "team") renderTeamStep();
-  else if (step === "height") renderPhysicalStep("height", HEIGHT_POOL, "Height", "How tall are they?");
-  else if (step === "frame") renderPhysicalStep("frame", FRAME_POOL, "Body Frame", "What's their build?");
-  else if (SKILL_ORDER.includes(step)) renderSkillStep(step);
+  else if (step === "height") renderRosterStep("height", "Height", "How tall are they?", pick => lockPhysical("height", pick));
+  else if (step === "frame") renderRosterStep("frame", "Body Frame", "What's their build?", pick => lockPhysical("frame", pick));
+  else if (SKILL_ORDER.includes(step)) renderRosterStep(step, step, "Pick a legend to build on.", pick => lockSkill(step, pick));
   else if (step === "position") renderPositionStep();
   else if (step === "verdict") renderVerdict();
 }
@@ -38,7 +38,7 @@ function renderTopBar() {
 }
 
 function budgetPillHTML() {
-  return `CAP <span class="budget-num">${state.budgetSpent}</span>/${BUDGET_CAP} &nbsp;·&nbsp; Rerolls left: ${TOTAL_REROLLS - state.rerollsUsed}`;
+  return `CAP <span class="budget-num">${state.budgetSpent}</span>/${BUDGET_CAP}`;
 }
 
 // ---- Step 0: Name ----
@@ -61,77 +61,34 @@ function renderNameStep() {
   input.focus();
 }
 
-// ---- Shared candidate wheel (Height, Frame, and all 5 skills) ----
-// Spin reveals 3 affordable candidates; clicking one locks it in.
-function renderWheelStep(title, sub, pool, formatCandidate, onLock) {
-  const wrap = el("div", "card center");
-  wrap.appendChild(el("h1", "step-title", `Spin: ${title}`));
-  wrap.appendChild(el("p", "step-sub", `${sub} &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
+// ---- Shared roster list (Height, Frame, and all 5 skills) ----
+// Full team-history roster sorted best to worst for the category; the player
+// clicks any affordable row to lock it in. No randomness once the team is set.
+function renderRosterStep(category, title, sub, onLock) {
+  const wrap = el("div", "card");
+  wrap.appendChild(el("h1", "step-title center", `Pick: ${title}`));
+  wrap.appendChild(el("p", "step-sub center",
+    `${sub} &nbsp;·&nbsp; ${state.team.name} legends &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
 
-  const placeholder = el("div", "spin-result", "?");
-  wrap.appendChild(placeholder);
-
-  const grid = el("div", "candidate-grid");
-  grid.style.display = "none";
-  wrap.appendChild(grid);
-
-  const btnRow = el("div", "btn-row");
-  const spinBtn = el("button", "btn-primary", "🎡 Spin the Wheel");
-  const rerollBtn = el("button", "btn-ghost", `Reroll (${TOTAL_REROLLS - state.rerollsUsed} left)`);
-  rerollBtn.disabled = true;
-
-  function showCandidates() {
-    grid.innerHTML = "";
-    getCandidates(pool).forEach(pick => {
-      const card = el("button", "candidate-card", formatCandidate(pick));
-      card.onclick = () => {
-        onLock(pick);
-        state.currentStep++;
-        render();
-      };
-      grid.appendChild(card);
-    });
-    placeholder.style.display = "none";
-    grid.style.display = "grid";
-    spinBtn.style.display = "none";
-    rerollBtn.disabled = !canReroll();
-  }
-
-  spinBtn.onclick = showCandidates;
-  rerollBtn.onclick = () => {
-    if (!canReroll()) return;
-    useReroll();
-    rerollBtn.textContent = `Reroll (${TOTAL_REROLLS - state.rerollsUsed} left)`;
-    const pill = document.querySelector(".budget-pill");
-    if (pill) pill.innerHTML = budgetPillHTML();
-    showCandidates();
-  };
-
-  btnRow.appendChild(spinBtn);
-  btnRow.appendChild(rerollBtn);
-  wrap.appendChild(btnRow);
+  const list = el("div", "roster-list");
+  getRosterOptions(category).forEach(opt => {
+    // Height/Frame headline their real-world label; skills show the rating.
+    const display = opt.label || opt.rating;
+    const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
+      `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span></span>
+       <span class="roster-rating">${display}</span>
+       <span class="roster-cost">${opt.cost} pts</span>`);
+    row.disabled = !opt.affordable;
+    row.onclick = () => {
+      onLock(opt);
+      state.currentStep++;
+      render();
+    };
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
 
   app.appendChild(wrap);
-}
-
-// ---- Steps 2-3: Height / Frame ----
-function renderPhysicalStep(key, pool, label, sub) {
-  renderWheelStep(label, sub, pool, formatPhysicalCandidate, pick => lockPhysical(key, pick));
-}
-
-// Label (e.g. 6'11" or Powerful) is the headline; rating stays internal.
-function formatPhysicalCandidate(pick) {
-  return `<div class="pick-name">${pick.label}</div><div class="pick-meta">${pick.name} &nbsp;·&nbsp; Costs ${pick.cost} pts</div>`;
-}
-
-// ---- Steps 4-8: Skill wheels ----
-function renderSkillStep(skillName) {
-  renderWheelStep(skillName, "Pick one to lock in.", SKILL_POOLS[skillName], formatSkillCandidate,
-    pick => lockSkill(skillName, pick));
-}
-
-function formatSkillCandidate(pick) {
-  return `<div class="pick-name">${pick.name}</div><div class="pick-meta">Rating ${pick.rating} &nbsp;·&nbsp; Costs ${pick.cost} pts</div>`;
 }
 
 // ---- Step 9: Position ----
@@ -162,7 +119,7 @@ function renderPositionStep() {
 function renderTeamStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Spin for a Team"));
-  wrap.appendChild(el("p", "step-sub", "Wherever it lands, that's who you're carrying."));
+  wrap.appendChild(el("p", "step-sub", "Wherever it lands, that franchise's legends become your building blocks."));
 
   const resultBox = el("div", "spin-result", state.team ? formatTeamResult(state.team) : "?");
   wrap.appendChild(resultBox);
@@ -250,7 +207,7 @@ function renderVerdict() {
   wrap.appendChild(legendList);
 
   wrap.appendChild(el("div", "meta-line",
-    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"} &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP} &nbsp;·&nbsp; Rerolls used: ${state.rerollsUsed}/${TOTAL_REROLLS}`));
+    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"} &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP}`));
 
   const again = el("button", "btn-primary", "Play Again");
   again.onclick = resetGame;
@@ -278,7 +235,6 @@ function resetGame() {
   state.frame = null;
   state.skills = {};
   state.budgetSpent = 0;
-  state.rerollsUsed = 0;
   state.position = null;
   state.positionFit = null;
   state.team = null;
