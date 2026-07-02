@@ -136,16 +136,6 @@ button {
   cursor: not-allowed;
 }
 
-.btn-ghost {
-  background: transparent;
-  color: var(--text-dim);
-  border: 1px solid var(--card-border);
-  padding: 12px 18px;
-  border-radius: 10px;
-  font-size: 13px;
-}
-.btn-ghost:disabled { opacity: 0.3; cursor: not-allowed; }
-
 .btn-row {
   display: flex;
   gap: 10px;

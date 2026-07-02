@@ -3,6 +3,7 @@
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Defense", "Rebounding"];
 const BUDGET_CAP = 100;
 const COST_MULT = 0.15;
+const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
 const state = {
   name: "",
@@ -14,6 +15,7 @@ const state = {
   positionFit: null,   // true/false
   team: null,          // career team — drives the season sim
   scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
+  teamRerollsUsed: 0,  // scout-spin "Spin Again" uses, shared across the whole build
   currentStep: 0,       // 0 name, 1 height, 2 frame, 3..7 skills, 8 careerTeam, 9 position, 10 verdict
 };
 
@@ -307,6 +309,6 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, percentileForScore,
-    computeBadges, generateHeadline, topAttribute, BUDGET_CAP,
+    computeBadges, generateHeadline, topAttribute, BUDGET_CAP, TEAM_REROLLS,
   };
 }

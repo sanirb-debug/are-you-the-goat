@@ -103,6 +103,8 @@ function renderRosterStep(category, title, sub, onLock) {
 }
 
 // Quick team spin before each pick — decides whose roster you scout from.
+// The first spin of each pick is free; "Spin Again" draws from a pool of
+// TEAM_REROLLS shared across the whole build.
 function renderScoutSpin(title) {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", `Pick: ${title}`));
@@ -111,12 +113,19 @@ function renderScoutSpin(title) {
   const resultBox = el("div", "spin-result", "?");
   wrap.appendChild(resultBox);
 
+  const rerollsLeft = () => TEAM_REROLLS - state.teamRerollsUsed;
+
   let provisional = null;
   const spinBtn = el("button", "btn-primary", "🎡 Spin for a Team");
   spinBtn.onclick = () => {
+    if (provisional) {
+      if (rerollsLeft() <= 0) return;
+      state.teamRerollsUsed++;
+    }
     provisional = pickRandom(TEAMS);
     resultBox.innerHTML = `<div class="pick-name">${provisional.name}</div><div class="pick-meta">Scouting their all-time legends</div>`;
-    spinBtn.textContent = "Spin Again";
+    spinBtn.textContent = rerollsLeft() > 0 ? `Spin Again (${rerollsLeft()} left)` : "No Rerolls Left";
+    spinBtn.disabled = rerollsLeft() <= 0;
     lockBtn.disabled = false;
   };
   wrap.appendChild(spinBtn);
@@ -297,6 +306,7 @@ function resetGame() {
   state.positionFit = null;
   state.team = null;
   state.scoutTeam = null;
+  state.teamRerollsUsed = 0;
   state.currentStep = 0;
   career = null;
   render();
