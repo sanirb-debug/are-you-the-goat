@@ -37,6 +37,10 @@ function renderTopBar() {
   return bar;
 }
 
+function fmtBig(n) {
+  return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n);
+}
+
 function budgetPillHTML() {
   return `CAP <span class="budget-num">${state.budgetSpent}</span>/${BUDGET_CAP}`;
 }
@@ -220,6 +224,21 @@ function renderVerdict() {
   wrap.appendChild(statsGrid);
 
   wrap.appendChild(el("div", "career-wins", `${career.careerWins.toLocaleString()} career wins with the ${state.team.name}`));
+
+  wrap.appendChild(el("div", "section-label", "CAREER TOTALS"));
+  const totalsGrid = el("div", "stats-grid six");
+  [
+    [career.totals.pts, "PTS"], [career.totals.ast, "AST"], [career.totals.reb, "REB"],
+    [career.totals.stl, "STL"], [career.totals.blk, "BLK"], [career.totals.threes, "3PM"],
+  ].forEach(([val, label]) => {
+    totalsGrid.appendChild(el("div", "stat-box", `<div class="stat-val">${fmtBig(val)}</div><div class="stat-label">${label}</div>`));
+  });
+  wrap.appendChild(totalsGrid);
+
+  const b = career.bestSeason;
+  wrap.appendChild(el("div", "section-label", "BEST SEASON"));
+  wrap.appendChild(el("div", "peak-line",
+    `Year ${b.year} of ${career.numSeasons} — ${b.ppg} PPG · ${b.apg} APG · ${b.rpg} RPG · ${b.spg} SPG · ${b.bpg} BPG · ${b.tpg} 3PM`));
 
   if (badges.length) {
     const badgeRow = el("div", "badge-row");

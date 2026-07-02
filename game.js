@@ -115,6 +115,26 @@ function checkPositionFit(posKey) {
   return fits;
 }
 
+// ---- Per-season box score ----
+// Per-game averages for one season, jittered so no two years look identical.
+// f = finalSkills(), h = height rating, fr = frame rating.
+function generateSeasonStats(f, h, fr) {
+  const jitter = () => 1 + randInt(-8, 8) / 100;
+  const scoring = (f.Shooting + f.Finishing) / 2;
+  const ppg = clamp((4 + (scoring - 25) * 0.42) * jitter(), 4, 38);
+  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * jitter(), 0.5, 12);
+  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * jitter(), 1, 16);
+  // smaller, leaner builds poke more passing lanes; bigger builds protect the rim
+  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * jitter(), 0.2, 4);
+  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * jitter(), 0.2, 4);
+  // threes come from Shooting alone; very tall or Powerful builds live closer to the rim
+  const tallPenalty = h >= 85 ? (h - 85) * 0.03 : 0;
+  const bulkPenalty = fr >= 90 ? 0.6 : 0;
+  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * jitter(), 0, 5.5);
+  const r1 = v => Math.round(v * 10) / 10;
+  return { ppg: r1(ppg), apg: r1(apg), rpg: r1(rpg), spg: r1(spg), bpg: r1(bpg), tpg: r1(tpg) };
+}
+
 // ---- Season / career sim ----
 function simSeason(ovr, scr, varianceRange) {
   const variance = randInt(-varianceRange, varianceRange);
@@ -159,11 +179,16 @@ function simSeason(ovr, scr, varianceRange) {
   return { wins, madePlayoffs, ring, finalsMVP, allStar, allNBA, mvp, roundsWon };
 }
 
+const GAMES_PER_SEASON = 82;
+
 function simCareer(ovr, team) {
   const numSeasons = randInt(8, 18);
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
   const varianceRange = state.positionFit ? 4 : 8;
+  const f = finalSkills();
+  const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
+  let bestSeason = null;
 
   for (let i = 0; i < numSeasons; i++) {
     const seasonOVR = clamp(ovr + randInt(-3, 3), 25, 99);
@@ -176,8 +201,20 @@ function simCareer(ovr, team) {
     if (result.finalsMVP) finalsMVPs++;
     if (result.allNBA) allNBAs++;
     if (result.allStar) allStars++;
-    seasons.push(result);
+
+    const stats = generateSeasonStats(f, state.height.rating, state.frame.rating);
+    totals.pts += stats.ppg * GAMES_PER_SEASON;
+    totals.ast += stats.apg * GAMES_PER_SEASON;
+    totals.reb += stats.rpg * GAMES_PER_SEASON;
+    totals.stl += stats.spg * GAMES_PER_SEASON;
+    totals.blk += stats.bpg * GAMES_PER_SEASON;
+    totals.threes += stats.tpg * GAMES_PER_SEASON;
+    const peakScore = stats.ppg + stats.apg * 1.5 + stats.rpg;
+    if (!bestSeason || peakScore > bestSeason.peakScore) bestSeason = { year: i + 1, peakScore, ...stats };
+
+    seasons.push({ ...result, stats });
   }
+  Object.keys(totals).forEach(k => { totals[k] = Math.round(totals[k]); });
 
   const goatScore = Math.round(
     peakOVR * 4 +
@@ -189,7 +226,7 @@ function simCareer(ovr, team) {
     careerWins / 10
   );
 
-  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore };
+  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, bestSeason };
 }
 
 // ---- Tier ladder ----
@@ -269,7 +306,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
-    checkPositionFit, simSeason, simCareer, tierForScore, percentileForScore,
+    checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, percentileForScore,
     computeBadges, generateHeadline, topAttribute, BUDGET_CAP,
   };
 }

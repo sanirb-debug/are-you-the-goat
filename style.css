@@ -258,6 +258,15 @@ button {
 
 .career-wins { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; }
 
+.stats-grid.six { grid-template-columns: repeat(6, 1fr); }
+
+.peak-line {
+  color: var(--gold-bright);
+  font-weight: 600;
+  font-size: 13px;
+  margin: 4px 0 20px;
+}
+
 .badge-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
 .badge { background: var(--navy); border: 1px solid var(--gold); color: var(--gold-bright); font-size: 11px; padding: 5px 12px; border-radius: 999px; }
 
@@ -280,7 +289,7 @@ button {
 .meta-line { font-size: 11px; color: var(--text-dim); margin-bottom: 20px; }
 
 @media (max-width: 480px) {
-  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .stats-grid, .stats-grid.six { grid-template-columns: repeat(3, 1fr); }
   .legend-row { grid-template-columns: 70px 1fr 40px; }
   .legend-cost { display: none; }
 }
