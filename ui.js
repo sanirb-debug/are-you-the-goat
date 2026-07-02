@@ -221,7 +221,10 @@ function renderVerdict() {
   if (isNewBest) pctRow.appendChild(el("div", "best-badge", "★ NEW PERSONAL BEST"));
   wrap.appendChild(pctRow);
 
-  wrap.appendChild(el("div", "seasons-line", `${career.numSeasons} seasons &middot; Peak OVR ${career.peakOVR} &middot; GOAT Score ${career.goatScore}`));
+  const injuryNote = career.injuryEnded
+    ? ` <span class="injury-tag">career cut short by injury in Year ${career.injuryYear}</span>`
+    : "";
+  wrap.appendChild(el("div", "seasons-line", `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"}${injuryNote} &middot; Peak OVR ${career.peakOVR} &middot; GOAT Score ${career.goatScore}`));
 
   const statsGrid = el("div", "stats-grid");
   [

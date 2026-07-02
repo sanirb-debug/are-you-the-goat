@@ -182,17 +182,19 @@ function simSeason(ovr, scr, varianceRange) {
 }
 
 const GAMES_PER_SEASON = 82;
+const INJURY_CHANCE = 0.05; // per season, so long careers compound real risk
 
 function simCareer(ovr, team) {
-  const numSeasons = randInt(8, 18);
+  const plannedSeasons = randInt(15, 20); // expected full career if nothing goes wrong
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
   const varianceRange = state.positionFit ? 4 : 8;
   const f = finalSkills();
   const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
   let bestSeason = null;
+  let injuryEnded = false, injuryYear = null;
 
-  for (let i = 0; i < numSeasons; i++) {
+  for (let i = 0; i < plannedSeasons; i++) {
     const seasonOVR = clamp(ovr + randInt(-3, 3), 25, 99);
     peakOVR = Math.max(peakOVR, seasonOVR);
     const scrThisYear = clamp(team.scr + randInt(-5, 5), 15, 99);
@@ -215,7 +217,16 @@ function simCareer(ovr, team) {
     if (!bestSeason || peakScore > bestSeason.peakScore) bestSeason = { year: i + 1, peakScore, ...stats };
 
     seasons.push({ ...result, stats });
+
+    // serious injury can end the career right here — this season still
+    // counts, past years keep their stats and awards, but nothing follows
+    if (i < plannedSeasons - 1 && Math.random() < INJURY_CHANCE) {
+      injuryEnded = true;
+      injuryYear = i + 1;
+      break;
+    }
   }
+  const numSeasons = seasons.length;
   Object.keys(totals).forEach(k => { totals[k] = Math.round(totals[k]); });
 
   const goatScore = Math.round(
@@ -228,7 +239,7 @@ function simCareer(ovr, team) {
     careerWins / 10
   );
 
-  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, bestSeason };
+  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, bestSeason, injuryEnded, injuryYear };
 }
 
 // ---- Tier ladder ----
