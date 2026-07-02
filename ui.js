@@ -1,7 +1,6 @@
 // ===== ARE YOU THE GOAT? — UI CONTROLLER =====
 
 const app = document.getElementById("app");
-let lastSpinResult = null; // holds pending skill result before lock-in
 let career = null;
 
 function el(tag, cls, html) {
@@ -17,11 +16,11 @@ function render() {
   app.appendChild(renderTopBar());
 
   if (step === "name") renderNameStep();
+  else if (step === "team") renderTeamStep();
   else if (step === "height") renderPhysicalStep("height", HEIGHT_POOL, "Height", "How tall are they?");
   else if (step === "frame") renderPhysicalStep("frame", FRAME_POOL, "Body Frame", "What's their build?");
   else if (SKILL_ORDER.includes(step)) renderSkillStep(step);
   else if (step === "position") renderPositionStep();
-  else if (step === "team") renderTeamStep();
   else if (step === "verdict") renderVerdict();
 }
 
@@ -30,12 +29,16 @@ function renderTopBar() {
   const title = el("div", "brand", "🏀 ARE YOU THE GOAT?");
   bar.appendChild(title);
 
-  if (state.currentStep >= 3 && state.currentStep <= 7) {
-    const budget = el("div", "budget-pill",
-      `CAP <span class="budget-num">${state.budgetSpent}</span>/${BUDGET_CAP} &nbsp;·&nbsp; Rerolls left: ${TOTAL_REROLLS - state.rerollsUsed}`);
+  const step = STEPS[state.currentStep];
+  if (step === "height" || step === "frame" || SKILL_ORDER.includes(step)) {
+    const budget = el("div", "budget-pill", budgetPillHTML());
     bar.appendChild(budget);
   }
   return bar;
+}
+
+function budgetPillHTML() {
+  return `CAP <span class="budget-num">${state.budgetSpent}</span>/${BUDGET_CAP} &nbsp;·&nbsp; Rerolls left: ${TOTAL_REROLLS - state.rerollsUsed}`;
 }
 
 // ---- Step 0: Name ----
@@ -58,87 +61,80 @@ function renderNameStep() {
   input.focus();
 }
 
-// ---- Steps 1-2: Height / Frame ----
-function renderPhysicalStep(key, pool, label, sub) {
+// ---- Shared candidate wheel (Height, Frame, and all 5 skills) ----
+// Spin reveals 3 affordable candidates; clicking one locks it in.
+function renderWheelStep(title, sub, pool, formatCandidate, onLock) {
   const wrap = el("div", "card center");
-  wrap.appendChild(el("h1", "step-title", `Spin: ${label}`));
-  wrap.appendChild(el("p", "step-sub", sub));
+  wrap.appendChild(el("h1", "step-title", `Spin: ${title}`));
+  wrap.appendChild(el("p", "step-sub", `${sub} &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
 
-  const resultBox = el("div", "spin-result", state[key] ? formatPhysicalResult(state[key]) : "?");
-  wrap.appendChild(resultBox);
+  const placeholder = el("div", "spin-result", "?");
+  wrap.appendChild(placeholder);
 
-  const spinBtn = el("button", "btn-primary", state[key] ? "Spin Again" : "🎡 Spin the Wheel");
-  spinBtn.onclick = () => {
-    const pick = pickRandom(pool);
-    state[key] = pick;
-    resultBox.innerHTML = formatPhysicalResult(pick);
-    spinBtn.textContent = "Spin Again";
-    nextBtn.disabled = false;
-  };
-  wrap.appendChild(spinBtn);
-
-  const nextBtn = el("button", "btn-secondary", "Lock It In →");
-  nextBtn.disabled = !state[key];
-  nextBtn.onclick = () => { state.currentStep++; render(); };
-  wrap.appendChild(nextBtn);
-
-  app.appendChild(wrap);
-}
-
-function formatPhysicalResult(pick) {
-  return `<div class="pick-name">${pick.name}</div><div class="pick-meta">${pick.label} &nbsp;·&nbsp; Rating ${pick.rating}</div>`;
-}
-
-// ---- Steps 3-7: Skill wheels ----
-function renderSkillStep(skillName) {
-  const wrap = el("div", "card center");
-  wrap.appendChild(el("h1", "step-title", `Spin: ${skillName}`));
-  wrap.appendChild(el("p", "step-sub", `Budget remaining: ${budgetRemaining()} pts`));
-
-  const resultBox = el("div", "spin-result", "?");
-  wrap.appendChild(resultBox);
+  const grid = el("div", "candidate-grid");
+  grid.style.display = "none";
+  wrap.appendChild(grid);
 
   const btnRow = el("div", "btn-row");
-
   const spinBtn = el("button", "btn-primary", "🎡 Spin the Wheel");
-  const lockBtn = el("button", "btn-secondary", "Lock It In →");
   const rerollBtn = el("button", "btn-ghost", `Reroll (${TOTAL_REROLLS - state.rerollsUsed} left)`);
-  lockBtn.disabled = true;
   rerollBtn.disabled = true;
 
-  function doSpin(isReroll) {
-    const result = spinSkillWheel(skillName);
-    lastSpinResult = result;
-    resultBox.innerHTML = `<div class="pick-name">${result.name}</div><div class="pick-meta">Rating ${result.rating} &nbsp;·&nbsp; Costs ${result.cost} pts</div>`;
-    lockBtn.disabled = false;
-    rerollBtn.disabled = !canReroll();
+  function showCandidates() {
+    grid.innerHTML = "";
+    getCandidates(pool).forEach(pick => {
+      const card = el("button", "candidate-card", formatCandidate(pick));
+      card.onclick = () => {
+        onLock(pick);
+        state.currentStep++;
+        render();
+      };
+      grid.appendChild(card);
+    });
+    placeholder.style.display = "none";
+    grid.style.display = "grid";
     spinBtn.style.display = "none";
+    rerollBtn.disabled = !canReroll();
   }
 
-  spinBtn.onclick = () => doSpin(false);
+  spinBtn.onclick = showCandidates;
   rerollBtn.onclick = () => {
     if (!canReroll()) return;
     useReroll();
-    doSpin(true);
     rerollBtn.textContent = `Reroll (${TOTAL_REROLLS - state.rerollsUsed} left)`;
-    rerollBtn.disabled = !canReroll();
-  };
-  lockBtn.onclick = () => {
-    lockSkill(skillName, lastSpinResult);
-    lastSpinResult = null;
-    state.currentStep++;
-    render();
+    const pill = document.querySelector(".budget-pill");
+    if (pill) pill.innerHTML = budgetPillHTML();
+    showCandidates();
   };
 
   btnRow.appendChild(spinBtn);
   btnRow.appendChild(rerollBtn);
-  btnRow.appendChild(lockBtn);
   wrap.appendChild(btnRow);
 
   app.appendChild(wrap);
 }
 
-// ---- Step 8: Position ----
+// ---- Steps 2-3: Height / Frame ----
+function renderPhysicalStep(key, pool, label, sub) {
+  renderWheelStep(label, sub, pool, formatPhysicalCandidate, pick => lockPhysical(key, pick));
+}
+
+// Label (e.g. 6'11" or Powerful) is the headline; rating stays internal.
+function formatPhysicalCandidate(pick) {
+  return `<div class="pick-name">${pick.label}</div><div class="pick-meta">${pick.name} &nbsp;·&nbsp; Costs ${pick.cost} pts</div>`;
+}
+
+// ---- Steps 4-8: Skill wheels ----
+function renderSkillStep(skillName) {
+  renderWheelStep(skillName, "Pick one to lock in.", SKILL_POOLS[skillName], formatSkillCandidate,
+    pick => lockSkill(skillName, pick));
+}
+
+function formatSkillCandidate(pick) {
+  return `<div class="pick-name">${pick.name}</div><div class="pick-meta">Rating ${pick.rating} &nbsp;·&nbsp; Costs ${pick.cost} pts</div>`;
+}
+
+// ---- Step 9: Position ----
 function renderPositionStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Choose a Position"));
@@ -152,6 +148,7 @@ function renderPositionStep() {
     btn.onclick = () => {
       state.position = key;
       state.positionFit = fits;
+      career = simCareer(computeOVR(), state.team);
       state.currentStep++;
       render();
     };
@@ -161,7 +158,7 @@ function renderPositionStep() {
   app.appendChild(wrap);
 }
 
-// ---- Step 9: Team ----
+// ---- Step 1: Team ----
 function renderTeamStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Spin for a Team"));
@@ -179,14 +176,9 @@ function renderTeamStep() {
   };
   wrap.appendChild(spinBtn);
 
-  const nextBtn = el("button", "btn-secondary", "Simulate Career →");
+  const nextBtn = el("button", "btn-secondary", "Lock It In →");
   nextBtn.disabled = !state.team;
-  nextBtn.onclick = () => {
-    const ovr = computeOVR();
-    career = simCareer(ovr, state.team);
-    state.currentStep++;
-    render();
-  };
+  nextBtn.onclick = () => { state.currentStep++; render(); };
   wrap.appendChild(nextBtn);
 
   app.appendChild(wrap);
@@ -243,8 +235,8 @@ function renderVerdict() {
   const legendList = el("div", "legend-list");
   const f = finalSkills();
   const rows = [
-    ["Height", state.height.name, state.height.rating, "—"],
-    ["Frame", state.frame.name, state.frame.rating, "—"],
+    ["Height", `${state.height.name} (${state.height.label})`, state.height.rating, `${state.height.cost} pts`],
+    ["Frame", `${state.frame.name} (${state.frame.label})`, state.frame.rating, `${state.frame.cost} pts`],
     ...SKILL_ORDER.map(s => [s, state.skills[s].name, f[s], `${state.skills[s].cost} pts`]),
   ];
   rows.forEach(([cat, name, rating, cost]) => {

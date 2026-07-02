@@ -7,18 +7,18 @@ const COST_MULT = 0.15;
 
 const state = {
   name: "",
-  height: null,       // { name, label, rating }
-  frame: null,         // { name, label, rating }
+  height: null,       // { name, label, rating, cost }
+  frame: null,         // { name, label, rating, cost }
   skills: {},          // { Shooting: {name, rating, cost}, ... }
   budgetSpent: 0,
   rerollsUsed: 0,
   position: null,
   positionFit: null,   // true/false
   team: null,
-  currentStep: 0,       // 0 name, 1 height, 2 frame, 3..7 skills, 8 position, 9 team, 10 verdict
+  currentStep: 0,       // 0 name, 1 team, 2 height, 3 frame, 4..8 skills, 9 position, 10 verdict
 };
 
-const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "position", "team", "verdict"];
+const STEPS = ["name", "team", "height", "frame", ...SKILL_ORDER, "position", "verdict"];
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -29,21 +29,23 @@ function budgetRemaining() {
   return BUDGET_CAP - state.budgetSpent;
 }
 
-function spinSkillWheel(skillName) {
+const CANDIDATES_PER_SPIN = 3;
+
+function getCandidates(pool, count = CANDIDATES_PER_SPIN) {
   const remaining = budgetRemaining();
-  const pool = SKILL_POOLS[skillName];
-  const affordable = pool.filter(p => wheelCost(p.rating) <= remaining);
-  let pick;
-  if (affordable.length > 0) {
-    pick = pickRandom(affordable);
-  } else {
-    pick = pickRandom(BUDGET_BIN);
-  }
-  return { ...pick, cost: wheelCost(pick.rating) };
+  let affordable = pool.filter(p => wheelCost(p.rating) <= remaining);
+  if (affordable.length === 0) affordable = [...BUDGET_BIN];
+  const shuffled = [...affordable].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count).map(p => ({ ...p, cost: wheelCost(p.rating) }));
 }
 
 function lockSkill(skillName, result) {
   state.skills[skillName] = result;
+  state.budgetSpent += result.cost;
+}
+
+function lockPhysical(key, result) {
+  state[key] = result;
   state.budgetSpent += result.cost;
 }
 
@@ -252,7 +254,7 @@ function generateHeadline(career, tier) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    state, STEPS, SKILL_ORDER, TIERS, wheelCost, budgetRemaining, spinSkillWheel, lockSkill,
+    state, STEPS, SKILL_ORDER, TIERS, wheelCost, budgetRemaining, getCandidates, lockSkill, lockPhysical,
     canReroll, useReroll, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, tierForScore, percentileForScore,
     computeBadges, generateHeadline, topAttribute, BUDGET_CAP, TOTAL_REROLLS,

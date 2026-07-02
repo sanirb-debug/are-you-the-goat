@@ -153,6 +153,25 @@ button {
 }
 .btn-row button { flex: 1; min-width: 140px; }
 
+.candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.candidate-card {
+  background: var(--navy);
+  border: 1px solid var(--gold);
+  border-radius: 12px;
+  padding: 20px 12px;
+  text-align: center;
+}
+.candidate-card:hover {
+  border-color: var(--gold-bright);
+  background: #16233c;
+}
+
 .position-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
