@@ -16,10 +16,10 @@ function render() {
   app.appendChild(renderTopBar());
 
   if (step === "name") renderNameStep();
-  else if (step === "team") renderTeamStep();
   else if (step === "height") renderRosterStep("height", "Height", "How tall are they?", pick => lockPhysical("height", pick));
   else if (step === "frame") renderRosterStep("frame", "Body Frame", "What's their build?", pick => lockPhysical("frame", pick));
   else if (SKILL_ORDER.includes(step)) renderRosterStep(step, step, "Pick a legend to build on.", pick => lockSkill(step, pick));
+  else if (step === "careerTeam") renderCareerTeamStep();
   else if (step === "position") renderPositionStep();
   else if (step === "verdict") renderVerdict();
 }
@@ -61,14 +61,20 @@ function renderNameStep() {
   input.focus();
 }
 
-// ---- Shared roster list (Height, Frame, and all 5 skills) ----
-// Full team-history roster sorted best to worst for the category; the player
-// clicks any affordable row to lock it in. No randomness once the team is set.
+// ---- Shared roster picker (Height, Frame, and all 5 skills) ----
+// Each pick gets its own independent team spin: first spin for the franchise
+// you're scouting from, then that team's full roster shows sorted best to
+// worst for the category. Repeats across picks are fine.
 function renderRosterStep(category, title, sub, onLock) {
+  if (!state.scoutTeam) {
+    renderScoutSpin(title);
+    return;
+  }
+
   const wrap = el("div", "card");
   wrap.appendChild(el("h1", "step-title center", `Pick: ${title}`));
   wrap.appendChild(el("p", "step-sub center",
-    `${sub} &nbsp;·&nbsp; ${state.team.name} legends &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
+    `${sub} &nbsp;·&nbsp; ${state.scoutTeam.name} legends &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
 
   const list = el("div", "roster-list");
   getRosterOptions(category).forEach(opt => {
@@ -81,12 +87,43 @@ function renderRosterStep(category, title, sub, onLock) {
     row.disabled = !opt.affordable;
     row.onclick = () => {
       onLock(opt);
+      state.scoutTeam = null; // next pick spins its own team
       state.currentStep++;
       render();
     };
     list.appendChild(row);
   });
   wrap.appendChild(list);
+
+  app.appendChild(wrap);
+}
+
+// Quick team spin before each pick — decides whose roster you scout from.
+function renderScoutSpin(title) {
+  const wrap = el("div", "card center");
+  wrap.appendChild(el("h1", "step-title", `Pick: ${title}`));
+  wrap.appendChild(el("p", "step-sub", "First, spin for the franchise you're scouting this pick from."));
+
+  const resultBox = el("div", "spin-result", "?");
+  wrap.appendChild(resultBox);
+
+  let provisional = null;
+  const spinBtn = el("button", "btn-primary", "🎡 Spin for a Team");
+  spinBtn.onclick = () => {
+    provisional = pickRandom(TEAMS);
+    resultBox.innerHTML = `<div class="pick-name">${provisional.name}</div><div class="pick-meta">Scouting their all-time legends</div>`;
+    spinBtn.textContent = "Spin Again";
+    lockBtn.disabled = false;
+  };
+  wrap.appendChild(spinBtn);
+
+  const lockBtn = el("button", "btn-secondary", "Scout This Team →");
+  lockBtn.disabled = true;
+  lockBtn.onclick = () => {
+    state.scoutTeam = provisional;
+    render();
+  };
+  wrap.appendChild(lockBtn);
 
   app.appendChild(wrap);
 }
@@ -115,11 +152,13 @@ function renderPositionStep() {
   app.appendChild(wrap);
 }
 
-// ---- Step 1: Team ----
-function renderTeamStep() {
+// ---- Step 8: Career Team ----
+// The one team that matters for the season sim — separate from the
+// per-pick scouting spins, and spun exactly once.
+function renderCareerTeamStep() {
   const wrap = el("div", "card center");
-  wrap.appendChild(el("h1", "step-title", "Spin for a Team"));
-  wrap.appendChild(el("p", "step-sub", "Wherever it lands, that franchise's legends become your building blocks."));
+  wrap.appendChild(el("h1", "step-title", "Your Career Team"));
+  wrap.appendChild(el("p", "step-sub", "Your build is done — now spin for the franchise you'll actually play for. Their supporting cast decides your win totals."));
 
   const resultBox = el("div", "spin-result", state.team ? formatTeamResult(state.team) : "?");
   wrap.appendChild(resultBox);
@@ -238,6 +277,7 @@ function resetGame() {
   state.position = null;
   state.positionFit = null;
   state.team = null;
+  state.scoutTeam = null;
   state.currentStep = 0;
   career = null;
   render();

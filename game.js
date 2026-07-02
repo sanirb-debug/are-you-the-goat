@@ -12,11 +12,12 @@ const state = {
   budgetSpent: 0,
   position: null,
   positionFit: null,   // true/false
-  team: null,
-  currentStep: 0,       // 0 name, 1 team, 2 height, 3 frame, 4..8 skills, 9 position, 10 verdict
+  team: null,          // career team — drives the season sim
+  scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
+  currentStep: 0,       // 0 name, 1 height, 2 frame, 3..7 skills, 8 careerTeam, 9 position, 10 verdict
 };
 
-const STEPS = ["name", "team", "height", "frame", ...SKILL_ORDER, "position", "verdict"];
+const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "careerTeam", "position", "verdict"];
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -38,7 +39,7 @@ function categoryRating(player, category) {
 // they're missing; if nothing on a skill list is affordable, the budget bin
 // keeps the game from dead-ending.
 function getRosterOptions(category) {
-  const roster = TEAM_ROSTERS[state.team.abbr] || [];
+  const roster = TEAM_ROSTERS[state.scoutTeam.abbr] || [];
   const remaining = budgetRemaining();
   const options = roster.map(p => {
     const rating = categoryRating(p, category);
