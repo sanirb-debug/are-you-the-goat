@@ -161,7 +161,7 @@ function renderNameStep() {
 // worst for the category. Repeats across picks are fine.
 function renderRosterStep(category, title, sub, onLock) {
   if (!state.scoutTeam) {
-    renderScoutSpin(title);
+    renderScoutSpin(category, title);
     return;
   }
 
@@ -194,8 +194,9 @@ function renderRosterStep(category, title, sub, onLock) {
 
 // Quick team spin before each pick — decides whose roster you scout from.
 // The first spin of each pick is free; "Spin Again" draws from a pool of
-// TEAM_REROLLS shared across the whole build.
-function renderScoutSpin(title) {
+// TEAM_REROLLS shared across the whole build. A small preview of the team's
+// top options for the current category helps the reroll-or-commit call.
+function renderScoutSpin(category, title) {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", `Pick: ${title}`));
   wrap.appendChild(el("p", "step-sub", "First, spin for the franchise you're scouting this pick from."));
@@ -213,7 +214,13 @@ function renderScoutSpin(title) {
       state.teamRerollsUsed++;
     }
     provisional = pickRandom(TEAMS);
-    resultBox.innerHTML = `<div class="pick-name">${provisional.name}</div><div class="pick-meta">Scouting their all-time legends</div>`;
+    const top = getRosterOptions(category, provisional).slice(0, 3);
+    const preview = top.map(o =>
+      `<span class="preview-item${o.affordable ? "" : " dim"}">${o.name} <b>${o.label || o.rating}</b> · ${o.cost} pts</span>`
+    ).join("");
+    resultBox.innerHTML = `<div class="pick-name">${provisional.name}</div>
+      <div class="pick-meta">Top ${categoryLabel(category)} picks on their roster:</div>
+      <div class="scout-preview">${preview}</div>`;
     spinBtn.textContent = rerollsLeft() > 0 ? `Spin Again (${rerollsLeft()} left)` : "No Rerolls Left";
     spinBtn.disabled = rerollsLeft() <= 0;
     lockBtn.disabled = false;
