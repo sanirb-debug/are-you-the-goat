@@ -169,6 +169,9 @@ button {
 .roster-row:hover:not(:disabled) { background: #16233c; }
 .roster-row.locked { opacity: 0.35; cursor: not-allowed; }
 
+.roster-row.current { background: rgba(212, 167, 44, 0.08); }
+.current-tag { color: var(--gold-bright); border-color: var(--gold); }
+
 .roster-name { font-weight: 600; color: white; }
 .era-tag {
   font-size: 10px;
@@ -287,6 +290,67 @@ button {
 .legend-cost { color: var(--text-dim); font-size: 11px; text-align: right; }
 
 .meta-line { font-size: 11px; color: var(--text-dim); margin-bottom: 20px; }
+
+/* ---- Persistent picks panel ---- */
+.picks-panel {
+  position: fixed;
+  right: 24px;
+  top: 88px;
+  width: 220px;
+  background: var(--navy-light);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  z-index: 10;
+}
+
+.picks-title {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  padding: 2px 0 6px;
+}
+.picks-count { color: var(--text-dim); font-weight: 400; margin-left: 6px; }
+.picks-caret { float: right; color: var(--text-dim); display: none; }
+
+.picks-row {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--card-border);
+  padding: 7px 4px;
+  text-align: left;
+  color: var(--text);
+}
+.picks-body .picks-row:last-child { border-bottom: none; }
+button.picks-row:hover { background: #16233c; border-radius: 8px; }
+.picks-row.editing { outline: 1px solid var(--gold); border-radius: 8px; }
+
+.picks-cat {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.picks-player { display: block; font-size: 13px; font-weight: 600; color: white; }
+.picks-row.empty .picks-player { color: var(--text-dim); font-weight: 400; font-size: 12px; }
+.picks-meta { display: block; font-size: 11px; color: var(--gold-bright); }
+
+/* Narrow screens: the panel becomes a collapsible drawer above the card */
+@media (max-width: 1240px) {
+  .picks-panel { position: static; width: auto; margin-bottom: 18px; }
+  .picks-caret { display: inline; }
+  .picks-panel .picks-body { display: none; }
+  .picks-panel.open .picks-body { display: block; }
+}
 
 @media (max-width: 480px) {
   .stats-grid, .stats-grid.six { grid-template-columns: repeat(3, 1fr); }

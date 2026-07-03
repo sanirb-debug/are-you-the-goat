@@ -1,6 +1,7 @@
 // ===== ARE YOU THE GOAT? — GAME LOGIC =====
 
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Defense", "Rebounding"];
+const CATEGORIES = ["height", "frame", ...SKILL_ORDER];
 const BUDGET_CAP = 100;
 const COST_MULT = 0.15;
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
@@ -16,6 +17,7 @@ const state = {
   team: null,          // career team — drives the season sim
   scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
   teamRerollsUsed: 0,  // scout-spin "Spin Again" uses, shared across the whole build
+  editingCategory: null, // set while revising an earlier pick from the sidebar
   currentStep: 0,       // 0 name, 1 height, 2 frame, 3..7 skills, 8 careerTeam, 9 position, 10 verdict
 };
 
@@ -36,30 +38,44 @@ function categoryRating(player, category) {
   return player.skills[category];
 }
 
-// Full roster of the locked-in team for one category, best to worst.
-// Unaffordable players stay in the list (flagged) so the player sees what
-// they're missing; if nothing on a skill list is affordable, the budget bin
-// keeps the game from dead-ending.
-function getRosterOptions(category) {
-  const roster = TEAM_ROSTERS[state.scoutTeam.abbr] || [];
-  const remaining = budgetRemaining();
+// Full roster of one team for one category, best to worst. Unaffordable
+// players stay in the list (flagged) so the player sees what they're
+// missing; if nothing on a skill list is affordable, the budget bin keeps
+// the game from dead-ending. extraBudget covers edit mode, where the
+// current pick's cost is refunded before the swap.
+function getRosterOptions(category, team = state.scoutTeam, extraBudget = 0) {
+  const roster = TEAM_ROSTERS[team.abbr] || [];
+  const remaining = budgetRemaining() + extraBudget;
   const options = roster.map(p => {
     const rating = categoryRating(p, category);
     const cost = wheelCost(rating);
     const label = category === "height" ? p.height.label
       : category === "frame" ? p.frame.label
       : null;
-    return { name: p.name, era: p.era, label, rating, cost, affordable: cost <= remaining };
+    return { name: p.name, era: p.era, label, rating, cost, team, affordable: cost <= remaining };
   }).sort((a, b) => b.rating - a.rating);
 
   if (SKILL_ORDER.includes(category) && !options.some(o => o.affordable)) {
     BUDGET_BIN.forEach(p => {
       // cost clamps to whatever is left so the game can never soft-lock
       const cost = Math.min(wheelCost(p.rating), remaining);
-      options.push({ name: p.name, era: "—", label: null, rating: p.rating, cost, affordable: true });
+      options.push({ name: p.name, era: "—", label: null, rating: p.rating, cost, team, affordable: true });
     });
   }
   return options;
+}
+
+function currentPick(category) {
+  if (category === "height" || category === "frame") return state[category];
+  return state.skills[category];
+}
+
+// Swap an already-locked pick: refund the old cost, charge the new one.
+function replacePick(category, newPick) {
+  const old = currentPick(category);
+  state.budgetSpent += newPick.cost - old.cost;
+  if (category === "height" || category === "frame") state[category] = newPick;
+  else state.skills[category] = newPick;
 }
 
 function lockSkill(skillName, result) {
@@ -317,8 +333,8 @@ function generateHeadline(career, tier) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    state, STEPS, SKILL_ORDER, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
+    currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, percentileForScore,
     computeBadges, generateHeadline, topAttribute, BUDGET_CAP, TEAM_REROLLS,
   };

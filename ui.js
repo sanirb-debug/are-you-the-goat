@@ -2,6 +2,7 @@
 
 const app = document.getElementById("app");
 let career = null;
+let picksDrawerOpen = false; // mobile drawer toggle, persists across renders
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -14,6 +15,12 @@ function render() {
   app.innerHTML = "";
   const step = STEPS[state.currentStep];
   app.appendChild(renderTopBar());
+
+  if (inPickingPhase()) app.appendChild(renderPicksPanel());
+  if (state.editingCategory) {
+    renderEditStep(state.editingCategory);
+    return;
+  }
 
   if (step === "name") renderNameStep();
   else if (step === "height") renderRosterStep("height", "Height", "How tall are they?", pick => lockPhysical("height", pick));
@@ -35,6 +42,89 @@ function renderTopBar() {
     bar.appendChild(budget);
   }
   return bar;
+}
+
+// Picks are editable only while still choosing attributes; from the career
+// team step onward they lock in for good (Position depends on Height/Frame).
+function inPickingPhase() {
+  const step = STEPS[state.currentStep];
+  return step === "height" || step === "frame" || SKILL_ORDER.includes(step);
+}
+
+const CATEGORY_LABELS = { height: "Height", frame: "Frame" };
+function categoryLabel(cat) { return CATEGORY_LABELS[cat] || cat; }
+
+// ---- Persistent picks panel ----
+// Fixed sidebar on wide screens, collapsible drawer above the card on
+// narrow ones. Locked rows are clickable to revise that pick.
+function renderPicksPanel() {
+  const locked = CATEGORIES.filter(c => currentPick(c)).length;
+  const panel = el("aside", "picks-panel" + (picksDrawerOpen ? " open" : ""));
+
+  const toggle = el("button", "picks-title", `YOUR PICKS <span class="picks-count">${locked}/7</span><span class="picks-caret">${picksDrawerOpen ? "▴" : "▾"}</span>`);
+  toggle.onclick = () => { picksDrawerOpen = !picksDrawerOpen; render(); };
+  panel.appendChild(toggle);
+
+  const body = el("div", "picks-body");
+  CATEGORIES.forEach(cat => {
+    const pick = currentPick(cat);
+    if (pick) {
+      const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : ""),
+        `<span class="picks-cat">${categoryLabel(cat)}</span>
+         <span class="picks-player">${pick.name}</span>
+         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${pick.cost} pts</span>`);
+      row.onclick = () => {
+        state.editingCategory = cat;
+        render();
+      };
+      body.appendChild(row);
+    } else {
+      body.appendChild(el("div", "picks-row empty",
+        `<span class="picks-cat">${categoryLabel(cat)}</span><span class="picks-player">not picked yet</span>`));
+    }
+  });
+  panel.appendChild(body);
+  return panel;
+}
+
+// ---- Edit a locked pick ----
+// Re-opens the same team's roster the pick was scouted from — no new spin.
+function renderEditStep(category) {
+  const pick = currentPick(category);
+  const team = pick.team;
+
+  const wrap = el("div", "card");
+  wrap.appendChild(el("h1", "step-title center", `Edit: ${categoryLabel(category)}`));
+  wrap.appendChild(el("p", "step-sub center",
+    `${team.name} legends &nbsp;·&nbsp; current: ${pick.name} (${pick.cost} pts refunded on swap) &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
+
+  const list = el("div", "roster-list");
+  getRosterOptions(category, team, pick.cost).forEach(opt => {
+    const isCurrent = opt.name === pick.name && opt.cost === pick.cost;
+    const display = opt.label || opt.rating;
+    const row = el("button", "roster-row" + (opt.affordable ? "" : " locked") + (isCurrent ? " current" : ""),
+      `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}</span>
+       <span class="roster-rating">${display}</span>
+       <span class="roster-cost">${opt.cost} pts</span>`);
+    row.disabled = !opt.affordable;
+    row.onclick = () => {
+      replacePick(category, opt);
+      state.editingCategory = null;
+      render();
+    };
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+
+  const keepBtn = el("button", "btn-secondary", "← Keep Current Pick");
+  keepBtn.style.marginTop = "14px";
+  keepBtn.onclick = () => {
+    state.editingCategory = null;
+    render();
+  };
+  wrap.appendChild(keepBtn);
+
+  app.appendChild(wrap);
 }
 
 function fmtBig(n) {
@@ -310,8 +400,10 @@ function resetGame() {
   state.team = null;
   state.scoutTeam = null;
   state.teamRerollsUsed = 0;
+  state.editingCategory = null;
   state.currentStep = 0;
   career = null;
+  picksDrawerOpen = false;
   render();
 }
 
