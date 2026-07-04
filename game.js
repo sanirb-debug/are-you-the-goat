@@ -3,7 +3,6 @@
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Defense", "Rebounding"];
 const CATEGORIES = ["height", "frame", ...SKILL_ORDER];
 const BUDGET_CAP = 100;
-const COST_MULT = 0.15;
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
 const state = {
@@ -26,7 +25,10 @@ const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "careerTeam", "positio
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
-function wheelCost(rating) { return Math.round(rating * COST_MULT); }
+// Quadratic curve: elites cost disproportionately more than mid-tier picks
+// (99 -> 22, 90 -> 18, 75 -> 13, 60 -> 8, 45 -> 5), so stacking elites in
+// every category is mathematically impossible against the 100-pt cap.
+function wheelCost(rating) { return Math.round(rating * rating / 450); }
 
 function budgetRemaining() {
   return BUDGET_CAP - state.budgetSpent;
