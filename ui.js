@@ -156,84 +156,58 @@ function renderNameStep() {
 }
 
 // ---- Shared roster picker (Height, Frame, and all 5 skills) ----
-// Each pick gets its own independent team spin: first spin for the franchise
-// you're scouting from, then that team's full roster shows sorted best to
-// worst for the category. Repeats across picks are fine.
+// Each pick gets its own independent team spin. Spinning reveals the team's
+// FULL roster for the category right away — sorted best to worst, clickable
+// to lock in. "Spin Again" (3 shared rerolls per build) sits above the list.
 function renderRosterStep(category, title, sub, onLock) {
-  if (!state.scoutTeam) {
-    renderScoutSpin(category, title);
-    return;
-  }
+  const team = state.scoutTeam;
+  const rerollsLeft = TEAM_REROLLS - state.teamRerollsUsed;
 
   const wrap = el("div", "card");
   wrap.appendChild(el("h1", "step-title center", `Pick: ${title}`));
+  const teamNote = team
+    ? `<span class="scout-team-name">${team.name}</span> legends`
+    : "Spin for the franchise you're scouting this pick from.";
   wrap.appendChild(el("p", "step-sub center",
-    `${sub} &nbsp;·&nbsp; ${state.scoutTeam.name} legends &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
+    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
 
-  const list = el("div", "roster-list");
-  getRosterOptions(category).forEach(opt => {
-    // Height/Frame headline their real-world label; skills show the rating.
-    const display = opt.label || opt.rating;
-    const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
-      `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span></span>
-       <span class="roster-rating">${display}</span>
-       <span class="roster-cost">${opt.cost} pts</span>`);
-    row.disabled = !opt.affordable;
-    row.onclick = () => {
-      onLock(opt);
-      state.scoutTeam = null; // next pick spins its own team
-      state.currentStep++;
-      render();
-    };
-    list.appendChild(row);
-  });
-  wrap.appendChild(list);
-
-  app.appendChild(wrap);
-}
-
-// Quick team spin before each pick — decides whose roster you scout from.
-// The first spin of each pick is free; "Spin Again" draws from a pool of
-// TEAM_REROLLS shared across the whole build. A small preview of the team's
-// top options for the current category helps the reroll-or-commit call.
-function renderScoutSpin(category, title) {
-  const wrap = el("div", "card center");
-  wrap.appendChild(el("h1", "step-title", `Pick: ${title}`));
-  wrap.appendChild(el("p", "step-sub", "First, spin for the franchise you're scouting this pick from."));
-
-  const resultBox = el("div", "spin-result", "?");
-  wrap.appendChild(resultBox);
-
-  const rerollsLeft = () => TEAM_REROLLS - state.teamRerollsUsed;
-
-  let provisional = null;
-  const spinBtn = el("button", "btn-primary", "🎡 Spin for a Team");
+  const spinBtn = el("button", "btn-primary",
+    !team ? "🎡 Spin for a Team"
+      : rerollsLeft > 0 ? `Spin Again (${rerollsLeft} left)`
+      : "No Rerolls Left");
+  spinBtn.disabled = !!team && rerollsLeft <= 0;
   spinBtn.onclick = () => {
-    if (provisional) {
-      if (rerollsLeft() <= 0) return;
-      state.teamRerollsUsed++;
+    if (team) {
+      if (rerollsLeft <= 0) return;
+      state.teamRerollsUsed++; // first spin of each pick is free, respins are not
     }
-    provisional = pickRandom(TEAMS);
-    const top = getRosterOptions(category, provisional).slice(0, 3);
-    const preview = top.map(o =>
-      `<span class="preview-item${o.affordable ? "" : " dim"}">${o.name} <b>${o.label || o.rating}</b> · ${o.cost} pts</span>`
-    ).join("");
-    resultBox.innerHTML = `<div class="pick-name">${provisional.name}</div>
-      <div class="pick-meta">Top ${categoryLabel(category)} picks on their roster:</div>
-      <div class="scout-preview">${preview}</div>`;
-    spinBtn.textContent = rerollsLeft() > 0 ? `Spin Again (${rerollsLeft()} left)` : "No Rerolls Left";
-    spinBtn.disabled = rerollsLeft() <= 0;
-    lockBtn.disabled = false;
+    state.scoutTeam = pickRandom(TEAMS);
+    render();
   };
   wrap.appendChild(spinBtn);
 
-  const lockBtn = el("button", "btn-secondary", "Scout This Team →");
-  lockBtn.disabled = true;
-  lockBtn.onclick = () => {
-    state.scoutTeam = provisional;
-    render();
-  };
-  wrap.appendChild(lockBtn);
+  if (!team) {
+    wrap.appendChild(el("div", "spin-result", "?"));
+  } else {
+    const list = el("div", "roster-list");
+    getRosterOptions(category).forEach(opt => {
+      // Height/Frame headline their real-world label; skills show the rating.
+      const display = opt.label || opt.rating;
+      const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
+        `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span></span>
+         <span class="roster-rating">${display}</span>
+         <span class="roster-cost">${opt.cost} pts</span>`);
+      row.disabled = !opt.affordable;
+      row.onclick = () => {
+        onLock(opt);
+        state.scoutTeam = null; // next pick spins its own team
+        state.currentStep++;
+        render();
+      };
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+  }
 
   app.appendChild(wrap);
 }
