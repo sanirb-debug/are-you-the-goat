@@ -223,6 +223,19 @@ button {
 }
 .verdict-headline { font-style: italic; color: var(--text-dim); margin-bottom: 22px; font-size: 14px; }
 
+/* Scouting-report prose — reads like a writeup, not another stat grid */
+.scout-report {
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--navy);
+  border-left: 3px solid var(--gold);
+  border-radius: 0 10px 10px 0;
+  padding: 14px 18px;
+  margin: 0 0 22px;
+}
+
 .ladder {
   display: flex;
   justify-content: space-between;

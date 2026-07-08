@@ -312,6 +312,57 @@ function computeBadges(ovr, career) {
   return badges;
 }
 
+// ---- Scouting report (verdict narrative) ----
+const FRAME_ADJ = {
+  Slight: "wiry", Lean: "lean", Athletic: "athletic",
+  Strong: "sturdy", Bulky: "bruising", Powerful: "overpowering",
+};
+
+// What tier a build of this OVR "should" reach, for over/under-performance flavor
+function expectedTierIndex(ovr) {
+  if (ovr >= 92) return 6; // GOAT-capable
+  if (ovr >= 87) return 5; // Legend
+  if (ovr >= 80) return 4; // Superstar
+  if (ovr >= 75) return 3; // All-Star
+  if (ovr >= 65) return 2; // Starter
+  return 1;
+}
+
+function generateScoutingReport(career, ovr, tier) {
+  const name = state.name || "The Mystery Player";
+  const pos = POSITIONS[state.position].label.toLowerCase();
+  const adj = FRAME_ADJ[state.frame.label] || "unorthodox";
+  const attr = topAttribute().toLowerCase();
+  const b = career.bestSeason;
+  const team = state.team.name;
+
+  const buildArticle = /^[aeiou]/i.test(adj) ? "an" : "a";
+  const s1 = `${name} was ${buildArticle} ${adj} ${state.height.label} ${pos} whose game ran through his ${attr}.`;
+
+  let s2 = `At his Year ${b.year} peak he put up ${b.ppg} points, ${b.rpg} boards, and ${b.apg} assists a night`;
+  if (career.rings > 0) {
+    s2 += `, powering the ${team} to ${career.rings === 1 ? "a championship" : career.rings + " championships"}.`;
+  } else if (career.mvps > 0) {
+    s2 += ` — MVP-level stuff the ${team} never quite cashed in.`;
+  } else {
+    s2 += `, though the ${team} never got him over the hump.`;
+  }
+
+  const s3 = career.injuryEnded
+    ? ` A serious injury slammed the door shut in Year ${career.injuryYear}.`
+    : "";
+
+  const tierIdx = TIERS.findIndex(t => t.name === tier.name);
+  const expIdx = expectedTierIndex(ovr);
+  const article = /^[AEIOU]/i.test(tier.name) ? "an" : "a";
+  let s4;
+  if (tierIdx > expIdx) s4 = `The history books call him ${article} ${tier.name} — more than that build had any right to promise.`;
+  else if (tierIdx < expIdx) s4 = `Built for more, remembered as ${article} ${tier.name} — the what-ifs write themselves.`;
+  else s4 = `${article === "an" ? "An" : "A"} ${tier.name}, and exactly the career that build was always going to deliver.`;
+
+  return `${s1} ${s2}${s3} ${s4}`;
+}
+
 // ---- Headline generator ----
 function topAttribute() {
   const f = finalSkills();
@@ -338,6 +389,6 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, percentileForScore,
-    computeBadges, generateHeadline, topAttribute, BUDGET_CAP, TEAM_REROLLS,
+    computeBadges, generateHeadline, generateScoutingReport, topAttribute, BUDGET_CAP, TEAM_REROLLS,
   };
 }

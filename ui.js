@@ -285,6 +285,8 @@ function renderVerdict() {
   wrap.appendChild(el("h1", "verdict-tier", tier.name.toUpperCase()));
   wrap.appendChild(el("div", "verdict-headline", `"${headline}"`));
 
+  wrap.appendChild(el("div", "scout-report", generateScoutingReport(career, ovr, tier)));
+
   wrap.appendChild(renderLadder(tier));
 
   const pctRow = el("div", "pct-row");
