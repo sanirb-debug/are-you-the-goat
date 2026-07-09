@@ -101,7 +101,7 @@ function renderEditStep(category) {
   const list = el("div", "roster-list");
   getRosterOptions(category, team, pick.cost).forEach(opt => {
     const isCurrent = opt.name === pick.name && opt.cost === pick.cost;
-    const display = opt.label || opt.rating;
+    const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
     const row = el("button", "roster-row" + (opt.affordable ? "" : " locked") + (isCurrent ? " current" : ""),
       `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}</span>
        <span class="roster-rating">${display}</span>
@@ -191,8 +191,9 @@ function renderRosterStep(category, title, sub, onLock) {
   } else {
     const list = el("div", "roster-list");
     getRosterOptions(category).forEach(opt => {
-      // Height/Frame headline their real-world label; skills show the rating.
-      const display = opt.label || opt.rating;
+      // Height/Frame show their real-world label plus the individual rating;
+      // skills show the rating alone.
+      const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
       const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
         `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span></span>
          <span class="roster-rating">${display}</span>
@@ -271,7 +272,7 @@ function formatTeamResult(team) {
 // ---- Step 10: Verdict ----
 function renderVerdict() {
   const ovr = computeOVR();
-  const tier = tierForScore(career.goatScore);
+  const tier = tierForCareer(career.goatScore, career.peakOVR);
   const pct = percentileForScore(career.goatScore).toFixed(1);
   const badges = computeBadges(ovr, career);
   const headline = generateHeadline(career, tier);
@@ -327,7 +328,11 @@ function renderVerdict() {
 
   if (badges.length) {
     const badgeRow = el("div", "badge-row");
-    badges.forEach(b => badgeRow.appendChild(el("div", "badge", b)));
+    badges.forEach(b => {
+      const badge = el("div", "badge", b);
+      badge.title = BADGE_INFO[b] || "";
+      badgeRow.appendChild(badge);
+    });
     wrap.appendChild(badgeRow);
   }
 

@@ -26,9 +26,11 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
 // Quadratic curve: elites cost disproportionately more than mid-tier picks
-// (99 -> 22, 90 -> 18, 75 -> 13, 60 -> 8, 45 -> 5), so stacking elites in
+// (99 -> 20, 90 -> 16, 75 -> 11, 60 -> 7, 45 -> 4), so stacking elites in
 // every category is mathematically impossible against the 100-pt cap.
-function wheelCost(rating) { return Math.round(rating * rating / 450); }
+// Tuned together with TIER_OVR_FLOORS: greedy play tops out below the GOAT
+// floor, while a deliberately top-heavy build can just barely clear it.
+function wheelCost(rating) { return Math.round(rating * rating / 500); }
 
 function budgetRemaining() {
   return BUDGET_CAP - state.budgetSpent;
@@ -279,6 +281,21 @@ function tierForScore(score) {
   return result;
 }
 
+// Top tiers demand a truly elite build, not just longevity: a career must
+// clear BOTH the score threshold AND the peak-OVR floor. Miss the floor and
+// you drop until a tier's floor (if any) is satisfied.
+const TIER_OVR_FLOORS = { GOAT: 95, Legend: 90, Superstar: 85 };
+
+function tierForCareer(score, peakOVR) {
+  let idx = TIERS.indexOf(tierForScore(score));
+  while (idx > 0) {
+    const floor = TIER_OVR_FLOORS[TIERS[idx].name];
+    if (!floor || peakOVR >= floor) break;
+    idx--;
+  }
+  return TIERS[idx];
+}
+
 // ---- Percentile (z-score approx against assumed distribution) ----
 function percentileForScore(score) {
   const mean = 230, stdev = 110;
@@ -300,6 +317,16 @@ function erf(x) {
 }
 
 // ---- Badges ----
+// One-phrase criteria shown as hover tooltips; keep in sync with computeBadges.
+const BADGE_INFO = {
+  "Unicorn Build": "Elite height (85+) paired with elite Shooting (85+)",
+  "Small Ball Terror": "Undersized build (height 40 or less) with elite 85+ Rebounding",
+  "Two-Way Monster": "Elite on both ends: 88+ Defense plus an 88+ scoring skill",
+  "Full Send": "Spent 97+ of the 100-point budget",
+  "Positional Anomaly": "Played a position the build doesn't naturally fit",
+  "Certified Bust": "GOAT Score under 100 — this build never got going",
+};
+
 function computeBadges(ovr, career) {
   const f = finalSkills();
   const badges = [];
@@ -388,7 +415,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
-    checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, percentileForScore,
-    computeBadges, generateHeadline, generateScoutingReport, topAttribute, BUDGET_CAP, TEAM_REROLLS,
+    checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
+    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, topAttribute, BUDGET_CAP, TEAM_REROLLS,
   };
 }
