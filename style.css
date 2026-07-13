@@ -298,6 +298,14 @@ button {
 
 .career-wins { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; }
 
+/* Per-game averages under the Career Totals boxes — secondary to the totals */
+.career-averages {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 8px 0 4px;
+}
+
 .stats-grid.six { grid-template-columns: repeat(6, 1fr); }
 
 .peak-line {

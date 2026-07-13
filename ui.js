@@ -387,6 +387,13 @@ function renderVerdict() {
   });
   wrap.appendChild(totalsGrid);
 
+  // Career per-game averages: total stat / total games played across the
+  // whole career (each season is GAMES_PER_SEASON games, injury year included).
+  const games = career.numSeasons * GAMES_PER_SEASON;
+  const pg = n => (n / games).toFixed(1);
+  wrap.appendChild(el("div", "career-averages",
+    `${pg(career.totals.pts)} PPG &middot; ${pg(career.totals.ast)} APG &middot; ${pg(career.totals.reb)} RPG &middot; ${pg(career.totals.stl)} SPG &middot; ${pg(career.totals.blk)} BPG &middot; ${pg(career.totals.threes)} 3PM`));
+
   const b = career.bestSeason;
   wrap.appendChild(el("div", "section-label", "BEST SEASON"));
   wrap.appendChild(el("div", "peak-line",

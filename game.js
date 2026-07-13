@@ -438,6 +438,6 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
-    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, topAttribute, BUDGET_CAP, TEAM_REROLLS,
+    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
   };
 }
