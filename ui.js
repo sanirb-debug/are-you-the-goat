@@ -456,7 +456,10 @@ function renderVerdict() {
     const badgeRow = el("div", "badge-row");
     badges.forEach(b => {
       const badge = el("div", "badge", b);
-      badge.title = BADGE_INFO[b] || "";
+      const info = BADGE_INFO[b] || "";
+      badge.dataset.tip = info; // drives the custom broadcast popover
+      badge.title = info;        // native fallback for touch / edge cases
+      badge.tabIndex = 0;         // keyboard/focus can surface the tip too
       badgeRow.appendChild(badge);
     });
     wrap.appendChild(badgeRow);

@@ -387,6 +387,8 @@ button { cursor: pointer; border: none; font-family: inherit; }
    ====================================================== */
 .verdict { text-align: center; padding-top: 0; }
 .verdict .step-title { display: none; }
+/* Verdict has no header band to clip, so let badge tooltips escape the panel */
+.card.verdict { overflow: visible; }
 
 .verdict-label {
   font-family: var(--font-cond);
@@ -591,6 +593,7 @@ button { cursor: pointer; border: none; font-family: inherit; }
 
 .badge-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
 .badge {
+  position: relative;
   background: var(--navy);
   border: 1px solid var(--gold);
   color: var(--gold-bright);
@@ -601,6 +604,56 @@ button { cursor: pointer; border: none; font-family: inherit; }
   padding: 5px 12px;
   border-radius: 3px;
   cursor: help;
+  outline: none;
+}
+.badge:hover, .badge:focus-visible { background: #16233c; border-color: var(--gold-bright); }
+
+/* Custom broadcast tooltip — sits above the badge (inside the card's
+   clipped bounds), matching the gold/navy treatment. */
+.badge[data-tip]:hover::after,
+.badge[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 230px;
+  background: linear-gradient(180deg, #12213a, #0a1120);
+  border: 1px solid var(--gold);
+  border-left: 3px solid var(--gold-bright);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  color: var(--text);
+  white-space: normal;
+  text-align: left;
+  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.85);
+  z-index: 30;
+  pointer-events: none;
+  animation: tipIn 0.14s ease both;
+}
+/* Little pointer arrow under the tooltip */
+.badge[data-tip]:hover::before,
+.badge[data-tip]:focus-visible::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--gold);
+  z-index: 31;
+  pointer-events: none;
+}
+@keyframes tipIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* Section labels → broadcast segment headers with a gold tick */
