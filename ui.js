@@ -135,6 +135,28 @@ function fmtBig(n) {
   return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n);
 }
 
+// Broadcast-style count-up for stat numbers. Elements carry data-count
+// (target), optional data-suffix, and data-fmt="big" for k-formatting.
+function animateCounts(root) {
+  root.querySelectorAll("[data-count]").forEach(elm => {
+    const target = parseFloat(elm.dataset.count);
+    const suffix = elm.dataset.suffix || "";
+    const big = elm.dataset.fmt === "big";
+    const render = v => (big ? fmtBig(Math.round(v)) : String(Math.round(v))) + suffix;
+    // Hidden tab (or zero target): rAF won't run, so just show the final value.
+    if (document.hidden || target === 0) { elm.textContent = render(target); return; }
+    const dur = 750;
+    const start = performance.now();
+    (function tick(now) {
+      const t = Math.min(1, (now - start) / dur);
+      elm.textContent = render(target * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(tick);
+    })(performance.now());
+    // Safety net: guarantee the final value even if rAF stalls mid-count.
+    setTimeout(() => { elm.textContent = render(target); }, dur + 400);
+  });
+}
+
 function budgetPillHTML() {
   return `CAP <span class="budget-num">${state.budgetSpent}</span>/${BUDGET_CAP}`;
 }
@@ -193,6 +215,13 @@ function renderRosterStep(category, title, sub, onLock) {
   if (!team) {
     wrap.appendChild(el("div", "spin-result", "?"));
   } else {
+    wrap.appendChild(el("div", "scout-header",
+      `<div class="scout-badge">${team.abbr}</div>
+       <div class="scout-head-text">
+         <div class="scout-kicker">● Scouting Report</div>
+         <div class="scout-teamname">${team.name}</div>
+         <div class="scout-scr">Supporting Cast Rating ${team.scr}</div>
+       </div>`));
     const list = el("div", "roster-list");
     getRosterOptions(category).forEach(opt => {
       // Height/Frame show their real-world label plus the individual rating;
@@ -315,12 +344,7 @@ function renderCareerTeamStep() {
   wrap.appendChild(resultBox);
 
   const spinBtn = el("button", "btn-primary", state.team ? "Spin Again" : "🎡 Spin the Wheel");
-  spinBtn.onclick = () => {
-    state.team = pickRandom(TEAMS);
-    resultBox.innerHTML = formatTeamResult(state.team);
-    spinBtn.textContent = "Spin Again";
-    nextBtn.disabled = false;
-  };
+  spinBtn.onclick = () => spinReel(resultBox, spinBtn, nextBtn);
   wrap.appendChild(spinBtn);
 
   const nextBtn = el("button", "btn-secondary", "Lock It In →");
@@ -329,6 +353,35 @@ function renderCareerTeamStep() {
   wrap.appendChild(nextBtn);
 
   app.appendChild(wrap);
+}
+
+// Decelerating team-wheel reel: cycles random teams fast, easing to a stop.
+// Deadline is wall-clock (performance.now) so it always lands even if timers
+// are throttled (e.g. a backgrounded tab).
+function spinReel(resultBox, spinBtn, nextBtn) {
+  spinBtn.disabled = true;
+  nextBtn.disabled = true;
+  resultBox.classList.remove("reel-land");
+  resultBox.classList.add("reeling");
+  const finalTeam = pickRandom(TEAMS);
+  const start = performance.now();
+  const dur = 1150;
+  let delay = 55;
+  (function tick() {
+    if (performance.now() - start >= dur) {
+      state.team = finalTeam;
+      resultBox.innerHTML = formatTeamResult(finalTeam);
+      resultBox.classList.remove("reeling");
+      resultBox.classList.add("reel-land");
+      spinBtn.disabled = false;
+      spinBtn.textContent = "Spin Again";
+      nextBtn.disabled = false;
+      return;
+    }
+    resultBox.innerHTML = formatTeamResult(pickRandom(TEAMS));
+    delay = Math.min(delay * 1.16, 160); // ease out
+    setTimeout(tick, delay);
+  })();
 }
 
 function formatTeamResult(team) {
@@ -371,7 +424,7 @@ function renderVerdict() {
     [career.rings, "RINGS"], [career.mvps, "MVP"], [career.finalsMVPs, "FINALS MVP"],
     [career.allNBAs, "ALL-NBA"], [career.allStars, "ALL-STAR"],
   ].forEach(([val, label]) => {
-    statsGrid.appendChild(el("div", "stat-box", `<div class="stat-val">${val}×</div><div class="stat-label">${label}</div>`));
+    statsGrid.appendChild(el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-suffix="×">0×</div><div class="stat-label">${label}</div>`));
   });
   wrap.appendChild(statsGrid);
 
@@ -383,7 +436,7 @@ function renderVerdict() {
     [career.totals.pts, "PTS"], [career.totals.ast, "AST"], [career.totals.reb, "REB"],
     [career.totals.stl, "STL"], [career.totals.blk, "BLK"], [career.totals.threes, "3PM"],
   ].forEach(([val, label]) => {
-    totalsGrid.appendChild(el("div", "stat-box", `<div class="stat-val">${fmtBig(val)}</div><div class="stat-label">${label}</div>`));
+    totalsGrid.appendChild(el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-fmt="big">0</div><div class="stat-label">${label}</div>`));
   });
   wrap.appendChild(totalsGrid);
 
@@ -435,6 +488,7 @@ function renderVerdict() {
   wrap.appendChild(again);
 
   app.appendChild(wrap);
+  animateCounts(wrap);
 }
 
 function renderLadder(currentTier) {
