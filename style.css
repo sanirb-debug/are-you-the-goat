@@ -224,6 +224,27 @@ button {
 }
 .verdict-headline { font-style: italic; color: var(--text-dim); margin-bottom: 22px; font-size: 14px; }
 
+/* Sim loading feed — highlight lines fade in one by one */
+.sim-feed {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 0 6px;
+}
+.sim-line {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: simIn 0.45s ease forwards;
+  color: var(--gold-bright);
+  font-weight: 600;
+  font-size: 15px;
+}
+@keyframes simIn {
+  to { opacity: 1; transform: none; }
+}
+
 /* Scouting-report prose — reads like a writeup, not another stat grid */
 .scout-report {
   text-align: left;

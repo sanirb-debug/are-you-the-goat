@@ -17,10 +17,10 @@ const state = {
   scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
   teamRerollsUsed: 0,  // scout-spin "Spin Again" uses, shared across the whole build
   editingCategory: null, // set while revising an earlier pick from the sidebar
-  currentStep: 0,       // 0 name, 1 height, 2 frame, 3..7 skills, 8 careerTeam, 9 position, 10 verdict
+  currentStep: 0,       // index into STEPS
 };
 
-const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "careerTeam", "position", "verdict"];
+const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "confirm", "careerTeam", "position", "simulating", "verdict"];
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -339,6 +339,28 @@ function computeBadges(ovr, career) {
   return badges;
 }
 
+// ---- Career highlight reel (sim loading screen) ----
+// A handful of real moments pulled from the just-computed season-by-season
+// data: firsts, every early ring/MVP, the injury if one hit, retirement.
+function careerHighlights(career) {
+  const h = [];
+  let firstAllStar = false, firstAllNBA = false, mvps = 0, rings = 0;
+  career.seasons.forEach((s, i) => {
+    const y = "Year " + (i + 1);
+    if (s.allStar && !firstAllStar) { h.push(y + ": First All-Star selection"); firstAllStar = true; }
+    if (s.allNBA && !firstAllNBA) { h.push(y + ": Named All-NBA " + s.allNBA + " Team"); firstAllNBA = true; }
+    if (s.mvp && mvps < 2) { h.push(y + ": Wins MVP"); mvps++; }
+    if (s.ring && rings < 2) { h.push(y + ": Wins the NBA Championship" + (s.finalsMVP ? " and Finals MVP" : "")); rings++; }
+  });
+  if (!h.length) {
+    const b = career.bestSeason;
+    h.push("Year " + b.year + ": Career-best " + b.ppg + " points per game");
+  }
+  if (career.injuryEnded) h.push("Year " + career.injuryYear + ": A serious injury ends the career");
+  h.push("Retires after " + career.numSeasons + " season" + (career.numSeasons === 1 ? "" : "s"));
+  return h.slice(0, 7);
+}
+
 // ---- Scouting report (verdict narrative) ----
 const FRAME_ADJ = {
   Slight: "wiry", Lean: "lean", Athletic: "athletic",
@@ -416,6 +438,6 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
-    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, topAttribute, BUDGET_CAP, TEAM_REROLLS,
+    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, topAttribute, BUDGET_CAP, TEAM_REROLLS,
   };
 }

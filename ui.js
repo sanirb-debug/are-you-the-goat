@@ -3,6 +3,7 @@
 const app = document.getElementById("app");
 let career = null;
 let picksDrawerOpen = false; // mobile drawer toggle, persists across renders
+let simRunToken = 0; // invalidates sim-screen timers from earlier runs
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -26,8 +27,10 @@ function render() {
   else if (step === "height") renderRosterStep("height", "Height", "How tall are they?", pick => lockPhysical("height", pick));
   else if (step === "frame") renderRosterStep("frame", "Body Frame", "What's their build?", pick => lockPhysical("frame", pick));
   else if (SKILL_ORDER.includes(step)) renderRosterStep(step, step, "Pick a legend to build on.", pick => lockSkill(step, pick));
+  else if (step === "confirm") renderConfirmStep();
   else if (step === "careerTeam") renderCareerTeamStep();
   else if (step === "position") renderPositionStep();
+  else if (step === "simulating") renderSimulating();
   else if (step === "verdict") renderVerdict();
 }
 
@@ -44,11 +47,12 @@ function renderTopBar() {
   return bar;
 }
 
-// Picks are editable only while still choosing attributes; from the career
-// team step onward they lock in for good (Position depends on Height/Frame).
+// Picks are editable while choosing attributes and on the confirm screen;
+// from the career team step onward they lock in for good (Position depends
+// on final Height/Frame).
 function inPickingPhase() {
   const step = STEPS[state.currentStep];
-  return step === "height" || step === "frame" || SKILL_ORDER.includes(step);
+  return step === "height" || step === "frame" || step === "confirm" || SKILL_ORDER.includes(step);
 }
 
 const CATEGORY_LABELS = { height: "Height", frame: "Frame" };
@@ -235,6 +239,68 @@ function renderPositionStep() {
   });
   wrap.appendChild(grid);
   app.appendChild(wrap);
+}
+
+// ---- Confirm: last chance to retool before the career locks in ----
+function renderConfirmStep() {
+  const wrap = el("div", "card center");
+  wrap.appendChild(el("h1", "step-title", "Ready to Simulate This Career?"));
+  wrap.appendChild(el("p", "step-sub",
+    `All 7 picks locked &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP} &nbsp;·&nbsp; click any pick to change it`));
+
+  const list = el("div", "roster-list");
+  CATEGORIES.forEach(cat => {
+    const p = currentPick(cat);
+    const display = p.label ? `${p.label} <span class="sub-rating">${p.rating}</span>` : p.rating;
+    const row = el("button", "roster-row",
+      `<span class="roster-name">${categoryLabel(cat)}: ${p.name} <span class="era-tag">${p.team ? p.team.abbr : "—"}</span></span>
+       <span class="roster-rating">${display}</span>
+       <span class="roster-cost">${p.cost} pts</span>`);
+    row.onclick = () => {
+      state.editingCategory = cat;
+      render();
+    };
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+
+  const simBtn = el("button", "btn-primary", "Simulate Career →");
+  simBtn.style.marginTop = "14px";
+  simBtn.onclick = () => { state.currentStep++; render(); };
+  wrap.appendChild(simBtn);
+
+  const retoolBtn = el("button", "btn-secondary", "Retool Picks");
+  retoolBtn.onclick = () => {
+    picksDrawerOpen = true; // surfaces the sidebar drawer; rows above edit directly too
+    render();
+  };
+  wrap.appendChild(retoolBtn);
+
+  app.appendChild(wrap);
+}
+
+// ---- Simulating: animated highlight reel from the real career data ----
+function renderSimulating() {
+  const wrap = el("div", "card center");
+  wrap.appendChild(el("h1", "step-title", "Simulating Career..."));
+  wrap.appendChild(el("p", "step-sub", `${state.name || "The Mystery Player"} &nbsp;·&nbsp; ${state.team.name}`));
+  const feed = el("div", "sim-feed");
+  wrap.appendChild(feed);
+  app.appendChild(wrap);
+
+  const lines = careerHighlights(career);
+  const token = ++simRunToken; // stale timers from a previous run must not fire
+  lines.forEach((line, i) => {
+    setTimeout(() => {
+      if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") return;
+      feed.appendChild(el("div", "sim-line", line));
+    }, 400 + i * 500);
+  });
+  setTimeout(() => {
+    if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") return;
+    state.currentStep++;
+    render();
+  }, 400 + lines.length * 500 + 800);
 }
 
 // ---- Step 8: Career Team ----
