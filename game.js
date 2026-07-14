@@ -1,6 +1,6 @@
 // ===== ARE YOU THE GOAT? — GAME LOGIC =====
 
-const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Defense", "Rebounding"];
+const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Handles", "Defense", "Rebounding"];
 const CATEGORIES = ["height", "frame", ...SKILL_ORDER];
 const BUDGET_CAP = 100;
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
@@ -116,7 +116,7 @@ function applyModifiers(baseRating, statName) {
   let mod = 0;
   if (["Rebounding", "Defense"].includes(statName)) mod += (h - 70) * 0.15;
   if (["Finishing", "Rebounding", "Defense"].includes(statName)) mod += (f - 70) * 0.15;
-  if (["Playmaking", "Shooting"].includes(statName)) {
+  if (["Playmaking", "Shooting", "Handles"].includes(statName)) {
     if (h >= 90) mod -= (h - 70) * 0.15;
     if (f >= 90) mod -= (f - 70) * 0.15;
   }
@@ -134,9 +134,10 @@ function finalSkills() {
 function computeOVR() {
   const f = finalSkills();
   const ovr =
-    f.Shooting * 0.20 +
-    f.Finishing * 0.20 +
-    f.Playmaking * 0.18 +
+    f.Shooting * 0.16 +
+    f.Finishing * 0.16 +
+    f.Playmaking * 0.14 +
+    f.Handles * 0.12 +
     f.Defense * 0.18 +
     f.Rebounding * 0.14 +
     state.height.rating * 0.05 +

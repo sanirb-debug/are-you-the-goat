@@ -65,7 +65,7 @@ function renderPicksPanel() {
   const locked = CATEGORIES.filter(c => currentPick(c)).length;
   const panel = el("aside", "picks-panel" + (picksDrawerOpen ? " open" : ""));
 
-  const toggle = el("button", "picks-title", `YOUR PICKS <span class="picks-count">${locked}/7</span><span class="picks-caret">${picksDrawerOpen ? "▴" : "▾"}</span>`);
+  const toggle = el("button", "picks-title", `YOUR PICKS <span class="picks-count">${locked}/${CATEGORIES.length}</span><span class="picks-caret">${picksDrawerOpen ? "▴" : "▾"}</span>`);
   toggle.onclick = () => { picksDrawerOpen = !picksDrawerOpen; render(); };
   panel.appendChild(toggle);
 
@@ -279,7 +279,7 @@ function renderConfirmStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Ready to Simulate This Career?"));
   wrap.appendChild(el("p", "step-sub",
-    `All 7 picks locked &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP} &nbsp;·&nbsp; click any pick to change it`));
+    `All ${CATEGORIES.length} picks locked &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP} &nbsp;·&nbsp; click any pick to change it`));
 
   const list = el("div", "roster-list");
   CATEGORIES.forEach(cat => {
@@ -474,7 +474,7 @@ function renderVerdict() {
     wrap.appendChild(badgeRow);
   }
 
-  wrap.appendChild(el("div", "section-label", "YOUR 7 LEGENDS"));
+  wrap.appendChild(el("div", "section-label", `YOUR ${CATEGORIES.length} LEGENDS`));
   const legendList = el("div", "legend-list");
   const f = finalSkills();
   const rows = [
