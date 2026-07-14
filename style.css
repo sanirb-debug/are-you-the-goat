@@ -476,6 +476,40 @@ button { cursor: pointer; border: none; font-family: inherit; }
   margin: 0 0 22px;
 }
 
+/* Playstyle comp callout */
+.comp-callout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: linear-gradient(90deg, #0c1830, #0a1120);
+  border: 1px solid var(--card-border);
+  border-top: 2px solid var(--gold);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 0 0 22px;
+}
+.comp-label {
+  font-family: var(--font-cond);
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.comp-name {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.5px;
+  color: var(--gold-bright);
+  text-transform: uppercase;
+  line-height: 1.05;
+}
+.comp-reason {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
 /* Tier ladder → broadcast progress strip */
 .ladder {
   display: flex;

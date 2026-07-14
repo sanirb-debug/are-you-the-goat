@@ -628,6 +628,74 @@ const POSITIONS = {
   C: { label: "Center", hMin: 80, hMax: 99, frameMin: 70 },
 };
 
+// ===== PLAYSTYLE COMP POOL =====
+// 50 iconic players (10 per position), each a full 8-attribute profile on the
+// same 0-99 scale, spanning eras and styles. Used only to find the closest
+// real-player comp for a finished build (never position-filtered).
+// [name, pos, heightLabel, height, frame, Shooting, Finishing, Playmaking, Handles, Defense, Rebounding]
+const COMP_ROWS = [
+  // ---- Point Guards ----
+  ["Magic Johnson", "PG", "6'9\"", 68, 60, 72, 82, 99, 82, 62, 75],
+  ["Steve Nash", "PG", "6'3\"", 44, 32, 95, 74, 95, 90, 40, 32],
+  ["Chris Paul", "PG", "6'0\"", 32, 45, 82, 74, 96, 92, 82, 42],
+  ["John Stockton", "PG", "6'1\"", 36, 45, 82, 72, 98, 85, 80, 40],
+  ["Isiah Thomas", "PG", "6'1\"", 36, 45, 78, 82, 92, 90, 72, 38],
+  ["Allen Iverson", "PG", "6'0\"", 32, 30, 78, 88, 80, 96, 62, 35],
+  ["Russell Westbrook", "PG", "6'3\"", 44, 80, 62, 88, 85, 78, 66, 78],
+  ["Damian Lillard", "PG", "6'2\"", 40, 45, 94, 80, 84, 88, 48, 40],
+  ["Kyrie Irving", "PG", "6'2\"", 40, 45, 92, 90, 82, 99, 52, 40],
+  ["Tony Parker", "PG", "6'1\"", 36, 45, 72, 86, 82, 82, 58, 38],
+  // ---- Shooting Guards ----
+  ["Michael Jordan", "SG", "6'6\"", 55, 62, 88, 94, 80, 88, 92, 62],
+  ["Kobe Bryant", "SG", "6'6\"", 55, 60, 90, 90, 78, 90, 85, 55],
+  ["Dwyane Wade", "SG", "6'4\"", 48, 62, 70, 92, 80, 86, 82, 52],
+  ["Ray Allen", "SG", "6'5\"", 52, 60, 97, 72, 60, 70, 62, 45],
+  ["James Harden", "SG", "6'5\"", 52, 72, 90, 84, 90, 92, 50, 55],
+  ["Klay Thompson", "SG", "6'6\"", 55, 60, 96, 72, 52, 60, 76, 45],
+  ["Manu Ginobili", "SG", "6'6\"", 55, 45, 84, 84, 82, 84, 74, 45],
+  ["Reggie Miller", "SG", "6'7\"", 58, 30, 96, 70, 58, 62, 58, 40],
+  ["Vince Carter", "SG", "6'6\"", 55, 60, 82, 94, 62, 80, 62, 55],
+  ["Jerry West", "SG", "6'2\"", 40, 45, 88, 84, 82, 82, 82, 48],
+  // ---- Small Forwards ----
+  ["LeBron James", "SF", "6'9\"", 68, 72, 80, 95, 92, 85, 82, 75],
+  ["Larry Bird", "SF", "6'9\"", 68, 60, 92, 84, 90, 74, 68, 82],
+  ["Kevin Durant", "SF", "6'10\"", 75, 45, 96, 92, 74, 78, 70, 68],
+  ["Kawhi Leonard", "SF", "6'7\"", 58, 72, 84, 86, 66, 74, 95, 66],
+  ["Scottie Pippen", "SF", "6'8\"", 62, 60, 68, 80, 82, 78, 92, 68],
+  ["Julius Erving", "SF", "6'7\"", 58, 45, 72, 92, 72, 82, 72, 68],
+  ["Paul George", "SF", "6'8\"", 62, 60, 84, 82, 70, 76, 84, 60],
+  ["Carmelo Anthony", "SF", "6'7\"", 58, 72, 86, 86, 60, 78, 52, 62],
+  ["Grant Hill", "SF", "6'8\"", 62, 60, 72, 86, 80, 82, 74, 62],
+  ["Rick Barry", "SF", "6'7\"", 58, 45, 88, 84, 80, 76, 66, 62],
+  // ---- Power Forwards ----
+  ["Tim Duncan", "PF", "6'11\"", 82, 72, 62, 88, 68, 45, 95, 92],
+  ["Karl Malone", "PF", "6'9\"", 68, 92, 72, 92, 60, 55, 76, 88],
+  ["Charles Barkley", "PF", "6'6\"", 55, 92, 68, 90, 68, 70, 62, 92],
+  ["Dirk Nowitzki", "PF", "7'0\"", 87, 45, 94, 82, 58, 60, 52, 78],
+  ["Kevin Garnett", "PF", "6'11\"", 82, 60, 72, 82, 70, 58, 95, 90],
+  ["Dennis Rodman", "PF", "6'7\"", 58, 72, 25, 55, 45, 40, 90, 99],
+  ["Giannis Antetokounmpo", "PF", "6'11\"", 82, 92, 55, 96, 78, 62, 88, 90],
+  ["Blake Griffin", "PF", "6'9\"", 68, 92, 62, 92, 70, 62, 55, 80],
+  ["Anthony Davis", "PF", "6'10\"", 75, 72, 70, 90, 62, 55, 93, 90],
+  ["Draymond Green", "PF", "6'6\"", 55, 80, 55, 62, 85, 62, 95, 78],
+  // ---- Centers ----
+  ["Shaquille O'Neal", "C", "7'1\"", 90, 92, 30, 96, 55, 40, 82, 93],
+  ["Kareem Abdul-Jabbar", "C", "7'2\"", 93, 72, 60, 96, 62, 45, 88, 92],
+  ["Hakeem Olajuwon", "C", "7'0\"", 87, 60, 55, 93, 60, 62, 97, 93],
+  ["Wilt Chamberlain", "C", "7'1\"", 90, 92, 45, 96, 60, 45, 90, 99],
+  ["Bill Russell", "C", "6'10\"", 75, 72, 40, 75, 60, 42, 97, 99],
+  ["Nikola Jokic", "C", "6'11\"", 82, 80, 82, 90, 96, 58, 58, 90],
+  ["David Robinson", "C", "7'1\"", 90, 60, 60, 90, 55, 50, 95, 92],
+  ["Patrick Ewing", "C", "7'0\"", 87, 92, 62, 88, 45, 42, 90, 90],
+  ["Dikembe Mutombo", "C", "7'2\"", 93, 92, 20, 68, 30, 35, 97, 95],
+  ["Rudy Gobert", "C", "7'1\"", 90, 72, 20, 78, 30, 30, 95, 94],
+];
+
+const COMP_PLAYERS = COMP_ROWS.map(([name, pos, heightLabel, height, frame, sh, fi, pl, ha, de, re]) => ({
+  name, pos, heightLabel,
+  dims: { height, frame, Shooting: sh, Finishing: fi, Playmaking: pl, Handles: ha, Defense: de, Rebounding: re },
+}));
+
 if (typeof module !== "undefined") {
-  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, POSITIONS };
+  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, POSITIONS, COMP_PLAYERS };
 }

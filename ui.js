@@ -416,6 +416,12 @@ function renderVerdict() {
 
   wrap.appendChild(el("div", "scout-report", generateScoutingReport(career, ovr, tier)));
 
+  const comp = playstyleComp();
+  wrap.appendChild(el("div", "comp-callout",
+    `<span class="comp-label">Playstyle Comp</span>
+     <span class="comp-name">${comp.name}</span>
+     <span class="comp-reason">${comp.reason}</span>`));
+
   wrap.appendChild(renderLadder(tier));
 
   const pctRow = el("div", "pct-row");

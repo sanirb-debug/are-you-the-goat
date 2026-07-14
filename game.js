@@ -395,6 +395,51 @@ const FRAME_ADJ = {
   Strong: "sturdy", Bulky: "bruising", Powerful: "overpowering",
 };
 
+// ---- Playstyle comp ----
+// The finished build's 8-D on-court profile: physicals raw, skills post-modifier.
+const COMP_DIMS = ["height", "frame", ...SKILL_ORDER];
+function buildProfile() {
+  const f = finalSkills();
+  const p = { height: state.height.rating, frame: state.frame.rating };
+  SKILL_ORDER.forEach(s => { p[s] = f[s]; });
+  return p;
+}
+
+// Closest real player by Euclidean distance across all 8 dimensions — never
+// position-filtered, so anomaly builds can comp across positions. Ties break
+// deterministically on name (alphabetical) so the result is stable.
+function closestComp(profile) {
+  let best = null, bestDist = Infinity;
+  for (const ref of COMP_PLAYERS) {
+    let sum = 0;
+    for (const d of COMP_DIMS) { const diff = profile[d] - ref.dims[d]; sum += diff * diff; }
+    const dist = Math.sqrt(sum);
+    if (dist < bestDist || (dist === bestDist && (!best || ref.name < best.name))) {
+      bestDist = dist; best = ref;
+    }
+  }
+  return best;
+}
+
+// One-line, template-based read on why the build comps to this player, built
+// from the comp's two standout skills, height, and a notable weakness.
+function compReason(ref) {
+  const LABELS = { Shooting: "shooting", Finishing: "finishing", Playmaking: "playmaking", Handles: "handle", Defense: "defense", Rebounding: "rebounding" };
+  const skills = SKILL_ORDER.map(k => ({ k, label: LABELS[k], v: ref.dims[k] })).sort((a, b) => b.v - a.v);
+  const [t1, t2] = skills;
+  const low = skills[skills.length - 1];
+  const strength = t1.v >= 90 ? "Elite" : t1.v >= 80 ? "Strong" : "Capable";
+  let s = `${strength} ${t1.label} and ${t2.label} at ${ref.heightLabel}`;
+  if (low.v < 55) s += `, limited ${low.label}`;
+  return s;
+}
+
+// Convenience for the verdict screen: returns { name, pos, reason }.
+function playstyleComp() {
+  const ref = closestComp(buildProfile());
+  return { name: ref.name, pos: ref.pos, reason: compReason(ref) };
+}
+
 // What tier a build of this OVR "should" reach, for over/under-performance flavor
 function expectedTierIndex(ovr) {
   if (ovr >= 92) return 6; // GOAT-capable
@@ -466,6 +511,6 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
-    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
+    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
   };
 }
