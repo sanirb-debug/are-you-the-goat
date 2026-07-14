@@ -17,13 +17,30 @@ const state = {
   scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
   teamRerollsUsed: 0,  // scout-spin "Spin Again" uses, shared across the whole build
   editingCategory: null, // set while revising an earlier pick from the sidebar
+  seed: null,           // RNG seed for the career sim — encoded in share links
+  sharedView: false,    // true when viewing someone else's build from a ?build= link
   currentStep: 0,       // index into STEPS
 };
 
 const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "confirm", "careerTeam", "position", "simulating", "verdict"];
 
+// Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
+// seeding with the same value before simCareer reproduces an identical
+// career — that's what lets a short share link recreate the exact verdict.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let _rng = mulberry32((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
+function rng() { return _rng(); }
+function seedRng(n) { _rng = mulberry32(n >>> 0); }
+
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randInt(min, max) { return Math.floor(rng() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
 // Quadratic curve: elites cost disproportionately more than mid-tier picks
 // (99 -> 20, 90 -> 16, 75 -> 11, 60 -> 7, 45 -> 4), so stacking elites in
@@ -181,7 +198,7 @@ function simSeason(ovr, scr, varianceRange) {
       const gameWinPct = clamp(0.5 + (((ovr + scr) / 2) - oppRating) * 0.01, 0.15, 0.85);
       let wWins = 0, lWins = 0;
       while (wWins < 4 && lWins < 4) {
-        if (Math.random() < gameWinPct) wWins++; else lWins++;
+        if (rng() < gameWinPct) wWins++; else lWins++;
       }
       if (wWins === 4) {
         roundsWon++;
@@ -200,7 +217,7 @@ function simSeason(ovr, scr, varianceRange) {
   else if (ovr >= 80) allNBA = "3rd";
 
   let mvp = false;
-  if (ovr >= 90 && wins >= 50) mvp = Math.random() < 0.35;
+  if (ovr >= 90 && wins >= 50) mvp = rng() < 0.35;
 
   let finalsMVP = ring && ovr >= 85;
 
@@ -246,7 +263,7 @@ function simCareer(ovr, team) {
 
     // serious injury can end the career right here — this season still
     // counts, past years keep their stats and awards, but nothing follows
-    if (i < plannedSeasons - 1 && Math.random() < INJURY_CHANCE) {
+    if (i < plannedSeasons - 1 && rng() < INJURY_CHANCE) {
       injuryEnded = true;
       injuryYear = i + 1;
       break;
@@ -442,7 +459,7 @@ function generateHeadline(career, tier) {
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    seedRng, currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
   };

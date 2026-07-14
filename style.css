@@ -387,6 +387,22 @@ button { cursor: pointer; border: none; font-family: inherit; }
    ====================================================== */
 .verdict { text-align: center; padding-top: 0; }
 .verdict .step-title { display: none; }
+
+/* Shared read-only build banner */
+.shared-banner {
+  font-family: var(--font-cond);
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--alert);
+  background: rgba(255, 75, 62, 0.08);
+  border: 1px solid rgba(255, 75, 62, 0.4);
+  border-radius: 4px;
+  padding: 8px 14px;
+  margin: 0 auto 16px;
+  display: inline-block;
+}
+.shared-banner strong { color: #fff; }
 /* Verdict has no header band to clip, so let badge tooltips escape the panel */
 .card.verdict { overflow: visible; }
 

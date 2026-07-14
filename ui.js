@@ -260,6 +260,10 @@ function renderPositionStep() {
     btn.onclick = () => {
       state.position = key;
       state.positionFit = fits;
+      // Capture a seed and simulate deterministically so a share link can
+      // reproduce this exact career later.
+      state.seed = Math.floor(Math.random() * 4294967296);
+      seedRng(state.seed);
       career = simCareer(computeOVR(), state.team);
       state.currentStep++;
       render();
@@ -397,10 +401,15 @@ function renderVerdict() {
   const headline = generateHeadline(career, tier);
   const bestKey = "aytg_best_score";
   const prevBest = parseInt(localStorage.getItem(bestKey) || "0", 10);
-  const isNewBest = career.goatScore > prevBest;
+  // Don't let viewing someone else's shared build touch the local best.
+  const isNewBest = !state.sharedView && career.goatScore > prevBest;
   if (isNewBest) localStorage.setItem(bestKey, String(career.goatScore));
 
   const wrap = el("div", "card verdict");
+  if (state.sharedView) {
+    wrap.appendChild(el("div", "shared-banner",
+      `● Viewing <strong>${state.name}</strong>'s build`));
+  }
   wrap.appendChild(el("div", "verdict-label", "THE VERDICT"));
   wrap.appendChild(el("h1", "verdict-tier", tier.name.toUpperCase()));
   wrap.appendChild(el("div", "verdict-headline", `"${headline}"`));
@@ -486,12 +495,204 @@ function renderVerdict() {
   wrap.appendChild(el("div", "meta-line",
     `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"} &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP}`));
 
-  const again = el("button", "btn-primary", "Play Again");
-  again.onclick = resetGame;
-  wrap.appendChild(again);
+  if (state.sharedView) {
+    const build = el("button", "btn-primary", "Build Your Own →");
+    build.onclick = startFresh;
+    wrap.appendChild(build);
+  } else {
+    const shareRow = el("div", "btn-row");
+    const shareBtn = el("button", "btn-primary", "🔗 Copy Share Link");
+    shareBtn.onclick = () => {
+      const link = shareLink();
+      copyToClipboard(link).then(() => {
+        shareBtn.textContent = "✓ Link Copied!";
+        setTimeout(() => { shareBtn.textContent = "🔗 Copy Share Link"; }, 2200);
+      }).catch(() => { shareBtn.textContent = "Copy failed — long-press to copy"; });
+    };
+    const imgBtn = el("button", "btn-secondary", "⬇ Save Image");
+    imgBtn.onclick = () => exportVerdictImage(imgBtn);
+    shareRow.appendChild(shareBtn);
+    shareRow.appendChild(imgBtn);
+    wrap.appendChild(shareRow);
+
+    const again = el("button", "btn-secondary", "Play Again");
+    again.onclick = resetGame;
+    again.style.marginTop = "10px";
+    wrap.appendChild(again);
+  }
 
   app.appendChild(wrap);
   animateCounts(wrap);
+}
+
+// ---- Share link: encode the build (picks + team + position + seed) ----
+// Only the *inputs* are encoded; the verdict is recomputed from them, so the
+// link stays short and always re-derives tier/score/stats client-side.
+function b64urlEncode(s) {
+  return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecode(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  return decodeURIComponent(escape(atob(s)));
+}
+
+function encodeBuild() {
+  const ref = cat => {
+    const p = currentPick(cat);
+    const idx = p.team ? TEAM_ROSTERS[p.team.abbr].findIndex(x => x.name === p.name) : -1;
+    if (idx >= 0) return [p.team.abbr, idx];
+    // Budget-bin fallback player (not in any roster; its cost was clamped to
+    // the remaining budget) — encode by bin index + the clamped cost.
+    return ["*", BUDGET_BIN.findIndex(x => x.name === p.name), p.cost];
+  };
+  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, k: CATEGORIES.map(ref) };
+  return b64urlEncode(JSON.stringify(data));
+}
+
+function shareLink() {
+  return location.origin + location.pathname + "?build=" + encodeBuild();
+}
+
+// Rebuild full game state from an encoded build, then recompute the career.
+// Throws on anything malformed so the caller can fall back to a fresh game.
+function decodeBuild(str) {
+  const data = JSON.parse(b64urlDecode(str));
+  if (data.v !== 1 || !Array.isArray(data.k) || data.k.length !== CATEGORIES.length) throw new Error("bad build");
+  state.skills = {};
+  CATEGORIES.forEach((cat, i) => {
+    const entry = data.k[i];
+    const [abbr, idx, binCost] = entry;
+    let pick;
+    if (abbr === "*") {
+      // budget-bin fallback (skills only): rebuild from BUDGET_BIN + stored cost
+      const bp = BUDGET_BIN[idx];
+      if (!bp) throw new Error("unknown bin pick");
+      pick = { name: bp.name, era: "—", label: null, rating: bp.rating, cost: binCost, team: null };
+    } else {
+      const team = TEAMS.find(t => t.abbr === abbr);
+      const roster = TEAM_ROSTERS[abbr];
+      if (!team || !roster || !roster[idx]) throw new Error("unknown pick");
+      const pl = roster[idx];
+      const rating = categoryRating(pl, cat);
+      const label = cat === "height" ? pl.height.label : cat === "frame" ? pl.frame.label : null;
+      pick = { name: pl.name, era: pl.era, label, rating, cost: wheelCost(rating), team };
+    }
+    if (cat === "height" || cat === "frame") state[cat] = pick; else state.skills[cat] = pick;
+  });
+  state.team = TEAMS.find(t => t.abbr === data.t);
+  if (!state.team || !POSITIONS[data.p]) throw new Error("bad team/position");
+  state.name = String(data.n || "The Mystery Player").slice(0, 24);
+  state.position = data.p;
+  state.positionFit = checkPositionFit(data.p);
+  state.budgetSpent = CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0);
+  state.seed = data.s >>> 0;
+  seedRng(state.seed);
+  career = simCareer(computeOVR(), state.team);
+  state.sharedView = true;
+  state.currentStep = STEPS.indexOf("verdict");
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+  return new Promise((resolve, reject) => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok ? resolve() : reject();
+    } catch (e) { reject(e); }
+  });
+}
+
+// Leaving a shared view: drop the ?build= param and start a normal game.
+function startFresh() {
+  history.replaceState({}, "", location.pathname);
+  state.sharedView = false;
+  resetGame();
+}
+
+// ---- Downloadable verdict card, hand-drawn on a canvas (no libraries) ----
+function exportVerdictImage(btn) {
+  const tier = tierForCareer(career.goatScore, career.peakOVR);
+  const pct = percentileForScore(career.goatScore).toFixed(1);
+  const b = career.bestSeason;
+  const W = 1080, H = 1080, cx = W / 2;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+
+  const draw = () => {
+    // background
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#101c31"); g.addColorStop(1, "#0a1120");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#d4a72c"; ctx.fillRect(0, 0, 14, H); // gold accent bar
+    ctx.fillStyle = "#d4a72c"; ctx.fillRect(60, 130, W - 120, 3); // top rule
+
+    ctx.textAlign = "center";
+    const anton = px => `${px}px Anton, sans-serif`;
+    const oswald = (px, w = 600) => `${w} ${px}px Oswald, sans-serif`;
+
+    ctx.fillStyle = "#f2c94c"; ctx.font = oswald(34, 700);
+    ctx.fillText("🏀 ARE YOU THE GOAT?", cx, 100);
+
+    ctx.fillStyle = "#ff4b3e"; ctx.font = oswald(26, 600);
+    ctx.fillText("T H E   V E R D I C T", cx, 220);
+
+    ctx.fillStyle = "#f2c94c"; ctx.font = anton(150);
+    ctx.fillText(tier.name.toUpperCase(), cx, 360);
+
+    ctx.fillStyle = "#e5e7eb"; ctx.font = oswald(40, 600);
+    ctx.fillText(state.name.toUpperCase(), cx, 430);
+
+    ctx.fillStyle = "#9ca3af"; ctx.font = oswald(30, 500);
+    ctx.fillText(`TOP ${pct}%  ·  ${career.numSeasons} SEASONS  ·  PEAK OVR ${career.peakOVR}`, cx, 500);
+
+    // stat cards row
+    const stats = [
+      [career.rings + "×", "RINGS"], [career.mvps + "×", "MVP"],
+      [career.allStars + "×", "ALL-STAR"], [career.goatScore, "GOAT SCORE"],
+    ];
+    const cardW = 220, gap = 24, totalW = stats.length * cardW + (stats.length - 1) * gap;
+    let x = cx - totalW / 2, y = 560;
+    stats.forEach(([v, l]) => {
+      ctx.fillStyle = "#0e1c34"; ctx.fillRect(x, y, cardW, 170);
+      ctx.fillStyle = "#d4a72c"; ctx.fillRect(x, y, cardW, 4);
+      ctx.fillStyle = "#f2c94c"; ctx.font = anton(64); ctx.textAlign = "center";
+      ctx.fillText(String(v), x + cardW / 2, y + 100);
+      ctx.fillStyle = "#9ca3af"; ctx.font = oswald(22, 600);
+      ctx.fillText(l, x + cardW / 2, y + 140);
+      x += cardW + gap;
+    });
+
+    ctx.fillStyle = "#f2c94c"; ctx.font = oswald(26, 700); ctx.textAlign = "left";
+    ctx.fillText("BEST SEASON", 70, 830);
+    ctx.fillStyle = "#e5e7eb"; ctx.font = oswald(38, 600); ctx.textAlign = "center";
+    ctx.fillText(`${b.ppg} PPG   ${b.apg} APG   ${b.rpg} RPG   ${b.bpg} BPG`, cx, 890);
+
+    ctx.fillStyle = "#9ca3af"; ctx.font = oswald(28, 500);
+    ctx.fillText(`${career.careerWins.toLocaleString()} career wins with the ${state.team.name}`, cx, 970);
+
+    ctx.strokeStyle = "#1f2937"; ctx.lineWidth = 2; ctx.strokeRect(1, 1, W - 2, H - 2);
+
+    cv.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(state.name || "goat").replace(/\s+/g, "-").toLowerCase()}-verdict.png`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (btn) { btn.textContent = "✓ Image Saved"; setTimeout(() => { btn.textContent = "⬇ Save Image"; }, 2200); }
+    }, "image/png");
+  };
+
+  // Ensure the display fonts are ready before drawing, else canvas falls back.
+  if (document.fonts && document.fonts.load) {
+    Promise.all([document.fonts.load("150px Anton"), document.fonts.load("600 34px Oswald")])
+      .then(draw).catch(draw);
+  } else { draw(); }
 }
 
 function renderLadder(currentTier) {
@@ -519,10 +720,21 @@ function resetGame() {
   state.scoutTeam = null;
   state.teamRerollsUsed = 0;
   state.editingCategory = null;
+  state.seed = null;
+  state.sharedView = false;
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;
   render();
 }
 
-render();
+// Boot: a ?build= link jumps straight to that reconstructed verdict (read-only);
+// anything malformed falls back cleanly to a fresh game.
+(function boot() {
+  const buildParam = new URLSearchParams(location.search).get("build");
+  if (buildParam) {
+    try { decodeBuild(buildParam); render(); return; }
+    catch (e) { history.replaceState({}, "", location.pathname); }
+  }
+  render();
+})();
