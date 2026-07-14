@@ -308,7 +308,11 @@ function tierForScore(score) {
 // Top tiers demand a truly elite build, not just longevity: a career must
 // clear BOTH the score threshold AND the peak-OVR floor. Miss the floor and
 // you drop until a tier's floor (if any) is satisfied.
-const TIER_OVR_FLOORS = { GOAT: 95, Legend: 90, Superstar: 85 };
+// Calibrated to the 8-category budget: the best builds peak around OVR 84-87,
+// so these floors keep GOAT rare-but-reachable (greedy ~0%, efficient builds
+// ~5%) with Superstar/Legend as the maximal-spend ceiling. Re-run the balance
+// sim if the category count, budget, or cost curve changes.
+const TIER_OVR_FLOORS = { GOAT: 86, Legend: 83, Superstar: 80 };
 
 function tierForCareer(score, peakOVR) {
   let idx = TIERS.indexOf(tierForScore(score));
