@@ -139,20 +139,26 @@ function checkPositionFit(posKey) {
 
 // ---- Per-season box score ----
 // Per-game averages for one season, jittered so no two years look identical.
-// f = finalSkills(), h = height rating, fr = frame rating.
-function generateSeasonStats(f, h, fr) {
+// ovr = that season's overall, f = finalSkills(), h = height, fr = frame.
+// OVR is a global governor on the whole line: skills set the SHAPE of the
+// box score (which stats dominate), but OVR gates the MAGNITUDE, so an elite
+// individual skill on a mediocre build can't post all-time counting stats.
+// The factor runs ~0.35 at OVR 40 up to 1.0 at OVR 96+, so only 90+ builds
+// approach 30 PPG and only maxed 95+ builds reach the historical outliers.
+function generateSeasonStats(ovr, f, h, fr) {
   const jitter = () => 1 + randInt(-8, 8) / 100;
+  const ovrFactor = clamp((ovr - 48) / 50, 0.35, 1);
   const scoring = (f.Shooting + f.Finishing) / 2;
-  const ppg = clamp((4 + (scoring - 25) * 0.42) * jitter(), 4, 38);
-  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * jitter(), 0.5, 12);
-  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * jitter(), 1, 16);
+  const ppg = clamp((4 + (scoring - 25) * 0.42) * ovrFactor * jitter(), 4, 34);
+  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * ovrFactor * jitter(), 0.5, 11.5);
+  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * ovrFactor * jitter(), 1, 15);
   // smaller, leaner builds poke more passing lanes; bigger builds protect the rim
-  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * jitter(), 0.2, 4);
-  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * jitter(), 0.2, 4);
+  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * ovrFactor * jitter(), 0.2, 3.6);
+  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * ovrFactor * jitter(), 0.2, 3.6);
   // threes come from Shooting alone; very tall or Powerful builds live closer to the rim
   const tallPenalty = h >= 85 ? (h - 85) * 0.03 : 0;
   const bulkPenalty = fr >= 90 ? 0.6 : 0;
-  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * jitter(), 0, 5.5);
+  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * ovrFactor * jitter(), 0, 5.2);
   const r1 = v => Math.round(v * 10) / 10;
   return { ppg: r1(ppg), apg: r1(apg), rpg: r1(rpg), spg: r1(spg), bpg: r1(bpg), tpg: r1(tpg) };
 }
@@ -226,7 +232,7 @@ function simCareer(ovr, team) {
     if (result.allNBA) allNBAs++;
     if (result.allStar) allStars++;
 
-    const stats = generateSeasonStats(f, state.height.rating, state.frame.rating);
+    const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.frame.rating);
     totals.pts += stats.ppg * GAMES_PER_SEASON;
     totals.ast += stats.apg * GAMES_PER_SEASON;
     totals.reb += stats.rpg * GAMES_PER_SEASON;
