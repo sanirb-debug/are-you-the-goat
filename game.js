@@ -43,11 +43,14 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(rng() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
 // Quadratic curve: elites cost disproportionately more than mid-tier picks
-// (99 -> 20, 90 -> 16, 75 -> 11, 60 -> 7, 45 -> 4), so stacking elites in
-// every category is mathematically impossible against the 100-pt cap.
-// Tuned together with TIER_OVR_FLOORS: greedy play tops out below the GOAT
-// floor, while a deliberately top-heavy build can just barely clear it.
-function wheelCost(rating) { return Math.round(rating * rating / 500); }
+// (99 -> 16, 90 -> 14, 75 -> 9, 60 -> 6, 45 -> 3), so stacking elites in
+// every category is still hard against the 100-pt cap. Divisor widened from
+// 500 -> 600 when Handles became the 8th category: spreading the same budget
+// across 8 picks had compressed the achievable OVR range (max peak ~87),
+// which made the intended peak-OVR tier floors unreachable. At /600 elite
+// builds can reach peak OVR ~90-96 again, so the floors below are both
+// meaningful (an 87 peak fails the Legend floor) and reachable.
+function wheelCost(rating) { return Math.round(rating * rating / 600); }
 
 function budgetRemaining() {
   return BUDGET_CAP - state.budgetSpent;
@@ -308,11 +311,13 @@ function tierForScore(score) {
 // Top tiers demand a truly elite build, not just longevity: a career must
 // clear BOTH the score threshold AND the peak-OVR floor. Miss the floor and
 // you drop until a tier's floor (if any) is satisfied.
-// Calibrated to the 8-category budget: the best builds peak around OVR 84-87,
-// so these floors keep GOAT rare-but-reachable (greedy ~0%, efficient builds
-// ~5%) with Superstar/Legend as the maximal-spend ceiling. Re-run the balance
+// The intended thresholds on a 0-99 OVR scale: a genuinely elite PEAK is
+// required for the top tiers, so a merely-very-good build can't reach them on
+// volume/longevity alone. Reachable because the /600 cost curve lets elite
+// builds peak ~90-96. Verified by greedy sim: an 87 peak caps at Superstar,
+// Legend needs 90+, GOAT needs 95+ (greedy GOAT ~0.6%). Re-run the balance
 // sim if the category count, budget, or cost curve changes.
-const TIER_OVR_FLOORS = { GOAT: 86, Legend: 83, Superstar: 80 };
+const TIER_OVR_FLOORS = { GOAT: 95, Legend: 90, Superstar: 85 };
 
 function tierForCareer(score, peakOVR) {
   let idx = TIERS.indexOf(tierForScore(score));
