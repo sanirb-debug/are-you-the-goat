@@ -12,7 +12,8 @@ const state = {
   skills: {},          // { Shooting: {name, rating, cost}, ... }
   budgetSpent: 0,
   position: null,
-  positionFit: null,   // true/false
+  positionFit: null,   // true/false — does the finished build fit the chosen position
+  teamNeedMet: false,  // true if the chosen position fills the career team's positional need
   team: null,          // career team — drives the season sim
   scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
   teamRerollsUsed: 0,  // scout-spin "Spin Again" uses, shared across the whole build
@@ -22,7 +23,7 @@ const state = {
   currentStep: 0,       // index into STEPS
 };
 
-const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "confirm", "careerTeam", "position", "simulating", "verdict"];
+const STEPS = ["name", "position", "careerTeam", "height", "frame", ...SKILL_ORDER, "confirm", "simulating", "verdict"];
 
 // Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
 // seeding with the same value before simCareer reproduces an identical
@@ -158,6 +159,47 @@ function checkPositionFit(posKey) {
   return fits;
 }
 
+// ---- Team positional needs (for the Career Team pick) ----
+// Each team's "need" is the position where its roster is weakest RELATIVE to
+// the rest of the league. Per position, score a team by the top skill-total
+// among players who physically fit it (height in range, +frame for C), then
+// z-score that against all 30 teams so a position's inherent difficulty (e.g.
+// C is hard to fill everywhere) doesn't bias every team toward the same need.
+// The need is the position with the lowest z-score. Data-driven; spreads
+// needs across all five positions.
+function bestFitScore(abbr, posKey) {
+  const pos = POSITIONS[posKey];
+  let best = 0;
+  (TEAM_ROSTERS[abbr] || []).forEach(p => {
+    const fits = p.height.rating >= pos.hMin && p.height.rating <= pos.hMax && (!pos.frameMin || p.frame.rating >= pos.frameMin);
+    if (fits) { const total = Object.values(p.skills).reduce((a, b) => a + b, 0); if (total > best) best = total; }
+  });
+  return best;
+}
+function computeTeamNeeds() {
+  const positions = Object.keys(POSITIONS);
+  const fit = {};
+  TEAMS.forEach(t => { fit[t.abbr] = {}; positions.forEach(pos => { fit[t.abbr][pos] = bestFitScore(t.abbr, pos); }); });
+  const stat = {};
+  positions.forEach(pos => {
+    const vals = TEAMS.map(t => fit[t.abbr][pos]);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) || 1;
+    stat[pos] = { mean, sd };
+  });
+  const needs = {};
+  TEAMS.forEach(t => {
+    let need = null, lowZ = Infinity;
+    positions.forEach(pos => {
+      const z = (fit[t.abbr][pos] - stat[pos].mean) / stat[pos].sd;
+      if (z < lowZ) { lowZ = z; need = pos; } // ties -> earliest position (PG..C)
+    });
+    needs[t.abbr] = need;
+  });
+  return needs;
+}
+const TEAM_NEEDS = computeTeamNeeds();
+
 // ---- Per-season box score ----
 // Per-game averages for one season, jittered so no two years look identical.
 // ovr = that season's overall, f = finalSkills(), h = height, fr = frame.
@@ -244,7 +286,9 @@ function simCareer(ovr, team) {
   for (let i = 0; i < plannedSeasons; i++) {
     const seasonOVR = clamp(ovr + randInt(-3, 3), 25, 99);
     peakOVR = Math.max(peakOVR, seasonOVR);
-    const scrThisYear = clamp(team.scr + randInt(-5, 5), 15, 99);
+    // Filling the team's positional need lifts the supporting cast a touch.
+    const teamScr = team.scr + (state.teamNeedMet ? 5 : 0);
+    const scrThisYear = clamp(teamScr + randInt(-5, 5), 15, 99);
     const result = simSeason(seasonOVR, scrThisYear, varianceRange);
     careerWins += result.wins;
     if (result.ring) rings++;
@@ -515,7 +559,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
-    checkPositionFit, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
+    checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
   };
 }

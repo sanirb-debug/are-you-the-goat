@@ -246,25 +246,18 @@ function renderRosterStep(category, title, sub, onLock) {
   app.appendChild(wrap);
 }
 
-// ---- Step 9: Position ----
+// ---- Step 1: Position (chosen first, before the build) ----
 function renderPositionStep() {
   const wrap = el("div", "card center");
-  wrap.appendChild(el("h1", "step-title", "Choose a Position"));
-  wrap.appendChild(el("p", "step-sub", "Pick to fit your build, or gamble on an anomaly run."));
+  wrap.appendChild(el("h1", "step-title", "Choose Your Position"));
+  wrap.appendChild(el("p", "step-sub", "Lock your position first, then build toward it. A body that fits the position (right height/frame) earns a +3 OVR fit bonus — go off-position for a higher-risk anomaly run."));
 
   const grid = el("div", "position-grid");
   Object.entries(POSITIONS).forEach(([key, pos]) => {
-    const fits = checkPositionFit(key);
-    const btn = el("button", `pos-btn ${fits ? "fits" : "anomaly"}`,
-      `<div class="pos-key">${key}</div><div class="pos-label">${pos.label}</div><div class="pos-tag">${fits ? "Fits your build (+3 OVR)" : "Anomaly (higher risk/reward)"}</div>`);
+    const btn = el("button", "pos-btn",
+      `<div class="pos-key">${key}</div><div class="pos-label">${pos.label}</div>`);
     btn.onclick = () => {
       state.position = key;
-      state.positionFit = fits;
-      // Capture a seed and simulate deterministically so a share link can
-      // reproduce this exact career later.
-      state.seed = Math.floor(Math.random() * 4294967296);
-      seedRng(state.seed);
-      career = simCareer(computeOVR(), state.team);
       state.currentStep++;
       render();
     };
@@ -299,7 +292,17 @@ function renderConfirmStep() {
 
   const simBtn = el("button", "btn-primary", "Simulate Career →");
   simBtn.style.marginTop = "14px";
-  simBtn.onclick = () => { state.currentStep++; render(); };
+  simBtn.onclick = () => {
+    // Build is complete now, so the position-fit bonus can be resolved.
+    state.positionFit = checkPositionFit(state.position);
+    // Capture a seed and simulate deterministically so a share link can
+    // reproduce this exact career later.
+    state.seed = Math.floor(Math.random() * 4294967296);
+    seedRng(state.seed);
+    career = simCareer(computeOVR(), state.team);
+    state.currentStep++;
+    render();
+  };
   wrap.appendChild(simBtn);
 
   const retoolBtn = el("button", "btn-secondary", "Retool Picks");
@@ -336,63 +339,44 @@ function renderSimulating() {
   }, 400 + lines.length * 500 + 800);
 }
 
-// ---- Step 8: Career Team ----
-// The one team that matters for the season sim — separate from the
-// per-pick scouting spins, and spun exactly once.
+// ---- Step 2: Career Team (manual pick from all 30, with positional needs) ----
+// The one team that drives the season sim — separate from the per-pick
+// scouting spins. Choosing a team whose positional need matches your chosen
+// position fills that need for an SCR bonus.
 function renderCareerTeamStep() {
-  const wrap = el("div", "card center");
-  wrap.appendChild(el("h1", "step-title", "Your Career Team"));
-  wrap.appendChild(el("p", "step-sub", "Your build is done — now spin for the franchise you'll actually play for. Their supporting cast decides your win totals."));
+  const posLabel = POSITIONS[state.position].label;
+  const wrap = el("div", "card");
+  wrap.appendChild(el("h1", "step-title center", "Choose Your Career Team"));
+  wrap.appendChild(el("p", "step-sub center",
+    `You're a <span class="scout-team-name">${posLabel}</span>. Their supporting cast (SCR) decides your win totals — and a team that <strong>needs a ${posLabel}</strong> gives you a bonus for filling it.`));
 
-  const resultBox = el("div", "spin-result", state.team ? formatTeamResult(state.team) : "?");
-  wrap.appendChild(resultBox);
-
-  const spinBtn = el("button", "btn-primary", state.team ? "Spin Again" : "🎡 Spin the Wheel");
-  spinBtn.onclick = () => spinReel(resultBox, spinBtn, nextBtn);
-  wrap.appendChild(spinBtn);
-
-  const nextBtn = el("button", "btn-secondary", "Lock It In →");
-  nextBtn.disabled = !state.team;
-  nextBtn.onclick = () => { state.currentStep++; render(); };
-  wrap.appendChild(nextBtn);
-
+  const list = el("div", "roster-list team-list");
+  // sort so teams that need YOUR position float to the top
+  const sorted = [...TEAMS].sort((a, b) => {
+    const am = TEAM_NEEDS[a.abbr] === state.position ? 0 : 1;
+    const bm = TEAM_NEEDS[b.abbr] === state.position ? 0 : 1;
+    return am - bm || b.scr - a.scr;
+  });
+  sorted.forEach(team => {
+    const need = TEAM_NEEDS[team.abbr];
+    const match = need === state.position;
+    const row = el("button", "roster-row team-row" + (match ? " need-match" : ""),
+      `<span class="roster-name">${team.name} <span class="era-tag">${team.abbr}</span></span>
+       <span class="team-need${match ? " match" : ""}">need a ${POSITIONS[need].label}${match ? " ✓" : ""}</span>
+       <span class="roster-rating">${team.scr}</span>`);
+    row.onclick = () => {
+      state.team = team;
+      state.teamNeedMet = match;
+      state.currentStep++;
+      render();
+    };
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
   app.appendChild(wrap);
 }
 
-// Decelerating team-wheel reel: cycles random teams fast, easing to a stop.
-// Deadline is wall-clock (performance.now) so it always lands even if timers
-// are throttled (e.g. a backgrounded tab).
-function spinReel(resultBox, spinBtn, nextBtn) {
-  spinBtn.disabled = true;
-  nextBtn.disabled = true;
-  resultBox.classList.remove("reel-land");
-  resultBox.classList.add("reeling");
-  const finalTeam = pickRandom(TEAMS);
-  const start = performance.now();
-  const dur = 1150;
-  let delay = 55;
-  (function tick() {
-    if (performance.now() - start >= dur) {
-      state.team = finalTeam;
-      resultBox.innerHTML = formatTeamResult(finalTeam);
-      resultBox.classList.remove("reeling");
-      resultBox.classList.add("reel-land");
-      spinBtn.disabled = false;
-      spinBtn.textContent = "Spin Again";
-      nextBtn.disabled = false;
-      return;
-    }
-    resultBox.innerHTML = formatTeamResult(pickRandom(TEAMS));
-    delay = Math.min(delay * 1.16, 160); // ease out
-    setTimeout(tick, delay);
-  })();
-}
-
-function formatTeamResult(team) {
-  return `<div class="pick-name">${team.name}</div><div class="pick-meta">${team.abbr} &nbsp;·&nbsp; Supporting Cast Rating ${team.scr}</div>`;
-}
-
-// ---- Step 10: Verdict ----
+// ---- Verdict ----
 function renderVerdict() {
   const ovr = computeOVR();
   const tier = tierForCareer(career.goatScore, career.peakOVR);
@@ -498,8 +482,9 @@ function renderVerdict() {
   });
   wrap.appendChild(legendList);
 
+  const needNote = state.teamNeedMet ? ` &nbsp;·&nbsp; Filled ${state.team.name}'s need ✓` : "";
   wrap.appendChild(el("div", "meta-line",
-    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"} &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP}`));
+    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP}`));
 
   if (state.sharedView) {
     const build = el("button", "btn-primary", "Build Your Own →");
@@ -590,6 +575,7 @@ function decodeBuild(str) {
   state.name = String(data.n || "The Mystery Player").slice(0, 24);
   state.position = data.p;
   state.positionFit = checkPositionFit(data.p);
+  state.teamNeedMet = TEAM_NEEDS[state.team.abbr] === data.p;
   state.budgetSpent = CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0);
   state.seed = data.s >>> 0;
   seedRng(state.seed);
@@ -722,6 +708,7 @@ function resetGame() {
   state.budgetSpent = 0;
   state.position = null;
   state.positionFit = null;
+  state.teamNeedMet = false;
   state.team = null;
   state.scoutTeam = null;
   state.teamRerollsUsed = 0;
