@@ -385,23 +385,133 @@ function erf(x) {
 // ---- Badges ----
 // One-phrase criteria shown as hover tooltips; keep in sync with computeBadges.
 const BADGE_INFO = {
+  // ---- original set ----
   "Unicorn Build": "Elite height (85+) paired with elite Shooting (85+)",
   "Small Ball Terror": "Undersized build (height 40 or less) with elite 85+ Rebounding",
   "Two-Way Monster": "Elite on both ends: 88+ Defense plus an 88+ scoring skill",
   "Full Send": "Spent 97+ of the 100-point budget",
   "Positional Anomaly": "Played a position the build doesn't naturally fit",
   "Certified Bust": "GOAT Score under 100 — this build never got going",
+  // ---- skill / physical archetypes ----
+  "3-Point Sniper": "88+ Shooting on a slight or lean frame — a pure perimeter marksman",
+  "Stretch Big": "A 6'11\"+ big with 82+ Shooting — spaces the floor from the frontcourt",
+  "Mid-Range Maestro": "Elite shot creation: 84+ Shooting, 82+ Handles, and 80+ Finishing",
+  "Post-Up Punisher": "88+ Finishing on a bulky or powerful frame — bullies the post",
+  "Slasher": "88+ Finishing and 82+ Handles on a guard or wing — lives at the rim",
+  "Rim Protector": "88+ Defense at 6'11\"+ — anchors the paint",
+  "Perimeter Lockdown": "88+ Defense on a 6'7\" or smaller frame — smothers ball-handlers",
+  "Playmaking Savant": "Elite 90+ Playmaking — sees the whole floor",
+  "Floor General": "84+ Playmaking and Handles on a true guard (6'4\" or under)",
+  "Handles God": "Elite 92+ Handles — ankle-breaking ball control",
+  "Glass Cleaner": "Elite 90+ Rebounding — owns the boards",
+  "Two-Way Wing": "A 6'6\"–6'9\" wing with 84+ Defense and 84+ Shooting — the 3-and-D ideal",
+  "Point Center": "A 6'11\"+ big with 82+ Playmaking and 75+ Handles — a point center",
+  "Point Forward": "A 6'7\"–6'10\" forward with 85+ Playmaking — initiates from the wing",
+  "Undersized Menace": "6'2\" or under with 85+ Finishing or Defense — punches above his size",
+  "Twitchy Guard": "Sub-6'3\" with 88+ Handles and 82+ Shooting — a shifty microwave scorer",
+  "Towering Giant": "7'2\" or taller — a skyscraper in the paint",
+  "Waterbug": "5'9\" or shorter — tiny, quick, and fearless",
+  "Defensive Anchor": "88+ Defense and 85+ Rebounding but can't shoot (55 or below)",
+  "Glass Cannon": "85+ scoring with 50-or-below Defense AND Rebounding — all offense",
+  // ---- career outcomes: awards & stats ----
+  "Ringless Legend": "Legend-caliber career (450+ GOAT Score) with zero championships",
+  "Champion": "Won at least one championship",
+  "Dynasty Builder": "Won 3 or more championships — built a dynasty",
+  "MVP": "Won at least one league MVP",
+  "MVP Machine": "Won 3 or more MVPs — perennial best in the world",
+  "Finals Hero": "Won Finals MVP — delivered on the biggest stage",
+  "Perennial All-Star": "Made 12 or more All-Star teams",
+  "All-NBA Fixture": "Named All-NBA 8 or more times",
+  "Volume Scorer": "35,000+ career points — a scoring machine",
+  "Empty Stats": "30,000+ points but the wins never came (under 45 a season)",
+  "Dime Machine": "8,000+ career assists — an elite distributor",
+  "Board Man": "11,000+ career rebounds — a generational glass-eater",
+  "Rim Guardian": "2,500+ career blocks — a wall at the rim",
+  "Ball Hawk": "2,000+ career steals — relentless in the passing lanes",
+  "Splash Archive": "2,500+ career made threes — a lifetime of splashes",
+  "Perennial Contender": "Averaged 55+ wins a season — always in the hunt",
+  "Peak Merchant": "A 32+ PPG peak season — carried the offense",
+  "Walking Triple-Double": "A peak year of 22+ PPG, 8+ APG, and 8+ RPG",
+  "Iron Man": "Played a full 20-season career — remarkable longevity",
+  "GOAT Candidate": "600+ GOAT Score — squarely in the all-time conversation",
+  // ---- build strategy / budget ----
+  "Balanced Build": "No skill outweighs another by more than 20 — a well-rounded build",
+  "All In": "Extreme min-max: 2+ elite (90+) skills alongside 2+ glaring holes (45 or below)",
+  "Bargain Hunter": "80+ OVR while spending 80 or fewer budget points — ruthless value",
+  "Need Filler": "Signed with a team that needed your position",
 };
 
 function computeBadges(ovr, career) {
   const f = finalSkills();
+  const SH = f.Shooting, FI = f.Finishing, PL = f.Playmaking, HA = f.Handles, DE = f.Defense, RE = f.Rebounding;
+  const skills = [SH, FI, PL, HA, DE, RE];
+  const h = state.height.rating, fr = state.frame.rating;
+  const t = career.totals, b = career.bestSeason;
+  const scoring = Math.max(SH, FI);
+  const eliteCount = skills.filter(s => s >= 90).length;
+  const weakCount = skills.filter(s => s <= 45).length;
+  const spread = Math.max(...skills) - Math.min(...skills);
+  const winsPerSeason = career.careerWins / career.numSeasons;
   const badges = [];
-  if (state.height.rating >= 85 && f.Shooting >= 85) badges.push("Unicorn Build");
-  if (state.height.rating <= 40 && f.Rebounding >= 85) badges.push("Small Ball Terror");
-  if (f.Defense >= 88 && (f.Shooting >= 88 || f.Finishing >= 88)) badges.push("Two-Way Monster");
+
+  // ---- original set ----
+  if (h >= 85 && SH >= 85) badges.push("Unicorn Build");
+  if (h <= 40 && RE >= 85) badges.push("Small Ball Terror");
+  if (DE >= 88 && (SH >= 88 || FI >= 88)) badges.push("Two-Way Monster");
   if (state.budgetSpent >= 97) badges.push("Full Send");
   if (!state.positionFit) badges.push("Positional Anomaly");
   if (career.goatScore < 100) badges.push("Certified Bust");
+
+  // ---- skill / physical archetypes ----
+  if (SH >= 88 && fr <= 52) badges.push("3-Point Sniper");
+  if (h >= 82 && SH >= 82) badges.push("Stretch Big");
+  if (SH >= 84 && HA >= 82 && FI >= 80) badges.push("Mid-Range Maestro");
+  if (FI >= 88 && fr >= 80) badges.push("Post-Up Punisher");
+  if (FI >= 88 && HA >= 82 && h <= 62) badges.push("Slasher");
+  if (DE >= 88 && h >= 82) badges.push("Rim Protector");
+  if (DE >= 88 && h <= 58) badges.push("Perimeter Lockdown");
+  if (PL >= 90) badges.push("Playmaking Savant");
+  if (PL >= 84 && HA >= 84 && h <= 48) badges.push("Floor General");
+  if (HA >= 92) badges.push("Handles God");
+  if (RE >= 90) badges.push("Glass Cleaner");
+  if (h >= 52 && h <= 68 && DE >= 84 && SH >= 84) badges.push("Two-Way Wing");
+  if (h >= 82 && PL >= 82 && HA >= 75) badges.push("Point Center");
+  if (h >= 58 && h <= 75 && PL >= 85) badges.push("Point Forward");
+  if (h <= 40 && (FI >= 85 || DE >= 85)) badges.push("Undersized Menace");
+  if (h <= 44 && HA >= 88 && SH >= 82) badges.push("Twitchy Guard");
+  if (h >= 93) badges.push("Towering Giant");
+  if (h <= 25) badges.push("Waterbug");
+  if (DE >= 88 && RE >= 85 && SH <= 55) badges.push("Defensive Anchor");
+  if (scoring >= 85 && DE <= 50 && RE <= 50) badges.push("Glass Cannon");
+
+  // ---- career outcomes: awards & stats ----
+  if (career.rings === 0 && career.goatScore >= 450) badges.push("Ringless Legend");
+  if (career.rings >= 1 && career.rings < 3) badges.push("Champion");
+  if (career.rings >= 3) badges.push("Dynasty Builder");
+  if (career.mvps >= 1 && career.mvps < 3) badges.push("MVP");
+  if (career.mvps >= 3) badges.push("MVP Machine");
+  if (career.finalsMVPs >= 1) badges.push("Finals Hero");
+  if (career.allStars >= 12) badges.push("Perennial All-Star");
+  if (career.allNBAs >= 8) badges.push("All-NBA Fixture");
+  if (t.pts >= 35000) badges.push("Volume Scorer");
+  if (t.pts >= 30000 && winsPerSeason < 45) badges.push("Empty Stats");
+  if (t.ast >= 8000) badges.push("Dime Machine");
+  if (t.reb >= 11000) badges.push("Board Man");
+  if (t.blk >= 2500) badges.push("Rim Guardian");
+  if (t.stl >= 2000) badges.push("Ball Hawk");
+  if (t.threes >= 2500) badges.push("Splash Archive");
+  if (winsPerSeason >= 55) badges.push("Perennial Contender");
+  if (b.ppg >= 32) badges.push("Peak Merchant");
+  if (b.ppg >= 22 && b.apg >= 8 && b.rpg >= 8) badges.push("Walking Triple-Double");
+  if (career.numSeasons >= 20) badges.push("Iron Man");
+  if (career.goatScore >= 600) badges.push("GOAT Candidate");
+
+  // ---- build strategy / budget ----
+  if (spread <= 20) badges.push("Balanced Build");
+  if (eliteCount >= 2 && weakCount >= 2) badges.push("All In");
+  if (ovr >= 80 && state.budgetSpent <= 80) badges.push("Bargain Hunter");
+  if (state.teamNeedMet) badges.push("Need Filler");
+
   return badges;
 }
 
