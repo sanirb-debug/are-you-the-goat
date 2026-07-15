@@ -271,19 +271,17 @@ function simSeason(ovr, scr, varianceRange) {
 }
 
 const GAMES_PER_SEASON = 82;
-const INJURY_CHANCE = 0.05; // per season, so long careers compound real risk
 
 function simCareer(ovr, team) {
-  const plannedSeasons = randInt(15, 20); // expected full career if nothing goes wrong
+  const numSeasons = randInt(15, 20); // full career, always runs to completion
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
   const varianceRange = state.positionFit ? 4 : 8;
   const f = finalSkills();
   const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
   let bestSeason = null;
-  let injuryEnded = false, injuryYear = null;
 
-  for (let i = 0; i < plannedSeasons; i++) {
+  for (let i = 0; i < numSeasons; i++) {
     const seasonOVR = clamp(ovr + randInt(-3, 3), 25, 99);
     peakOVR = Math.max(peakOVR, seasonOVR);
     // Filling the team's positional need lifts the supporting cast a touch.
@@ -308,16 +306,7 @@ function simCareer(ovr, team) {
     if (!bestSeason || peakScore > bestSeason.peakScore) bestSeason = { year: i + 1, peakScore, ...stats };
 
     seasons.push({ ...result, stats });
-
-    // serious injury can end the career right here — this season still
-    // counts, past years keep their stats and awards, but nothing follows
-    if (i < plannedSeasons - 1 && rng() < INJURY_CHANCE) {
-      injuryEnded = true;
-      injuryYear = i + 1;
-      break;
-    }
   }
-  const numSeasons = seasons.length;
   Object.keys(totals).forEach(k => { totals[k] = Math.round(totals[k]); });
 
   const goatScore = Math.round(
@@ -330,7 +319,7 @@ function simCareer(ovr, team) {
     careerWins / 10
   );
 
-  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, bestSeason, injuryEnded, injuryYear };
+  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, bestSeason };
 }
 
 // ---- Tier ladder ----
@@ -418,7 +407,7 @@ function computeBadges(ovr, career) {
 
 // ---- Career highlight reel (sim loading screen) ----
 // A handful of real moments pulled from the just-computed season-by-season
-// data: firsts, every early ring/MVP, the injury if one hit, retirement.
+// data: firsts, every early ring/MVP, retirement.
 function careerHighlights(career) {
   const h = [];
   let firstAllStar = false, firstAllNBA = false, mvps = 0, rings = 0;
@@ -433,7 +422,6 @@ function careerHighlights(career) {
     const b = career.bestSeason;
     h.push("Year " + b.year + ": Career-best " + b.ppg + " points per game");
   }
-  if (career.injuryEnded) h.push("Year " + career.injuryYear + ": A serious injury ends the career");
   h.push("Retires after " + career.numSeasons + " season" + (career.numSeasons === 1 ? "" : "s"));
   return h.slice(0, 7);
 }
@@ -519,10 +507,6 @@ function generateScoutingReport(career, ovr, tier) {
     s2 += `, though the ${team} never got him over the hump.`;
   }
 
-  const s3 = career.injuryEnded
-    ? ` A serious injury slammed the door shut in Year ${career.injuryYear}.`
-    : "";
-
   const tierIdx = TIERS.findIndex(t => t.name === tier.name);
   const expIdx = expectedTierIndex(ovr);
   const article = /^[AEIOU]/i.test(tier.name) ? "an" : "a";
@@ -531,7 +515,7 @@ function generateScoutingReport(career, ovr, tier) {
   else if (tierIdx < expIdx) s4 = `Built for more, remembered as ${article} ${tier.name} — the what-ifs write themselves.`;
   else s4 = `${article === "an" ? "An" : "A"} ${tier.name}, and exactly the career that build was always going to deliver.`;
 
-  return `${s1} ${s2}${s3} ${s4}`;
+  return `${s1} ${s2} ${s4}`;
 }
 
 // ---- Headline generator ----

@@ -584,16 +584,6 @@ button { cursor: pointer; border: none; font-family: inherit; }
   margin-bottom: 18px;
 }
 
-.injury-tag {
-  color: #ff9a90;
-  background: rgba(255, 75, 62, 0.10);
-  border: 1px solid rgba(255, 75, 62, 0.45);
-  border-radius: 3px;
-  padding: 2px 9px;
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
 
 /* Stat grids → broadcast stat cards */
 .stats-grid {
