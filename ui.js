@@ -450,9 +450,11 @@ function renderVerdict() {
 
   if (badges.length) {
     const badgeRow = el("div", "badge-row");
-    badges.forEach(b => {
-      const badge = el("div", "badge", b);
-      const info = BADGE_INFO[b] || "";
+    // badges arrive ranked by match strength; show only the top few so the
+    // most defining ones stand out instead of a wall of 20+.
+    badges.slice(0, 6).forEach(b => {
+      const badge = el("div", "badge", b.name);
+      const info = BADGE_INFO[b.name] || "";
       badge.dataset.tip = info; // drives the custom broadcast popover
       badge.title = info;        // native fallback for touch / edge cases
       badge.tabIndex = 0;         // keyboard/focus can surface the tip too

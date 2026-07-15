@@ -452,67 +452,71 @@ function computeBadges(ovr, career) {
   const weakCount = skills.filter(s => s <= 45).length;
   const spread = Math.max(...skills) - Math.min(...skills);
   const winsPerSeason = career.careerWins / career.numSeasons;
+  // Each earned badge carries a match-strength score (roughly 0-100): rarer /
+  // more elite / more strongly-cleared badges score higher, so a build with
+  // many badges surfaces its most defining ones. add(name, score).
   const badges = [];
+  const add = (name, score) => badges.push({ name, score });
 
   // ---- original set ----
-  if (h >= 85 && SH >= 85) badges.push("Unicorn Build");
-  if (h <= 40 && RE >= 85) badges.push("Small Ball Terror");
-  if (DE >= 88 && (SH >= 88 || FI >= 88)) badges.push("Two-Way Monster");
-  if (state.budgetSpent >= 97) badges.push("Full Send");
-  if (!state.positionFit) badges.push("Positional Anomaly");
-  if (career.goatScore < 100) badges.push("Certified Bust");
+  if (h >= 85 && SH >= 85) add("Unicorn Build", 90 + (h - 85 + SH - 85) / 2);
+  if (h <= 40 && RE >= 85) add("Small Ball Terror", 82 + (RE - 85));
+  if (DE >= 88 && (SH >= 88 || FI >= 88)) add("Two-Way Monster", 88 + (DE - 88 + scoring - 88) / 2);
+  if (state.budgetSpent >= 97) add("Full Send", 42);
+  if (!state.positionFit) add("Positional Anomaly", 56);
+  if (career.goatScore < 100) add("Certified Bust", 45);
 
   // ---- skill / physical archetypes ----
-  if (SH >= 88 && fr <= 52) badges.push("3-Point Sniper");
-  if (h >= 82 && SH >= 82) badges.push("Stretch Big");
-  if (SH >= 84 && HA >= 82 && FI >= 80) badges.push("Mid-Range Maestro");
-  if (FI >= 88 && fr >= 80) badges.push("Post-Up Punisher");
-  if (FI >= 88 && HA >= 82 && h <= 62) badges.push("Slasher");
-  if (DE >= 88 && h >= 82) badges.push("Rim Protector");
-  if (DE >= 88 && h <= 58) badges.push("Perimeter Lockdown");
-  if (PL >= 90) badges.push("Playmaking Savant");
-  if (PL >= 84 && HA >= 84 && h <= 48) badges.push("Floor General");
-  if (HA >= 92) badges.push("Handles God");
-  if (RE >= 90) badges.push("Glass Cleaner");
-  if (h >= 52 && h <= 68 && DE >= 84 && SH >= 84) badges.push("Two-Way Wing");
-  if (h >= 82 && PL >= 82 && HA >= 75) badges.push("Point Center");
-  if (h >= 58 && h <= 75 && PL >= 85) badges.push("Point Forward");
-  if (h <= 40 && (FI >= 85 || DE >= 85)) badges.push("Undersized Menace");
-  if (h <= 44 && HA >= 88 && SH >= 82) badges.push("Twitchy Guard");
-  if (h >= 93) badges.push("Towering Giant");
-  if (h <= 25) badges.push("Waterbug");
-  if (DE >= 88 && RE >= 85 && SH <= 55) badges.push("Defensive Anchor");
-  if (scoring >= 85 && DE <= 50 && RE <= 50) badges.push("Glass Cannon");
+  if (SH >= 88 && fr <= 52) add("3-Point Sniper", SH);
+  if (h >= 82 && SH >= 82) add("Stretch Big", (SH + h) / 2);
+  if (SH >= 84 && HA >= 82 && FI >= 80) add("Mid-Range Maestro", (SH + HA + FI) / 3);
+  if (FI >= 88 && fr >= 80) add("Post-Up Punisher", FI);
+  if (FI >= 88 && HA >= 82 && h <= 62) add("Slasher", (FI + HA) / 2);
+  if (DE >= 88 && h >= 82) add("Rim Protector", DE);
+  if (DE >= 88 && h <= 58) add("Perimeter Lockdown", DE);
+  if (PL >= 90) add("Playmaking Savant", PL);
+  if (PL >= 84 && HA >= 84 && h <= 48) add("Floor General", (PL + HA) / 2);
+  if (HA >= 92) add("Handles God", HA);
+  if (RE >= 90) add("Glass Cleaner", RE);
+  if (h >= 52 && h <= 68 && DE >= 84 && SH >= 84) add("Two-Way Wing", (DE + SH) / 2 + 4);
+  if (h >= 82 && PL >= 82 && HA >= 75) add("Point Center", (PL + HA) / 2 + 8);
+  if (h >= 58 && h <= 75 && PL >= 85) add("Point Forward", PL + 3);
+  if (h <= 40 && (FI >= 85 || DE >= 85)) add("Undersized Menace", Math.max(FI, DE) + 3);
+  if (h <= 44 && HA >= 88 && SH >= 82) add("Twitchy Guard", (HA + SH) / 2);
+  if (h >= 93) add("Towering Giant", h);
+  if (h <= 25) add("Waterbug", 55 + (25 - h) * 2);
+  if (DE >= 88 && RE >= 85 && SH <= 55) add("Defensive Anchor", (DE + RE) / 2);
+  if (scoring >= 85 && DE <= 50 && RE <= 50) add("Glass Cannon", scoring);
 
   // ---- career outcomes: awards & stats ----
-  if (career.rings === 0 && career.goatScore >= 450) badges.push("Ringless Legend");
-  if (career.rings >= 1 && career.rings < 3) badges.push("Champion");
-  if (career.rings >= 3) badges.push("Dynasty Builder");
-  if (career.mvps >= 1 && career.mvps < 3) badges.push("MVP");
-  if (career.mvps >= 3) badges.push("MVP Machine");
-  if (career.finalsMVPs >= 1) badges.push("Finals Hero");
-  if (career.allStars >= 12) badges.push("Perennial All-Star");
-  if (career.allNBAs >= 8) badges.push("All-NBA Fixture");
-  if (t.pts >= 35000) badges.push("Volume Scorer");
-  if (t.pts >= 30000 && winsPerSeason < 45) badges.push("Empty Stats");
-  if (t.ast >= 8000) badges.push("Dime Machine");
-  if (t.reb >= 11000) badges.push("Board Man");
-  if (t.blk >= 2500) badges.push("Rim Guardian");
-  if (t.stl >= 2000) badges.push("Ball Hawk");
-  if (t.threes >= 2500) badges.push("Splash Archive");
-  if (winsPerSeason >= 55) badges.push("Perennial Contender");
-  if (b.ppg >= 32) badges.push("Peak Merchant");
-  if (b.ppg >= 22 && b.apg >= 8 && b.rpg >= 8) badges.push("Walking Triple-Double");
-  if (career.numSeasons >= 20) badges.push("Iron Man");
-  if (career.goatScore >= 600) badges.push("GOAT Candidate");
+  if (career.rings === 0 && career.goatScore >= 450) add("Ringless Legend", 82);
+  if (career.rings >= 1 && career.rings < 3) add("Champion", 68 + career.rings * 2);
+  if (career.rings >= 3) add("Dynasty Builder", 96 + career.rings);
+  if (career.mvps >= 1 && career.mvps < 3) add("MVP", 86 + career.mvps * 2);
+  if (career.mvps >= 3) add("MVP Machine", 97 + career.mvps);
+  if (career.finalsMVPs >= 1) add("Finals Hero", 90 + career.finalsMVPs * 2);
+  if (career.allStars >= 12) add("Perennial All-Star", 62 + career.allStars / 2);
+  if (career.allNBAs >= 8) add("All-NBA Fixture", 66 + career.allNBAs);
+  if (t.pts >= 35000) add("Volume Scorer", 80 + (t.pts - 35000) / 2000);
+  if (t.pts >= 30000 && winsPerSeason < 45) add("Empty Stats", 66);
+  if (t.ast >= 8000) add("Dime Machine", 80 + (t.ast - 8000) / 1000);
+  if (t.reb >= 11000) add("Board Man", 80 + (t.reb - 11000) / 1000);
+  if (t.blk >= 2500) add("Rim Guardian", 80 + (t.blk - 2500) / 500);
+  if (t.stl >= 2000) add("Ball Hawk", 76 + (t.stl - 2000) / 500);
+  if (t.threes >= 2500) add("Splash Archive", 76 + (t.threes - 2500) / 500);
+  if (winsPerSeason >= 55) add("Perennial Contender", 70 + (winsPerSeason - 55));
+  if (b.ppg >= 32) add("Peak Merchant", 84 + (b.ppg - 32));
+  if (b.ppg >= 22 && b.apg >= 8 && b.rpg >= 8) add("Walking Triple-Double", 90);
+  if (career.numSeasons >= 20) add("Iron Man", 56);
+  if (career.goatScore >= 600) add("GOAT Candidate", 95 + (career.goatScore - 600) / 20);
 
   // ---- build strategy / budget ----
-  if (spread <= 20) badges.push("Balanced Build");
-  if (eliteCount >= 2 && weakCount >= 2) badges.push("All In");
-  if (ovr >= 80 && state.budgetSpent <= 80) badges.push("Bargain Hunter");
-  if (state.teamNeedMet) badges.push("Need Filler");
+  if (spread <= 20) add("Balanced Build", 48);
+  if (eliteCount >= 2 && weakCount >= 2) add("All In", 62);
+  if (ovr >= 80 && state.budgetSpent <= 80) add("Bargain Hunter", 80 + (ovr - 80));
+  if (state.teamNeedMet) add("Need Filler", 52);
 
-  return badges;
+  return badges.sort((a, b) => b.score - a.score);
 }
 
 // ---- Career highlight reel (sim loading screen) ----
@@ -545,6 +549,10 @@ const FRAME_ADJ = {
 // ---- Playstyle comp ----
 // The finished build's 8-D on-court profile: physicals raw, skills post-modifier.
 const COMP_DIMS = ["height", "frame", ...SKILL_ORDER];
+// Height and frame are physically defining, so they carry more weight than any
+// single skill — without this a short body with forward-like skills could be
+// outvoted across the 6 skill dims and match a much taller player.
+const COMP_WEIGHTS = { height: 4, frame: 1.5, Shooting: 1, Finishing: 1, Playmaking: 1, Handles: 1, Defense: 1, Rebounding: 1 };
 function buildProfile() {
   const f = finalSkills();
   const p = { height: state.height.rating, frame: state.frame.rating };
@@ -559,7 +567,7 @@ function closestComp(profile) {
   let best = null, bestDist = Infinity;
   for (const ref of COMP_PLAYERS) {
     let sum = 0;
-    for (const d of COMP_DIMS) { const diff = profile[d] - ref.dims[d]; sum += diff * diff; }
+    for (const d of COMP_DIMS) { const diff = profile[d] - ref.dims[d]; sum += COMP_WEIGHTS[d] * diff * diff; }
     const dist = Math.sqrt(sum);
     if (dist < bestDist || (dist === bestDist && (!best || ref.name < best.name))) {
       bestDist = dist; best = ref;
