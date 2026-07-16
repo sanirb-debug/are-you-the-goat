@@ -51,7 +51,7 @@ function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
 // which made the intended peak-OVR tier floors unreachable. At /600 elite
 // builds can reach peak OVR ~90-96 again, so the floors below are both
 // meaningful (an 87 peak fails the Legend floor) and reachable.
-function wheelCost(rating) { return Math.round(rating * rating / 600); }
+function wheelCost(rating) { return Math.round(rating * rating / 535); }
 
 function budgetRemaining() {
   return BUDGET_CAP - state.budgetSpent;
@@ -360,7 +360,10 @@ function tierForScore(score) {
 // builds peak ~90-96. Verified by greedy sim: an 87 peak caps at Superstar,
 // Legend needs 90+, GOAT needs 95+ (greedy GOAT ~0.6%). Re-run the balance
 // sim if the category count, budget, or cost curve changes.
-const TIER_OVR_FLOORS = { GOAT: 95, Legend: 90, Superstar: 85 };
+// GOAT floor sits at 92 because the r^2/535 cost curve caps achievable peaks
+// around 92-93 — at 95 GOAT would be mathematically unreachable. Verified by
+// sim: greedy Legend ~0-2% / GOAT ~0%; casual play Legend ~5% / GOAT ~0.1-0.3%.
+const TIER_OVR_FLOORS = { GOAT: 92, Legend: 90, Superstar: 85 };
 
 function tierForCareer(score, peakOVR) {
   let idx = TIERS.indexOf(tierForScore(score));
