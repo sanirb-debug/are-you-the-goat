@@ -23,7 +23,7 @@ const state = {
   currentStep: 0,       // index into STEPS
 };
 
-const STEPS = ["name", "position", "careerTeam", "height", "frame", ...SKILL_ORDER, "confirm", "simulating", "verdict"];
+const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "position", "careerTeam", "confirm", "simulating", "verdict"];
 
 // Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
 // seeding with the same value before simCareer reproduces an identical
@@ -222,8 +222,13 @@ function generateSeasonStats(ovr, f, h, fr) {
   const tallPenalty = h >= 85 ? (h - 85) * 0.03 : 0;
   const bulkPenalty = fr >= 90 ? 0.6 : 0;
   const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * ovrFactor * jitter(), 0, 5.2);
+  // Shooting percentages are efficiency, not volume — derived from the scoring
+  // skills, NOT scaled by ovrFactor, with a small per-season wobble.
+  const jPct = () => randInt(-2, 2);
+  const fgPct = clamp(45 + (scoring - 25) * 0.27 + jPct(), 42, 66);
+  const tptPct = clamp(30 + (f.Shooting - 40) * 0.254 + jPct(), 28, 47);
   const r1 = v => Math.round(v * 10) / 10;
-  return { ppg: r1(ppg), apg: r1(apg), rpg: r1(rpg), spg: r1(spg), bpg: r1(bpg), tpg: r1(tpg) };
+  return { ppg: r1(ppg), apg: r1(apg), rpg: r1(rpg), spg: r1(spg), bpg: r1(bpg), tpg: r1(tpg), fgPct: r1(fgPct), tptPct: r1(tptPct) };
 }
 
 // ---- Season / career sim ----
@@ -279,6 +284,7 @@ function simCareer(ovr, team) {
   const varianceRange = state.positionFit ? 4 : 8;
   const f = finalSkills();
   const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
+  let fgSum = 0, tptSum = 0; // percentages are averaged, not summed
   let bestSeason = null;
 
   for (let i = 0; i < numSeasons; i++) {
@@ -302,6 +308,8 @@ function simCareer(ovr, team) {
     totals.stl += stats.spg * GAMES_PER_SEASON;
     totals.blk += stats.bpg * GAMES_PER_SEASON;
     totals.threes += stats.tpg * GAMES_PER_SEASON;
+    fgSum += stats.fgPct;
+    tptSum += stats.tptPct;
     const peakScore = stats.ppg + stats.apg * 1.5 + stats.rpg;
     if (!bestSeason || peakScore > bestSeason.peakScore) bestSeason = { year: i + 1, peakScore, ...stats };
 
@@ -319,7 +327,9 @@ function simCareer(ovr, team) {
     careerWins / 10
   );
 
-  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, bestSeason };
+  const avgFgPct = Math.round(fgSum / numSeasons * 10) / 10;
+  const avgTptPct = Math.round(tptSum / numSeasons * 10) / 10;
+  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, avgFgPct, avgTptPct, bestSeason };
 }
 
 // ---- Tier ladder ----
@@ -584,7 +594,8 @@ function compReason(ref) {
   const [t1, t2] = skills;
   const low = skills[skills.length - 1];
   const strength = t1.v >= 90 ? "Elite" : t1.v >= 80 ? "Strong" : "Capable";
-  let s = `${strength} ${t1.label} and ${t2.label} at ${ref.heightLabel}`;
+  // Height stays in the similarity math but never in this displayed sentence.
+  let s = `${strength} ${t1.label} and ${t2.label}`;
   if (low.v < 55) s += `, limited ${low.label}`;
   return s;
 }

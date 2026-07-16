@@ -634,6 +634,7 @@ button { cursor: pointer; border: none; font-family: inherit; }
 }
 
 .stats-grid.six { grid-template-columns: repeat(6, 1fr); }
+.stats-grid.eight { grid-template-columns: repeat(4, 1fr); }
 
 .peak-line {
   font-family: var(--font-cond);
@@ -840,7 +841,7 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 }
 
 @media (max-width: 480px) {
-  .stats-grid, .stats-grid.six { grid-template-columns: repeat(3, 1fr); }
+  .stats-grid, .stats-grid.six, .stats-grid.eight { grid-template-columns: repeat(3, 1fr); }
   .legend-row { grid-template-columns: 70px 1fr 40px; }
   .legend-cost { display: none; }
   .step-title { font-size: 20px; }

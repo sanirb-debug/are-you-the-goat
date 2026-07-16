@@ -427,26 +427,29 @@ function renderVerdict() {
   wrap.appendChild(el("div", "career-wins", `${career.careerWins.toLocaleString()} career wins with the ${state.team.name}`));
 
   wrap.appendChild(el("div", "section-label", "CAREER TOTALS"));
-  const totalsGrid = el("div", "stats-grid six");
+  const totalsGrid = el("div", "stats-grid eight");
+  // Counting stats are summed; FG% / 3PT% are career-averaged (can't be summed).
   [
-    [career.totals.pts, "PTS"], [career.totals.ast, "AST"], [career.totals.reb, "REB"],
-    [career.totals.stl, "STL"], [career.totals.blk, "BLK"], [career.totals.threes, "3PM"],
-  ].forEach(([val, label]) => {
-    totalsGrid.appendChild(el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-fmt="big">0</div><div class="stat-label">${label}</div>`));
+    [career.totals.pts, "PTS", "big"], [career.totals.ast, "AST", "big"], [career.totals.reb, "REB", "big"], [career.totals.stl, "STL", "big"],
+    [career.totals.blk, "BLK", "big"], [career.totals.threes, "3PM", "big"],
+    [Math.round(career.avgFgPct), "FG%", "pct"], [Math.round(career.avgTptPct), "3PT%", "pct"],
+  ].forEach(([val, label, kind]) => {
+    const attrs = kind === "pct" ? `data-count="${val}" data-suffix="%"` : `data-count="${val}" data-fmt="big"`;
+    totalsGrid.appendChild(el("div", "stat-box", `<div class="stat-val" ${attrs}>0</div><div class="stat-label">${label}</div>`));
   });
   wrap.appendChild(totalsGrid);
 
   // Career per-game averages: total stat / total games played across the
-  // whole career (each season is GAMES_PER_SEASON games).
+  // whole career (each season is GAMES_PER_SEASON games). FG%/3PT% are averaged.
   const games = career.numSeasons * GAMES_PER_SEASON;
   const pg = n => (n / games).toFixed(1);
   wrap.appendChild(el("div", "career-averages",
-    `${pg(career.totals.pts)} PPG &middot; ${pg(career.totals.ast)} APG &middot; ${pg(career.totals.reb)} RPG &middot; ${pg(career.totals.stl)} SPG &middot; ${pg(career.totals.blk)} BPG &middot; ${pg(career.totals.threes)} 3PM`));
+    `${pg(career.totals.pts)} PPG &middot; ${pg(career.totals.ast)} APG &middot; ${pg(career.totals.reb)} RPG &middot; ${pg(career.totals.stl)} SPG &middot; ${pg(career.totals.blk)} BPG &middot; ${pg(career.totals.threes)} 3PM &middot; ${career.avgFgPct} FG% &middot; ${career.avgTptPct} 3PT%`));
 
   const b = career.bestSeason;
   wrap.appendChild(el("div", "section-label", "BEST SEASON"));
   wrap.appendChild(el("div", "peak-line",
-    `Year ${b.year} of ${career.numSeasons} — ${b.ppg} PPG · ${b.apg} APG · ${b.rpg} RPG · ${b.spg} SPG · ${b.bpg} BPG · ${b.tpg} 3PM`));
+    `Year ${b.year} of ${career.numSeasons} — ${b.ppg} PPG · ${b.apg} APG · ${b.rpg} RPG · ${b.spg} SPG · ${b.bpg} BPG · ${b.tpg} 3PM · ${b.fgPct} FG% · ${b.tptPct} 3PT%`));
 
   if (badges.length) {
     const badgeRow = el("div", "badge-row");
