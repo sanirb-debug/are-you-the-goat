@@ -2,7 +2,7 @@
 
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Handles", "Defense", "Rebounding"];
 const CATEGORIES = ["height", "frame", ...SKILL_ORDER];
-const BUDGET_CAP = 100;
+const BUDGET_CAP = 1000;
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
 const state = {
@@ -44,14 +44,16 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(rng() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
 // Quadratic curve: elites cost disproportionately more than mid-tier picks
-// (99 -> 16, 90 -> 14, 75 -> 9, 60 -> 6, 45 -> 3), so stacking elites in
-// every category is still hard against the 100-pt cap. Divisor widened from
-// 500 -> 600 when Handles became the 8th category: spreading the same budget
-// across 8 picks had compressed the achievable OVR range (max peak ~87),
-// which made the intended peak-OVR tier floors unreachable. At /600 elite
-// builds can reach peak OVR ~90-96 again, so the floors below are both
-// meaningful (an 87 peak fails the Legend floor) and reachable.
-function wheelCost(rating) { return Math.round(rating * rating / 535); }
+// (99 -> 183, 90 -> 151, 75 -> 105, 60 -> 67, 45 -> 38), so stacking elites
+// in every category is hard against the 1000-pt cap. The divisor is 53.5 —
+// exactly the r^2/535 difficulty curve from the tightening pass, scaled x10
+// along with BUDGET_CAP (100 -> 1000). The finer granularity exists so cost
+// is strictly monotonic in rating: at /535 adjacent ratings rounded to the
+// same integer cost (77 and 75 both cost 11), making the lower pick free.
+// At /53.5 the step (2r+1)/53.5 >= 1 for every rating r >= 27, and a data
+// sweep confirms zero collisions across all team/category ratings (10..99).
+// Keep the divisor in sync with the cap: difficulty = divisor/cap ratio.
+function wheelCost(rating) { return Math.round(rating * rating / 53.5); }
 
 function budgetRemaining() {
   return BUDGET_CAP - state.budgetSpent;
@@ -356,11 +358,9 @@ function tierForScore(score) {
 // you drop until a tier's floor (if any) is satisfied.
 // The intended thresholds on a 0-99 OVR scale: a genuinely elite PEAK is
 // required for the top tiers, so a merely-very-good build can't reach them on
-// volume/longevity alone. Reachable because the /600 cost curve lets elite
-// builds peak ~90-96. Verified by greedy sim: an 87 peak caps at Superstar,
-// Legend needs 90+, GOAT needs 95+ (greedy GOAT ~0.6%). Re-run the balance
-// sim if the category count, budget, or cost curve changes.
-// GOAT floor sits at 92 because the r^2/535 cost curve caps achievable peaks
+// volume/longevity alone. Re-run the balance sim if the category count,
+// budget, or cost curve changes.
+// GOAT floor sits at 92 because the r^2/53.5 cost curve caps achievable peaks
 // around 92-93 — at 95 GOAT would be mathematically unreachable. Verified by
 // sim: greedy Legend ~0-2% / GOAT ~0%; casual play Legend ~5% / GOAT ~0.1-0.3%.
 const TIER_OVR_FLOORS = { GOAT: 92, Legend: 90, Superstar: 85 };
@@ -402,7 +402,7 @@ const BADGE_INFO = {
   "Unicorn Build": "Elite height (85+) paired with elite Shooting (85+)",
   "Small Ball Terror": "Undersized build (height 40 or less) with elite 85+ Rebounding",
   "Two-Way Monster": "Elite on both ends: 88+ Defense plus an 88+ scoring skill",
-  "Full Send": "Spent 97+ of the 100-point budget",
+  "Full Send": "Spent 970+ of the 1000-point budget",
   "Positional Anomaly": "Played a position the build doesn't naturally fit",
   "Certified Bust": "GOAT Score under 100 — this build never got going",
   // ---- skill / physical archetypes ----
@@ -450,7 +450,7 @@ const BADGE_INFO = {
   // ---- build strategy / budget ----
   "Balanced Build": "No skill outweighs another by more than 20 — a well-rounded build",
   "All In": "Extreme min-max: 2+ elite (90+) skills alongside 2+ glaring holes (45 or below)",
-  "Bargain Hunter": "80+ OVR while spending 80 or fewer budget points — ruthless value",
+  "Bargain Hunter": "80+ OVR while spending 800 or fewer budget points — ruthless value",
   "Need Filler": "Signed with a team that needed your position",
 };
 
@@ -475,7 +475,7 @@ function computeBadges(ovr, career) {
   if (h >= 85 && SH >= 85) add("Unicorn Build", 90 + (h - 85 + SH - 85) / 2);
   if (h <= 40 && RE >= 85) add("Small Ball Terror", 82 + (RE - 85));
   if (DE >= 88 && (SH >= 88 || FI >= 88)) add("Two-Way Monster", 88 + (DE - 88 + scoring - 88) / 2);
-  if (state.budgetSpent >= 97) add("Full Send", 42);
+  if (state.budgetSpent >= 970) add("Full Send", 42);
   if (!state.positionFit) add("Positional Anomaly", 56);
   if (career.goatScore < 100) add("Certified Bust", 45);
 
@@ -526,7 +526,7 @@ function computeBadges(ovr, career) {
   // ---- build strategy / budget ----
   if (spread <= 20) add("Balanced Build", 48);
   if (eliteCount >= 2 && weakCount >= 2) add("All In", 62);
-  if (ovr >= 80 && state.budgetSpent <= 80) add("Bargain Hunter", 80 + (ovr - 80));
+  if (ovr >= 80 && state.budgetSpent <= 800) add("Bargain Hunter", 80 + (ovr - 80));
   if (state.teamNeedMet) add("Need Filler", 52);
 
   return badges.sort((a, b) => b.score - a.score);
