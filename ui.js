@@ -578,7 +578,7 @@ function decodeBuild(str) {
   state.position = data.p;
   state.positionFit = checkPositionFit(data.p);
   state.teamNeedMet = TEAM_NEEDS[state.team.abbr] === data.p;
-  state.budgetSpent = CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0);
+  state.budgetSpent = round1(CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0));
   state.seed = data.s >>> 0;
   seedRng(state.seed);
   career = simCareer(computeOVR(), state.team);
