@@ -309,6 +309,7 @@ function simCareer(ovr, team) {
   const numSeasons = randInt(15, 20); // full career, always runs to completion
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
+  let bestMVPOVR = 0; // OVR of the strongest MVP-winning season (0 if none)
   const varianceRange = state.positionFit ? 4 : 8;
   const f = finalSkills();
   const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
@@ -324,7 +325,7 @@ function simCareer(ovr, team) {
     const result = simSeason(seasonOVR, scrThisYear, varianceRange);
     careerWins += result.wins;
     if (result.ring) rings++;
-    if (result.mvp) mvps++;
+    if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, seasonOVR); }
     if (result.finalsMVP) finalsMVPs++;
     if (result.allNBA) allNBAs++;
     if (result.allStar) allStars++;
@@ -345,10 +346,14 @@ function simCareer(ovr, team) {
   }
   Object.keys(totals).forEach(k => { totals[k] = Math.round(totals[k]); });
 
+  // MVPs escalate: 12 each, plus +15 for every MVP beyond the first. A
+  // multi-MVP haul is a dominance signal, not a stat line — without the
+  // bonus, a 4-MVP / 18x All-NBA career (score ~589) capped at Superstar
+  // below the Legend line (600), which read as a design gap.
   const goatScore = Math.round(
     peakOVR * 4 +
     rings * 15 +
-    mvps * 12 +
+    mvps * 12 + Math.max(0, mvps - 1) * 15 +
     finalsMVPs * 10 +
     allNBAs * 3 +
     allStars * 1 +
@@ -357,14 +362,15 @@ function simCareer(ovr, team) {
 
   const avgFgPct = Math.round(fgSum / numSeasons * 10) / 10;
   const avgTptPct = Math.round(tptSum / numSeasons * 10) / 10;
-  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, goatScore, totals, avgFgPct, avgTptPct, bestSeason };
+  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, bestMVPOVR, goatScore, totals, avgFgPct, avgTptPct, bestSeason };
 }
 
 // ---- Tier ladder ----
 // Score mins calibrated to the salary curve + rescaled award gates (which
 // award MVPs/All-NBA/rings at lower OVRs, inflating scores): set from
-// 3000+-run percentiles on the best team — GOAT 690 = ~p96 of the PERFECT
-// (base-80) build (~3-5% GOAT for perfect play), Legend 600 = ~p50 of that
+// 5000-run percentiles on the best team — GOAT 755 = ~p96 of the PERFECT
+// (base-80) build (~3-5% GOAT for perfect play; re-anchored from 690 when
+// the escalating MVP bonus lifted the top tail), Legend 600 = ~p50 of that
 // build, Superstar 465 = ~p50 of a strong maxed-out (base-73) build.
 const TIERS = [
   { name: "Draft Bust", min: -Infinity },
@@ -373,7 +379,7 @@ const TIERS = [
   { name: "All-Star", min: 250 },
   { name: "Superstar", min: 465 },
   { name: "Legend", min: 600 },
-  { name: "GOAT", min: 690 },
+  { name: "GOAT", min: 755 },
 ];
 
 function tierForScore(score) {
@@ -397,11 +403,19 @@ function tierForScore(score) {
 // unreachable — the trap to avoid when retuning.
 const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 
-function tierForCareer(score, peakOVR) {
+// A tier's OVR floor is satisfied by EITHER the tracked career peak OR the
+// best MVP-winning season's OVR: winning MVP is proof of a floor-worthy
+// season, so a technicality in peak tracking can never cap an MVP winner.
+// (Today this is a safety invariant rather than a live branch — peakOVR is
+// the max over all seasons so it always >= bestMVPOVR, and the MVP gate (80)
+// equals the Legend floor — but it guards any future retune where the MVP
+// gate drops below a floor or peak tracking changes.)
+function tierForCareer(score, peakOVR, bestMVPOVR = 0) {
+  const effectivePeak = Math.max(peakOVR, bestMVPOVR);
   let idx = TIERS.indexOf(tierForScore(score));
   while (idx > 0) {
     const floor = TIER_OVR_FLOORS[TIERS[idx].name];
-    if (!floor || peakOVR >= floor) break;
+    if (!floor || effectivePeak >= floor) break;
     idx--;
   }
   return TIERS[idx];

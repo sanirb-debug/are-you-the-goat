@@ -379,7 +379,7 @@ function renderCareerTeamStep() {
 // ---- Verdict ----
 function renderVerdict() {
   const ovr = computeOVR();
-  const tier = tierForCareer(career.goatScore, career.peakOVR);
+  const tier = tierForCareer(career.goatScore, career.peakOVR, career.bestMVPOVR || 0);
   const pct = percentileForScore(career.goatScore).toFixed(1);
   const badges = computeBadges(ovr, career);
   const headline = generateHeadline(career, tier);
@@ -610,7 +610,7 @@ function startFresh() {
 
 // ---- Downloadable verdict card, hand-drawn on a canvas (no libraries) ----
 function exportVerdictImage(btn) {
-  const tier = tierForCareer(career.goatScore, career.peakOVR);
+  const tier = tierForCareer(career.goatScore, career.peakOVR, career.bestMVPOVR || 0);
   const pct = percentileForScore(career.goatScore).toFixed(1);
   const b = career.bestSeason;
   const W = 1080, H = 1080, cx = W / 2;
