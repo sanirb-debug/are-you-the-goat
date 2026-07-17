@@ -237,8 +237,14 @@ const TEAM_NEEDS = computeTeamNeeds();
 function generateSeasonStats(ovr, f, h, fr) {
   const jitter = () => 1 + randInt(-8, 8) / 100;
   const ovrFactor = clamp((ovr - 48) / 50, 0.35, 1);
+  // Scoring output tracks the scoring SKILLS, not overall OVR. ovrFactor
+  // used to multiply ppg directly, so an elite Shooting/Finishing specialist
+  // with weak unrelated categories (94 Finishing but OVR 68) was crushed to
+  // ~11 PPG. Scoring stats (ppg, tpg) now use only a light opportunity
+  // dampener derived from OVR (x0.85-1.0); non-scoring stats keep ovrFactor.
+  const scoringOpp = 0.85 + 0.15 * ovrFactor;
   const scoring = (f.Shooting + f.Finishing) / 2;
-  const ppg = clamp((4 + (scoring - 25) * 0.42) * ovrFactor * jitter(), 4, 34);
+  const ppg = clamp((4 + (scoring - 25) * 0.42) * scoringOpp * jitter(), 4, 34);
   const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * ovrFactor * jitter(), 0.5, 11.5);
   const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * ovrFactor * jitter(), 1, 15);
   // smaller, leaner builds poke more passing lanes; bigger builds protect the rim
@@ -247,7 +253,7 @@ function generateSeasonStats(ovr, f, h, fr) {
   // threes come from Shooting alone; very tall or Powerful builds live closer to the rim
   const tallPenalty = h >= 85 ? (h - 85) * 0.03 : 0;
   const bulkPenalty = fr >= 90 ? 0.6 : 0;
-  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * ovrFactor * jitter(), 0, 5.2);
+  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * scoringOpp * jitter(), 0, 5.2);
   // Shooting percentages are efficiency, not volume — derived from the scoring
   // skills, NOT scaled by ovrFactor, with a small per-season wobble.
   const jPct = () => randInt(-2, 2);
