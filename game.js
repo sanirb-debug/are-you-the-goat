@@ -625,6 +625,19 @@ const COMP_DIMS = ["height", "frame", ...SKILL_ORDER];
 // single skill — without this a short body with forward-like skills could be
 // outvoted across the 6 skill dims and match a much taller player.
 const COMP_WEIGHTS = { height: 4, frame: 1.5, Shooting: 1, Finishing: 1, Playmaking: 1, Handles: 1, Defense: 1, Rebounding: 1 };
+// Signature emphasis: a skill dimension where EITHER the build or the candidate
+// is extreme (far from a ~55 average) is a defining trait, and a gap there
+// should hurt far more than a gap on a middling dimension. Without this, a
+// scoring guard with weak Playmaking (70) matched Tony Parker (elite 82+
+// playmaker) because the 12-pt Playmaking gap — his signature skill — counted
+// the same as any other and got outvoted. emphasis scales the squared diff up
+// to ~3.5x for a maxed defining trait. Applies to skills only; the physical
+// dims already carry fixed structural weights.
+const COMP_SIG = 2.6;
+function sigEmphasis(a, b) {
+  const dev = Math.max(Math.abs(a - 55), Math.abs(b - 55)) / 44; // 0 at avg, ~1 at the extremes
+  return 1 + COMP_SIG * Math.min(1, dev);
+}
 function buildProfile() {
   const f = finalSkills();
   const p = { height: state.height.rating, frame: state.frame.rating };
@@ -632,15 +645,23 @@ function buildProfile() {
   return p;
 }
 
-// Closest real player by Euclidean distance across all 8 dimensions — never
-// position-filtered, so anomaly builds can comp across positions. Ties break
-// deterministically on name (alphabetical) so the result is stable.
+function compDistance(profile, ref) {
+  let sum = 0;
+  for (const d of COMP_DIMS) {
+    const diff = profile[d] - ref.dims[d];
+    const emph = SKILL_ORDER.includes(d) ? sigEmphasis(profile[d], ref.dims[d]) : 1;
+    sum += COMP_WEIGHTS[d] * emph * diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+// Closest real player by signature-weighted distance across all 8 dimensions —
+// never position-filtered, so anomaly builds can comp across positions. Ties
+// break deterministically on name (alphabetical) so the result is stable.
 function closestComp(profile) {
   let best = null, bestDist = Infinity;
   for (const ref of COMP_PLAYERS) {
-    let sum = 0;
-    for (const d of COMP_DIMS) { const diff = profile[d] - ref.dims[d]; sum += COMP_WEIGHTS[d] * diff * diff; }
-    const dist = Math.sqrt(sum);
+    const dist = compDistance(profile, ref);
     if (dist < bestDist || (dist === bestDist && (!best || ref.name < best.name))) {
       bestDist = dist; best = ref;
     }
@@ -648,24 +669,48 @@ function closestComp(profile) {
   return best;
 }
 
+const COMP_SKILL_LABELS = { Shooting: "shooting", Finishing: "finishing", Playmaking: "playmaking", Handles: "handle", Defense: "defense", Rebounding: "rebounding" };
+
 // One-line, template-based read on why the build comps to this player, built
-// from the comp's two standout skills, height, and a notable weakness.
-function compReason(ref) {
-  const LABELS = { Shooting: "shooting", Finishing: "finishing", Playmaking: "playmaking", Handles: "handle", Defense: "defense", Rebounding: "rebounding" };
-  const skills = SKILL_ORDER.map(k => ({ k, label: LABELS[k], v: ref.dims[k] })).sort((a, b) => b.v - a.v);
+// from the comp's two standout skills and a notable weakness. When a build
+// profile is passed, a signature-mismatch caveat is appended if the comp's
+// defining strength is a skill the build is notably weaker in (or vice
+// versa) — so a not-quite-clean match reads honestly instead of pretending
+// the archetypes line up perfectly. Pool depth keeps this rare; the caveat
+// covers the residual cases.
+function compReason(ref, profile = null) {
+  const skills = SKILL_ORDER.map(k => ({ k, label: COMP_SKILL_LABELS[k], v: ref.dims[k] })).sort((a, b) => b.v - a.v);
   const [t1, t2] = skills;
   const low = skills[skills.length - 1];
   const strength = t1.v >= 90 ? "Elite" : t1.v >= 80 ? "Strong" : "Capable";
   // Height stays in the similarity math but never in this displayed sentence.
   let s = `${strength} ${t1.label} and ${t2.label}`;
   if (low.v < 55) s += `, limited ${low.label}`;
+
+  if (profile) {
+    // Largest signature divergence: the skill where build and comp differ most,
+    // among dims that are defining (extreme) for one of them.
+    let worst = null;
+    for (const k of SKILL_ORDER) {
+      const gap = profile[k] - ref.dims[k];
+      const defining = Math.max(Math.abs(profile[k] - 55), Math.abs(ref.dims[k] - 55)) >= 25;
+      if (defining && Math.abs(gap) >= 18 && (!worst || Math.abs(gap) > Math.abs(worst.gap)))
+        worst = { k, gap, label: COMP_SKILL_LABELS[k] };
+    }
+    if (worst) {
+      s += worst.gap < 0
+        ? ` — though you lean on his ${worst.label} far less than he did`
+        : ` — with more ${worst.label} in your game than his`;
+    }
+  }
   return s;
 }
 
 // Convenience for the verdict screen: returns { name, pos, reason }.
 function playstyleComp() {
-  const ref = closestComp(buildProfile());
-  return { name: ref.name, pos: ref.pos, reason: compReason(ref) };
+  const profile = buildProfile();
+  const ref = closestComp(profile);
+  return { name: ref.name, pos: ref.pos, reason: compReason(ref, profile) };
 }
 
 // What tier a build of this OVR "should" reach, for over/under-performance

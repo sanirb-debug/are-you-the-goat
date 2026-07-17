@@ -645,6 +645,11 @@ const COMP_ROWS = [
   ["Damian Lillard", "PG", "6'2\"", 40, 45, 94, 80, 84, 88, 48, 40],
   ["Kyrie Irving", "PG", "6'2\"", 40, 45, 92, 90, 82, 99, 52, 40],
   ["Tony Parker", "PG", "6'1\"", 36, 45, 72, 86, 82, 82, 58, 38],
+  ["Stephen Curry", "PG", "6'2\"", 40, 32, 99, 78, 84, 95, 55, 42],       // off-ball shooter/handle
+  ["Trae Young", "PG", "6'1\"", 36, 25, 90, 70, 94, 88, 28, 35],          // shoot-first playmaker, no D
+  ["Ja Morant", "PG", "6'2\"", 40, 48, 62, 92, 82, 88, 52, 45],           // athletic slasher, weak jumper
+  ["Gary Payton", "PG", "6'4\"", 48, 55, 72, 78, 84, 82, 96, 48],         // defense-first two-way PG
+  ["Derrick Rose", "PG", "6'2\"", 40, 48, 68, 90, 78, 85, 52, 42],        // explosive scoring PG
   // ---- Shooting Guards ----
   ["Michael Jordan", "SG", "6'6\"", 55, 62, 88, 94, 80, 88, 92, 62],
   ["Kobe Bryant", "SG", "6'6\"", 55, 60, 90, 90, 78, 90, 85, 55],
@@ -656,6 +661,11 @@ const COMP_ROWS = [
   ["Reggie Miller", "SG", "6'7\"", 58, 30, 96, 70, 58, 62, 58, 40],
   ["Vince Carter", "SG", "6'6\"", 55, 60, 82, 94, 62, 80, 62, 55],
   ["Jerry West", "SG", "6'2\"", 40, 45, 88, 84, 82, 82, 82, 48],
+  ["Bradley Beal", "SG", "6'4\"", 48, 48, 88, 82, 70, 80, 50, 40],        // combo scorer, modest playmaking
+  ["Devin Booker", "SG", "6'5\"", 52, 45, 90, 82, 76, 82, 52, 40],        // pure three-level scorer
+  ["Tracy McGrady", "SG", "6'8\"", 62, 60, 86, 90, 80, 82, 62, 58],       // tall shot-creating wing
+  ["Jamal Crawford", "SG", "6'5\"", 52, 32, 84, 74, 68, 94, 40, 30],      // handle/microwave, no D or PM
+  ["George Gervin", "SG", "6'7\"", 58, 32, 90, 92, 62, 78, 55, 48],       // silky pure scorer
   // ---- Small Forwards ----
   ["LeBron James", "SF", "6'9\"", 68, 72, 80, 95, 92, 85, 82, 75],
   ["Larry Bird", "SF", "6'9\"", 68, 60, 92, 84, 90, 74, 68, 82],
@@ -667,6 +677,11 @@ const COMP_ROWS = [
   ["Carmelo Anthony", "SF", "6'7\"", 58, 72, 86, 86, 60, 78, 52, 62],
   ["Grant Hill", "SF", "6'8\"", 62, 60, 72, 86, 80, 82, 74, 62],
   ["Rick Barry", "SF", "6'7\"", 58, 45, 88, 84, 80, 76, 66, 62],
+  ["Jimmy Butler", "SF", "6'7\"", 58, 60, 74, 85, 72, 72, 90, 55],       // two-way, defense-anchored wing
+  ["Paul Pierce", "SF", "6'7\"", 58, 60, 86, 84, 72, 76, 66, 55],        // shot-making scorer
+  ["Dominique Wilkins", "SF", "6'8\"", 62, 60, 82, 94, 55, 74, 52, 60],  // explosive scorer, weak playmaking
+  ["Jayson Tatum", "SF", "6'8\"", 62, 55, 88, 84, 70, 78, 74, 62],       // modern two-way scorer
+  ["Andre Iguodala", "SF", "6'6\"", 55, 60, 62, 74, 74, 68, 88, 58],     // 3-and-D connector, low usage
   // ---- Power Forwards ----
   ["Tim Duncan", "PF", "6'11\"", 82, 72, 62, 88, 68, 45, 95, 92],
   ["Karl Malone", "PF", "6'9\"", 68, 92, 72, 92, 60, 55, 76, 88],
@@ -678,6 +693,11 @@ const COMP_ROWS = [
   ["Blake Griffin", "PF", "6'9\"", 68, 92, 62, 92, 70, 62, 55, 80],
   ["Anthony Davis", "PF", "6'10\"", 75, 72, 70, 90, 62, 55, 93, 90],
   ["Draymond Green", "PF", "6'6\"", 55, 80, 55, 62, 85, 62, 95, 78],
+  ["Kevin McHale", "PF", "6'10\"", 75, 60, 62, 92, 48, 45, 82, 82],      // low-post scoring big
+  ["Pau Gasol", "PF", "7'0\"", 87, 60, 68, 86, 68, 50, 72, 86],          // skilled two-way big
+  ["Chris Webber", "PF", "6'10\"", 75, 72, 66, 84, 78, 58, 68, 86],      // playmaking forward
+  ["Amar'e Stoudemire", "PF", "6'10\"", 75, 80, 60, 94, 42, 48, 50, 80], // athletic finisher, weak PM/D
+  ["Kevin Love", "PF", "6'8\"", 62, 80, 82, 74, 58, 50, 45, 90],         // stretch-4 rebounder
   // ---- Centers ----
   ["Shaquille O'Neal", "C", "7'1\"", 90, 92, 30, 96, 55, 40, 82, 93],
   ["Kareem Abdul-Jabbar", "C", "7'2\"", 93, 72, 60, 96, 62, 45, 88, 92],
@@ -689,6 +709,11 @@ const COMP_ROWS = [
   ["Patrick Ewing", "C", "7'0\"", 87, 92, 62, 88, 45, 42, 90, 90],
   ["Dikembe Mutombo", "C", "7'2\"", 93, 92, 20, 68, 30, 35, 97, 95],
   ["Rudy Gobert", "C", "7'1\"", 90, 72, 20, 78, 30, 30, 95, 94],
+  ["Joel Embiid", "C", "7'0\"", 87, 80, 78, 90, 62, 55, 88, 90],         // dominant two-way scoring C
+  ["Karl-Anthony Towns", "C", "6'11\"", 82, 72, 88, 84, 55, 58, 55, 88], // stretch-5 shooter
+  ["Alonzo Mourning", "C", "6'10\"", 75, 80, 45, 86, 40, 38, 95, 88],    // defense/rim-run big
+  ["Yao Ming", "C", "7'6\"", 99, 88, 62, 88, 50, 40, 80, 88],            // skyscraper post scorer
+  ["Ben Wallace", "C", "6'9\"", 68, 80, 20, 60, 30, 30, 97, 96],         // pure defense/rebound anchor
 ];
 
 const COMP_PLAYERS = COMP_ROWS.map(([name, pos, heightLabel, height, frame, sh, fi, pl, ha, de, re]) => ({
