@@ -48,18 +48,20 @@ function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
 //     Two bench-tier ratings may tie on price; that's accepted (ties among
 //     scrubs don't distort real decisions, and integer costs against a 100
 //     cap mathematically can't uniquely price ~78 densely-packed ratings).
-//   elite zone (r >= 70): 6 + (r-70) + 0.018*(r-70)^2, rounded.
+//   elite zone (r >= 70): 6 + (r-70) + 0.014*(r-70)^2, rounded.
 //     Slope >= 1 per rating point, so every rating 70+ has a UNIQUE price
 //     (no Butler-77/Rodman-75 same-cost collisions where choices matter),
-//     and the quadratic ramp makes stacking hurt: 70->6, 75->11, 80->18,
-//     85->25, 90->33, 95->41, 99->50. Three 85+ picks ~75 pts; five are
-//     impossible. DP-verified max base OVR is 80 (peak ~83 with the +3
-//     season roll) — the tier OVR floors and award gates below are
-//     calibrated to THAT ceiling; retune them if this curve changes.
+//     and the quadratic ramp makes stacking hurt: 70->6, 75->11, 80->17,
+//     85->24, 90->32, 95->40, 99->47. Three 85+ picks ~72 pts; five are
+//     impossible. (0.014 was eased from 0.018 — ~6-10% gentler at the high
+//     end — after the first pass proved slightly too harsh.) DP-verified
+//     max base OVR is 81 (peak ~84 with the +3 season roll) — the tier OVR
+//     floors, score mins, and award gates below are calibrated to THAT
+//     ceiling; retune them if this curve changes.
 function wheelCost(rating) {
   if (rating < 70) return Math.max(1, Math.round(rating * rating / 900));
   const x = rating - 70;
-  return Math.round(6 + x + 0.018 * x * x);
+  return Math.round(6 + x + 0.014 * x * x);
 }
 
 function budgetRemaining() {
@@ -346,9 +348,10 @@ function simCareer(ovr, team) {
 // ---- Tier ladder ----
 // Score mins calibrated to the integer cost curve + rescaled award gates
 // (which award MVPs/All-NBA/rings at lower OVRs, inflating scores): set from
-// 4000-run percentiles on the best team — GOAT 700 = ~p98 of the PERFECT
-// (base-80) build, Legend 600 = ~p90 of a near-perfect (base-78) build,
-// Superstar 465 = ~p50 of a strong maxed-out (base-73) build.
+// 4000-run percentiles on the best team — GOAT 715 = ~p96 of the PERFECT
+// (base-81) build (~4% GOAT for perfect play), Legend 600 = ~p73 of a
+// near-perfect (base-79) build, Superstar 465 = ~p50 of a strong maxed-out
+// (base-73) build.
 const TIERS = [
   { name: "Draft Bust", min: -Infinity },
   { name: "Bench Piece", min: 100 },
@@ -356,7 +359,7 @@ const TIERS = [
   { name: "All-Star", min: 250 },
   { name: "Superstar", min: 465 },
   { name: "Legend", min: 600 },
-  { name: "GOAT", min: 700 },
+  { name: "GOAT", min: 715 },
 ];
 
 function tierForScore(score) {
@@ -375,8 +378,8 @@ function tierForScore(score) {
 // volume/longevity alone. Re-run the balance sim if the category count,
 // budget, or cost curve changes.
 // Calibrated to the two-zone integer curve's DP-verified ceiling: max base
-// OVR 80, max peak ~83 with the +3 season roll. GOAT at 82 needs a
-// near-perfect build (base 79+) plus a hot season; at 84+ GOAT would be
+// OVR 81, max peak ~84 with the +3 season roll. GOAT at 82 needs a
+// near-perfect build (base 79+) plus a hot season; at 85+ GOAT would be
 // mathematically unreachable — the trap to avoid when retuning.
 const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 
