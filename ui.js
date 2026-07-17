@@ -76,7 +76,7 @@ function renderPicksPanel() {
       const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : ""),
         `<span class="picks-cat">${categoryLabel(cat)}</span>
          <span class="picks-player">${pick.name}</span>
-         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${pick.cost} pts</span>`);
+         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${fmtSalary(pick.cost)}</span>`);
       row.onclick = () => {
         state.editingCategory = cat;
         render();
@@ -100,7 +100,7 @@ function renderEditStep(category) {
   const wrap = el("div", "card");
   wrap.appendChild(el("h1", "step-title center", `Edit: ${categoryLabel(category)}`));
   wrap.appendChild(el("p", "step-sub center",
-    `${team.name} legends &nbsp;·&nbsp; current: ${pick.name} (${pick.cost} pts refunded on swap) &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
+    `${team.name} legends &nbsp;·&nbsp; current: ${pick.name} (${fmtSalary(pick.cost)} refunded on swap) &nbsp;·&nbsp; Cap space: ${fmtSalary(budgetRemaining())}`));
 
   const list = el("div", "roster-list");
   getRosterOptions(category, team, pick.cost).forEach(opt => {
@@ -109,7 +109,7 @@ function renderEditStep(category) {
     const row = el("button", "roster-row" + (opt.affordable ? "" : " locked") + (isCurrent ? " current" : ""),
       `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}</span>
        <span class="roster-rating">${display}</span>
-       <span class="roster-cost">${opt.cost} pts</span>`);
+       <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
     row.disabled = !opt.affordable;
     row.onclick = () => {
       replacePick(category, opt);
@@ -158,7 +158,7 @@ function animateCounts(root) {
 }
 
 function budgetPillHTML() {
-  return `CAP <span class="budget-num">${state.budgetSpent}</span>/${BUDGET_CAP}`;
+  return `CAP <span class="budget-num">${fmtSalary(state.budgetSpent)}</span>/${fmtSalary(BUDGET_CAP)}`;
 }
 
 // ---- Step 0: Name ----
@@ -195,7 +195,7 @@ function renderRosterStep(category, title, sub, onLock) {
     ? `<span class="scout-team-name">${team.name}</span> legends`
     : "Spin for the franchise you're scouting this pick from.";
   wrap.appendChild(el("p", "step-sub center",
-    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; Budget remaining: ${budgetRemaining()} pts`));
+    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; Cap space: ${fmtSalary(budgetRemaining())}`));
 
   const spinBtn = el("button", "btn-primary",
     !team ? "🎡 Spin for a Team"
@@ -230,7 +230,7 @@ function renderRosterStep(category, title, sub, onLock) {
       const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
         `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span></span>
          <span class="roster-rating">${display}</span>
-         <span class="roster-cost">${opt.cost} pts</span>`);
+         <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
       row.disabled = !opt.affordable;
       row.onclick = () => {
         onLock(opt);
@@ -272,7 +272,7 @@ function renderConfirmStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Ready to Simulate This Career?"));
   wrap.appendChild(el("p", "step-sub",
-    `All ${CATEGORIES.length} picks locked &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP} &nbsp;·&nbsp; click any pick to change it`));
+    `All ${CATEGORIES.length} picks locked &nbsp;·&nbsp; Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)} &nbsp;·&nbsp; click any pick to change it`));
 
   const list = el("div", "roster-list");
   CATEGORIES.forEach(cat => {
@@ -281,7 +281,7 @@ function renderConfirmStep() {
     const row = el("button", "roster-row",
       `<span class="roster-name">${categoryLabel(cat)}: ${p.name} <span class="era-tag">${p.team ? p.team.abbr : "—"}</span></span>
        <span class="roster-rating">${display}</span>
-       <span class="roster-cost">${p.cost} pts</span>`);
+       <span class="roster-cost">${fmtSalary(p.cost)}</span>`);
     row.onclick = () => {
       state.editingCategory = cat;
       render();
@@ -470,9 +470,9 @@ function renderVerdict() {
   const legendList = el("div", "legend-list");
   const f = finalSkills();
   const rows = [
-    ["Height", `${state.height.name} (${state.height.label})`, state.height.rating, `${state.height.cost} pts`],
-    ["Frame", `${state.frame.name} (${state.frame.label})`, state.frame.rating, `${state.frame.cost} pts`],
-    ...SKILL_ORDER.map(s => [s, state.skills[s].name, f[s], `${state.skills[s].cost} pts`]),
+    ["Height", `${state.height.name} (${state.height.label})`, state.height.rating, fmtSalary(state.height.cost)],
+    ["Frame", `${state.frame.name} (${state.frame.label})`, state.frame.rating, fmtSalary(state.frame.cost)],
+    ...SKILL_ORDER.map(s => [s, state.skills[s].name, f[s], fmtSalary(state.skills[s].cost)]),
   ];
   rows.forEach(([cat, name, rating, cost]) => {
     const row = el("div", "legend-row");
@@ -486,7 +486,7 @@ function renderVerdict() {
 
   const needNote = state.teamNeedMet ? ` &nbsp;·&nbsp; Filled ${state.team.name}'s need ✓` : "";
   wrap.appendChild(el("div", "meta-line",
-    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; Budget spent: ${state.budgetSpent}/${BUDGET_CAP}`));
+    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`));
 
   if (state.sharedView) {
     const build = el("button", "btn-primary", "Build Your Own →");

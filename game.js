@@ -2,7 +2,7 @@
 
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Handles", "Defense", "Rebounding"];
 const CATEGORIES = ["height", "frame", ...SKILL_ORDER];
-const BUDGET_CAP = 100;
+const BUDGET_CAP = 1000; // internal tenths of $M — displays as the "$100M cap" via fmtSalary
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
 const state = {
@@ -43,25 +43,40 @@ function seedRng(n) { _rng = mulberry32(n >>> 0); }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(rng() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
-// Two-zone integer curve (whole points, no decimals anywhere):
-//   bench zone (r < 70): round(r^2/900), min 1 — cheap filler, 1-9 pts.
-//     Two bench-tier ratings may tie on price; that's accepted (ties among
-//     scrubs don't distort real decisions, and integer costs against a 100
-//     cap mathematically can't uniquely price ~78 densely-packed ratings).
-//   elite zone (r >= 70): 6 + (r-70) + 0.014*(r-70)^2, rounded.
-//     Slope >= 1 per rating point, so every rating 70+ has a UNIQUE price
-//     (no Butler-77/Rodman-75 same-cost collisions where choices matter),
-//     and the quadratic ramp makes stacking hurt: 70->6, 75->11, 80->17,
-//     85->24, 90->32, 95->40, 99->47. Three 85+ picks ~72 pts; five are
-//     impossible. (0.014 was eased from 0.018 — ~6-10% gentler at the high
-//     end — after the first pass proved slightly too harsh.) DP-verified
-//     max base OVR is 81 (peak ~84 with the +3 season roll) — the tier OVR
-//     floors, score mins, and award gates below are calibrated to THAT
-//     ceiling; retune them if this curve changes.
+// SALARY-CAP ECONOMY. Costs are salaries in integer TENTHS of $M against a
+// $100M cap (BUDGET_CAP = 1000 tenths): all math is exact integers, and
+// fmtSalary() renders "$4.3M" / "$100M" for display. Tenths resolution is
+// the STRUCTURAL fix for the recurring duplicate-cost bug: whole points
+// against a 100 cap can never uniquely price ~78 densely-packed ratings
+// (pigeonhole — gap-1 rating pairs co-occur in team lists at every rating
+// 27-99), so every past integer curve either tied somewhere or broke the
+// economy. At tenths resolution every rating in the data prices uniquely,
+// and stays unique under any future difficulty tuning — enforced by
+// verify-costs.js, which the pre-commit hook runs on every commit
+// touching this file or data.js (hooks/pre-commit).
+// Two-zone shape (difficulty matches the tuned v25 curve within ~$1M):
+//   bench zone (r < 70): (r - 9) tenths — LINEAR, exactly 1 tenth per rating
+//     point, so every bench rating prices uniquely no matter how tightly the
+//     data packs (a quadratic bench zone stepped <1 tenth below rating ~45
+//     and re-tied; verify-costs.js caught it). 10->$0.1M (league minimum),
+//     40->$3.1M, 60->$5.1M, 69->$6M.
+//   elite zone (r >= 70): 62 + 10x + 0.14x^2 tenths, x = r-70 — starts one
+//     tenth above the bench ceiling (seam stays strictly increasing), slope
+//     >= 10 tenths/rating, and the quadratic ramp makes stacking hurt:
+//     70->$6.2M, 75->$11.6M, 80->$17.6M, 85->$24.4M, 90->$31.8M, 99->$47M.
+//     Three 85+ picks ~$73M; five are impossible under the $100M cap.
+//     DP-verified max base OVR is 80 (peak ~83 with the +3 season roll) —
+//     the tier OVR floors, score mins, and award gates below are calibrated
+//     to THAT ceiling; retune them if this curve changes.
 function wheelCost(rating) {
-  if (rating < 70) return Math.max(1, Math.round(rating * rating / 900));
+  if (rating < 70) return rating - 9;
   const x = rating - 70;
-  return Math.round(6 + x + 0.014 * x * x);
+  return Math.round(62 + 10 * x + 0.14 * x * x);
+}
+
+// Render internal tenths-of-$M as a salary: 43 -> "$4.3M", 1000 -> "$100M".
+function fmtSalary(tenths) {
+  return "$" + (tenths / 10).toFixed(1).replace(/\.0$/, "") + "M";
 }
 
 function budgetRemaining() {
@@ -346,12 +361,11 @@ function simCareer(ovr, team) {
 }
 
 // ---- Tier ladder ----
-// Score mins calibrated to the integer cost curve + rescaled award gates
-// (which award MVPs/All-NBA/rings at lower OVRs, inflating scores): set from
-// 4000-run percentiles on the best team — GOAT 715 = ~p96 of the PERFECT
-// (base-81) build (~4% GOAT for perfect play), Legend 600 = ~p73 of a
-// near-perfect (base-79) build, Superstar 465 = ~p50 of a strong maxed-out
-// (base-73) build.
+// Score mins calibrated to the salary curve + rescaled award gates (which
+// award MVPs/All-NBA/rings at lower OVRs, inflating scores): set from
+// 3000+-run percentiles on the best team — GOAT 690 = ~p96 of the PERFECT
+// (base-80) build (~3-5% GOAT for perfect play), Legend 600 = ~p50 of that
+// build, Superstar 465 = ~p50 of a strong maxed-out (base-73) build.
 const TIERS = [
   { name: "Draft Bust", min: -Infinity },
   { name: "Bench Piece", min: 100 },
@@ -359,7 +373,7 @@ const TIERS = [
   { name: "All-Star", min: 250 },
   { name: "Superstar", min: 465 },
   { name: "Legend", min: 600 },
-  { name: "GOAT", min: 715 },
+  { name: "GOAT", min: 690 },
 ];
 
 function tierForScore(score) {
@@ -377,10 +391,10 @@ function tierForScore(score) {
 // required for the top tiers, so a merely-very-good build can't reach them on
 // volume/longevity alone. Re-run the balance sim if the category count,
 // budget, or cost curve changes.
-// Calibrated to the two-zone integer curve's DP-verified ceiling: max base
-// OVR 81, max peak ~84 with the +3 season roll. GOAT at 82 needs a
-// near-perfect build (base 79+) plus a hot season; at 85+ GOAT would be
-// mathematically unreachable — the trap to avoid when retuning.
+// Calibrated to the salary curve's DP-verified ceiling: max base OVR 80,
+// max peak ~83 with the +3 season roll. GOAT at 82 needs a near-perfect
+// build (base 79+) plus a hot season; at 84+ GOAT would be mathematically
+// unreachable — the trap to avoid when retuning.
 const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 
 function tierForCareer(score, peakOVR) {
@@ -420,7 +434,7 @@ const BADGE_INFO = {
   "Unicorn Build": "Elite height (85+) paired with elite Shooting (85+)",
   "Small Ball Terror": "Undersized build (height 40 or less) with elite 85+ Rebounding",
   "Two-Way Monster": "Elite on both ends: 88+ Defense plus an 88+ scoring skill",
-  "Full Send": "Spent 97+ of the 100-point budget",
+  "Full Send": "Committed $97M+ of the $100M cap",
   "Positional Anomaly": "Played a position the build doesn't naturally fit",
   "Certified Bust": "GOAT Score under 100 — this build never got going",
   // ---- skill / physical archetypes ----
@@ -468,7 +482,7 @@ const BADGE_INFO = {
   // ---- build strategy / budget ----
   "Balanced Build": "No skill outweighs another by more than 20 — a well-rounded build",
   "All In": "Extreme min-max: 2+ elite (90+) skills alongside 2+ glaring holes (45 or below)",
-  "Bargain Hunter": "80+ OVR while spending 80 or fewer budget points — ruthless value",
+  "Bargain Hunter": "80+ OVR while committing $80M or less — ruthless value",
   "Need Filler": "Signed with a team that needed your position",
 };
 
@@ -493,7 +507,7 @@ function computeBadges(ovr, career) {
   if (h >= 85 && SH >= 85) add("Unicorn Build", 90 + (h - 85 + SH - 85) / 2);
   if (h <= 40 && RE >= 85) add("Small Ball Terror", 82 + (RE - 85));
   if (DE >= 88 && (SH >= 88 || FI >= 88)) add("Two-Way Monster", 88 + (DE - 88 + scoring - 88) / 2);
-  if (state.budgetSpent >= 97) add("Full Send", 42);
+  if (state.budgetSpent >= 970) add("Full Send", 42);
   if (!state.positionFit) add("Positional Anomaly", 56);
   if (career.goatScore < 100) add("Certified Bust", 45);
 
@@ -544,7 +558,7 @@ function computeBadges(ovr, career) {
   // ---- build strategy / budget ----
   if (spread <= 20) add("Balanced Build", 48);
   if (eliteCount >= 2 && weakCount >= 2) add("All In", 62);
-  if (ovr >= 80 && state.budgetSpent <= 80) add("Bargain Hunter", 80 + (ovr - 80));
+  if (ovr >= 80 && state.budgetSpent <= 800) add("Bargain Hunter", 80 + (ovr - 80));
   if (state.teamNeedMet) add("Need Filler", 52);
 
   return badges.sort((a, b) => b.score - a.score);

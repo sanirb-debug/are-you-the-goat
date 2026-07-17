@@ -1,0 +1,9 @@
+#!/bin/sh
+# Cost-curve integrity gate: block any commit that changes the economy or
+# roster data without passing verify-costs.js (duplicate-cost regression
+# guard). Installed into .git/hooks/pre-commit — to reinstall after a fresh
+# clone:  cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+if git diff --cached --name-only | grep -qE '^(data\.js|game\.js|verify-costs\.js)$'; then
+  echo "verify-costs: economy/data change staged — running gate..."
+  node verify-costs.js || { echo "COMMIT BLOCKED: fix the cost curve (see failures above)"; exit 1; }
+fi
