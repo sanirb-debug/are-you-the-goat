@@ -651,6 +651,38 @@ function buildProfile() {
   return p;
 }
 
+// Real-career decoration tier per comp player: 0 = no ring and no MVP,
+// 1 = some hardware (one ring OR an MVP), 2 = decorated (multi-ring champion,
+// or a ring-and-MVP legend). Used so a heavily decorated build doesn't comp to
+// a player publicly known for lacking that hardware (e.g. 4 rings -> Paul
+// George). Any name not listed defaults to 0.
+const COMP_ACCOLADES = {
+  // ---- decorated champions (tier 2) ----
+  "Magic Johnson": 2, "Isiah Thomas": 2, "Tony Parker": 2, "Stephen Curry": 2,
+  "Michael Jordan": 2, "Kobe Bryant": 2, "Dwyane Wade": 2, "Ray Allen": 2, "Klay Thompson": 2, "Manu Ginobili": 2,
+  "LeBron James": 2, "Larry Bird": 2, "Kevin Durant": 2, "Kawhi Leonard": 2, "Scottie Pippen": 2, "Julius Erving": 2, "Andre Iguodala": 2,
+  "Tim Duncan": 2, "Dirk Nowitzki": 2, "Kevin Garnett": 2, "Dennis Rodman": 2, "Giannis Antetokounmpo": 2, "Draymond Green": 2, "Kevin McHale": 2, "Pau Gasol": 2,
+  "Shaquille O'Neal": 2, "Kareem Abdul-Jabbar": 2, "Hakeem Olajuwon": 2, "Wilt Chamberlain": 2, "Bill Russell": 2, "Nikola Jokic": 2, "David Robinson": 2,
+  // ---- some hardware: one ring OR an MVP (tier 1) ----
+  "Steve Nash": 1, "Allen Iverson": 1, "Russell Westbrook": 1, "Kyrie Irving": 1, "Gary Payton": 1, "Derrick Rose": 1,
+  "James Harden": 1, "Jerry West": 1, "Rick Barry": 1, "Paul Pierce": 1, "Jayson Tatum": 1,
+  "Karl Malone": 1, "Charles Barkley": 1, "Anthony Davis": 1, "Kevin Love": 1,
+  "Joel Embiid": 1, "Alonzo Mourning": 1, "Ben Wallace": 1,
+  // everyone else (Chris Paul, Stockton, Lillard, Trae Young, Ja Morant, Reggie
+  // Miller, Vince Carter, Beal, Booker, McGrady, Crawford, Gervin, Paul George,
+  // Carmelo, Grant Hill, Jimmy Butler, Dominique Wilkins, Blake Griffin, Chris
+  // Webber, Amar'e, Ewing, Mutombo, Gobert, Towns, Yao) defaults to 0.
+};
+function accoladesOf(ref) { return COMP_ACCOLADES[ref.name] || 0; }
+
+// The build's own decoration tier, on the same 0/1/2 scale as COMP_ACCOLADES.
+function buildAccolades(career) {
+  if (!career) return 0;
+  if (career.rings >= 2 || (career.rings >= 1 && career.mvps >= 1)) return 2;
+  if (career.rings >= 1 || career.mvps >= 1) return 1;
+  return 0;
+}
+
 function compDistance(profile, ref) {
   let sum = 0;
   for (const d of COMP_DIMS) {
@@ -661,13 +693,28 @@ function compDistance(profile, ref) {
   return Math.sqrt(sum);
 }
 
-// Closest real player by signature-weighted distance across all 8 dimensions —
-// never position-filtered, so anomaly builds can comp across positions. Ties
-// break deterministically on name (alphabetical) so the result is stable.
-function closestComp(profile) {
+// Accolade mismatch penalty added to the attribute distance. Asymmetric and
+// one-directional: it only fires when the BUILD is decorated and the candidate
+// is less so, never the reverse — a ringless build can still comp to a champion
+// on pure skill (per design, we don't over-filter the low end). A tier-2 build
+// hard-excludes tier-0 players (ringless & award-less) and mildly down-weights
+// tier-1; a tier-1 build mildly down-weights tier-0. Additive (never removes
+// candidates), so a best match always exists.
+function accoladePenalty(buildDeco, refDeco) {
+  if (buildDeco <= refDeco) return 0;
+  const gap = buildDeco - refDeco;
+  if (buildDeco === 2 && refDeco === 0) return 1e6; // decorated build vs ringless/award-less: exclude
+  return 13 * gap; // mild: reorders unless the skill match is much closer
+}
+
+// Closest real player by signature-weighted distance across all 8 dimensions,
+// plus an accolade-mismatch penalty so decorated builds prefer decorated
+// players. Never position-filtered, so anomaly builds can comp across
+// positions. Ties break deterministically on name (alphabetical) for stability.
+function closestComp(profile, buildDeco = 0) {
   let best = null, bestDist = Infinity;
   for (const ref of COMP_PLAYERS) {
-    const dist = compDistance(profile, ref);
+    const dist = compDistance(profile, ref) + accoladePenalty(buildDeco, accoladesOf(ref));
     if (dist < bestDist || (dist === bestDist && (!best || ref.name < best.name))) {
       bestDist = dist; best = ref;
     }
@@ -712,10 +759,11 @@ function compReason(ref, profile = null) {
   return s;
 }
 
-// Convenience for the verdict screen: returns { name, pos, reason }.
-function playstyleComp() {
+// Convenience for the verdict screen: returns { name, pos, reason }. Pass the
+// career so a decorated build prefers a comp with matching real-life hardware.
+function playstyleComp(career = null) {
   const profile = buildProfile();
-  const ref = closestComp(profile);
+  const ref = closestComp(profile, buildAccolades(career));
   return { name: ref.name, pos: ref.pos, reason: compReason(ref, profile) };
 }
 

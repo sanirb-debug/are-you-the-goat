@@ -400,7 +400,7 @@ function renderVerdict() {
 
   wrap.appendChild(el("div", "scout-report", generateScoutingReport(career, ovr, tier)));
 
-  const comp = playstyleComp();
+  const comp = playstyleComp(career);
   wrap.appendChild(el("div", "comp-callout",
     `<span class="comp-label">Playstyle Comp</span>
      <span class="comp-name">${comp.name}</span>
@@ -417,7 +417,8 @@ function renderVerdict() {
 
   const statsGrid = el("div", "stats-grid");
   [
-    [career.rings, "RINGS"], [career.mvps, "MVP"], [career.finalsMVPs, "FINALS MVP"],
+    // Rings + Finals MVP adjacent: the two awards tied directly to team success
+    [career.rings, "RINGS"], [career.finalsMVPs, "FINALS MVP"], [career.mvps, "MVP"],
     [career.allNBAs, "ALL-NBA"], [career.allStars, "ALL-STAR"],
   ].forEach(([val, label]) => {
     statsGrid.appendChild(el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-suffix="×">0×</div><div class="stat-label">${label}</div>`));
