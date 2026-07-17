@@ -2,7 +2,7 @@
 
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Handles", "Defense", "Rebounding"];
 const CATEGORIES = ["height", "frame", ...SKILL_ORDER];
-const BUDGET_CAP = 1000; // internal tenths of $M — displays as the "$100M cap" via fmtSalary
+const BUDGET_CAP = 10000; // internal hundredths of $M — displays as the "$100M cap" via fmtSalary
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
 const state = {
@@ -43,40 +43,25 @@ function seedRng(n) { _rng = mulberry32(n >>> 0); }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(rng() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
-// SALARY-CAP ECONOMY. Costs are salaries in integer TENTHS of $M against a
-// $100M cap (BUDGET_CAP = 1000 tenths): all math is exact integers, and
-// fmtSalary() renders "$4.3M" / "$100M" for display. Tenths resolution is
-// the STRUCTURAL fix for the recurring duplicate-cost bug: whole points
-// against a 100 cap can never uniquely price ~78 densely-packed ratings
-// (pigeonhole — gap-1 rating pairs co-occur in team lists at every rating
-// 27-99), so every past integer curve either tied somewhere or broke the
-// economy. At tenths resolution every rating in the data prices uniquely,
-// and stays unique under any future difficulty tuning — enforced by
-// verify-costs.js, which the pre-commit hook runs on every commit
-// touching this file or data.js (hooks/pre-commit).
-// Two-zone shape (difficulty matches the tuned v25 curve within ~$1M):
-//   bench zone (r < 70): (r - 9) tenths — LINEAR, exactly 1 tenth per rating
-//     point, so every bench rating prices uniquely no matter how tightly the
-//     data packs (a quadratic bench zone stepped <1 tenth below rating ~45
-//     and re-tied; verify-costs.js caught it). 10->$0.1M (league minimum),
-//     40->$3.1M, 60->$5.1M, 69->$6M.
-//   elite zone (r >= 70): 62 + 10x + 0.14x^2 tenths, x = r-70 — starts one
-//     tenth above the bench ceiling (seam stays strictly increasing), slope
-//     >= 10 tenths/rating, and the quadratic ramp makes stacking hurt:
-//     70->$6.2M, 75->$11.6M, 80->$17.6M, 85->$24.4M, 90->$31.8M, 99->$47M.
-//     Three 85+ picks ~$73M; five are impossible under the $100M cap.
-//     DP-verified max base OVR is 80 (peak ~83 with the +3 season roll) —
-//     the tier OVR floors, score mins, and award gates below are calibrated
-//     to THAT ceiling; retune them if this curve changes.
+// SALARY-CAP ECONOMY. Exponential curve: cost_$M = 0.480938 * e^(0.04345*rating).
+// Rating 99 -> $35.5M ceiling (lower than the old ~$47M quadratic), same shape.
+// Costs are stored in integer HUNDREDTHS of $M against a $100M cap
+// (BUDGET_CAP = 10000 hundredths); fmtSalary() renders "$35.5M" / "$100M" at one
+// decimal. Why hundredths and not tenths: the exponential is nearly flat at the
+// low end, so at $0.1M (tenths) resolution several adjacent scrub ratings round
+// to the SAME cost (18&19, 24&25, 27&28, ...), which collides in the live data
+// and reintroduces the "always pick the higher rating for the same price" bug.
+// At hundredths every rating in the pool prices uniquely (verify-costs.js
+// confirms 0 collisions); display still rounds to $0.1M, so 18 and 19 both
+// SHOW $1.1M but charge $1.05M vs $1.10M — distinct spend, no exploit. The
+// pre-commit hook runs verify-costs on every commit touching this or data.js.
 function wheelCost(rating) {
-  if (rating < 70) return rating - 9;
-  const x = rating - 70;
-  return Math.round(62 + 10 * x + 0.14 * x * x);
+  return Math.round(0.480938 * Math.exp(0.04345 * rating) * 100);
 }
 
 // Render internal tenths-of-$M as a salary: 43 -> "$4.3M", 1000 -> "$100M".
-function fmtSalary(tenths) {
-  return "$" + (tenths / 10).toFixed(1).replace(/\.0$/, "") + "M";
+function fmtSalary(hundredths) {
+  return "$" + (hundredths / 100).toFixed(1).replace(/\.0$/, "") + "M";
 }
 
 function budgetRemaining() {
@@ -540,7 +525,7 @@ function computeBadges(ovr, career) {
   if (h >= 85 && SH >= 85) add("Unicorn Build", 90 + (h - 85 + SH - 85) / 2);
   if (h <= 40 && RE >= 85) add("Small Ball Terror", 82 + (RE - 85));
   if (DE >= 88 && (SH >= 88 || FI >= 88)) add("Two-Way Monster", 88 + (DE - 88 + scoring - 88) / 2);
-  if (state.budgetSpent >= 970) add("Full Send", 42);
+  if (state.budgetSpent >= 9700) add("Full Send", 42);
   if (!state.positionFit) add("Positional Anomaly", 56);
   if (career.goatScore < 100) add("Certified Bust", 45);
 
@@ -591,7 +576,7 @@ function computeBadges(ovr, career) {
   // ---- build strategy / budget ----
   if (spread <= 20) add("Balanced Build", 48);
   if (eliteCount >= 2 && weakCount >= 2) add("All In", 62);
-  if (ovr >= 80 && state.budgetSpent <= 800) add("Bargain Hunter", 80 + (ovr - 80));
+  if (ovr >= 80 && state.budgetSpent <= 8000) add("Bargain Hunter", 80 + (ovr - 80));
   if (state.teamNeedMet) add("Need Filler", 52);
 
   return badges.sort((a, b) => b.score - a.score);
