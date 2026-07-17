@@ -244,7 +244,14 @@ function generateSeasonStats(ovr, f, h, fr) {
   // dampener derived from OVR (x0.85-1.0); non-scoring stats keep ovrFactor.
   const scoringOpp = 0.85 + 0.15 * ovrFactor;
   const scoring = (f.Shooting + f.Finishing) / 2;
-  const ppg = clamp((4 + (scoring - 25) * 0.42) * scoringOpp * jitter(), 4, 34);
+  // PPG is anchored directly to the scoring skills with a proper ceiling: the
+  // 0.63 slope off a rating-45 baseline gives decent (scoring ~75) builds
+  // ~19 PPG, strong (~82) ~23, and reserves 28+ all-time volume for genuinely
+  // elite (~90+) Shooting/Finishing. Earlier `4 + (scoring-25)*0.42` was too
+  // hot in the middle — a scoring-75 build hit ~25 PPG, all-star-averages for
+  // a merely-good scorer — so it's re-anchored to make the top end mean
+  // something. scoringOpp (0.85-1.0) is a light team-role dampener only.
+  const ppg = clamp(0.63 * (scoring - 45) * scoringOpp * jitter(), 3, 35);
   const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * ovrFactor * jitter(), 0.5, 11.5);
   const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * ovrFactor * jitter(), 1, 15);
   // smaller, leaner builds poke more passing lanes; bigger builds protect the rim
