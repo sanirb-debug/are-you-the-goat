@@ -560,7 +560,8 @@ function decodeBuild(str) {
       // budget-bin fallback (skills only): rebuild from BUDGET_BIN + stored cost
       const bp = BUDGET_BIN[idx];
       if (!bp) throw new Error("unknown bin pick");
-      pick = { name: bp.name, era: "—", label: null, rating: bp.rating, cost: binCost, team: null };
+      // Math.round: share links minted under older curves can carry decimal costs
+      pick = { name: bp.name, era: "—", label: null, rating: bp.rating, cost: Math.round(binCost), team: null };
     } else {
       const team = TEAMS.find(t => t.abbr === abbr);
       const roster = TEAM_ROSTERS[abbr];
@@ -578,7 +579,7 @@ function decodeBuild(str) {
   state.position = data.p;
   state.positionFit = checkPositionFit(data.p);
   state.teamNeedMet = TEAM_NEEDS[state.team.abbr] === data.p;
-  state.budgetSpent = round1(CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0));
+  state.budgetSpent = CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0);
   state.seed = data.s >>> 0;
   seedRng(state.seed);
   career = simCareer(computeOVR(), state.team);

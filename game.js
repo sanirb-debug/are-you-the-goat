@@ -43,25 +43,27 @@ function seedRng(n) { _rng = mulberry32(n >>> 0); }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function randInt(min, max) { return Math.floor(rng() * (max - min + 1)) + min; }
 function pickRandom(arr) { return arr[randInt(0, arr.length - 1)]; }
-// Quadratic curve: elites cost disproportionately more than mid-tier picks
-// (99 -> 18.3, 90 -> 15.1, 75 -> 10.5, 60 -> 6.7, 45 -> 3.8), so stacking
-// elites in every category is hard against the 100-pt cap. This is the
-// r^2/535 difficulty curve from the tightening pass, computed in tenths of
-// a point: integer costs against a 100 cap can't give ~78 distinct ratings
-// distinct prices (77 and 75 both rounded to 11 pts — the collision bug),
-// so cost carries one decimal instead of inflating the cap. The tenth-point
-// step (2r+1)/53.5 >= 1 for every rating r >= 27, and a data sweep confirms
-// zero same-cost collisions across all team/category ratings (10..99).
-// All budget math must stay on the 0.1 grid — mutate budgetSpent only via
-// round1() so binary-float drift never accumulates or leaks into the UI.
-function wheelCost(rating) { return Math.round(rating * rating / 53.5) / 10; }
-
-// Snap to the 0.1 grid: 0.1 has no exact binary-float representation, so
-// unrounded sums drift and would display as e.g. 96.39999999999999.
-function round1(x) { return Math.round(x * 10) / 10; }
+// Two-zone integer curve (whole points, no decimals anywhere):
+//   bench zone (r < 70): round(r^2/900), min 1 — cheap filler, 1-9 pts.
+//     Two bench-tier ratings may tie on price; that's accepted (ties among
+//     scrubs don't distort real decisions, and integer costs against a 100
+//     cap mathematically can't uniquely price ~78 densely-packed ratings).
+//   elite zone (r >= 70): 6 + (r-70) + 0.018*(r-70)^2, rounded.
+//     Slope >= 1 per rating point, so every rating 70+ has a UNIQUE price
+//     (no Butler-77/Rodman-75 same-cost collisions where choices matter),
+//     and the quadratic ramp makes stacking hurt: 70->6, 75->11, 80->18,
+//     85->25, 90->33, 95->41, 99->50. Three 85+ picks ~75 pts; five are
+//     impossible. DP-verified max base OVR is 80 (peak ~83 with the +3
+//     season roll) — the tier OVR floors and award gates below are
+//     calibrated to THAT ceiling; retune them if this curve changes.
+function wheelCost(rating) {
+  if (rating < 70) return Math.max(1, Math.round(rating * rating / 900));
+  const x = rating - 70;
+  return Math.round(6 + x + 0.018 * x * x);
+}
 
 function budgetRemaining() {
-  return round1(BUDGET_CAP - state.budgetSpent);
+  return BUDGET_CAP - state.budgetSpent;
 }
 
 function categoryRating(player, category) {
@@ -105,19 +107,19 @@ function currentPick(category) {
 // Swap an already-locked pick: refund the old cost, charge the new one.
 function replacePick(category, newPick) {
   const old = currentPick(category);
-  state.budgetSpent = round1(state.budgetSpent + newPick.cost - old.cost);
+  state.budgetSpent += newPick.cost - old.cost;
   if (category === "height" || category === "frame") state[category] = newPick;
   else state.skills[category] = newPick;
 }
 
 function lockSkill(skillName, result) {
   state.skills[skillName] = result;
-  state.budgetSpent = round1(state.budgetSpent + result.cost);
+  state.budgetSpent += result.cost;
 }
 
 function lockPhysical(key, result) {
   state[key] = result;
-  state.budgetSpent = round1(state.budgetSpent + result.cost);
+  state.budgetSpent += result.cost;
 }
 
 // ---- Modifiers ----
@@ -268,16 +270,18 @@ function simSeason(ovr, scr, varianceRange) {
     }
   }
 
-  const allStar = ovr >= 75;
+  // Award gates scaled to the integer cost curve's OVR ceiling (max peak
+  // ~83): the old 90/85/80 gates would make All-NBA 1st and MVP extinct.
+  const allStar = ovr >= 70;
   let allNBA = null;
-  if (ovr >= 90) allNBA = "1st";
-  else if (ovr >= 85) allNBA = "2nd";
-  else if (ovr >= 80) allNBA = "3rd";
+  if (ovr >= 80) allNBA = "1st";
+  else if (ovr >= 76) allNBA = "2nd";
+  else if (ovr >= 72) allNBA = "3rd";
 
   let mvp = false;
-  if (ovr >= 90 && wins >= 50) mvp = rng() < 0.35;
+  if (ovr >= 80 && wins >= 50) mvp = rng() < 0.35;
 
-  let finalsMVP = ring && ovr >= 85;
+  let finalsMVP = ring && ovr >= 78;
 
   return { wins, madePlayoffs, ring, finalsMVP, allStar, allNBA, mvp, roundsWon };
 }
@@ -340,14 +344,19 @@ function simCareer(ovr, team) {
 }
 
 // ---- Tier ladder ----
+// Score mins calibrated to the integer cost curve + rescaled award gates
+// (which award MVPs/All-NBA/rings at lower OVRs, inflating scores): set from
+// 4000-run percentiles on the best team — GOAT 700 = ~p98 of the PERFECT
+// (base-80) build, Legend 600 = ~p90 of a near-perfect (base-78) build,
+// Superstar 465 = ~p50 of a strong maxed-out (base-73) build.
 const TIERS = [
   { name: "Draft Bust", min: -Infinity },
   { name: "Bench Piece", min: 100 },
   { name: "Starter", min: 150 },
   { name: "All-Star", min: 250 },
-  { name: "Superstar", min: 350 },
-  { name: "Legend", min: 450 },
-  { name: "GOAT", min: 550 },
+  { name: "Superstar", min: 465 },
+  { name: "Legend", min: 600 },
+  { name: "GOAT", min: 700 },
 ];
 
 function tierForScore(score) {
@@ -365,10 +374,11 @@ function tierForScore(score) {
 // required for the top tiers, so a merely-very-good build can't reach them on
 // volume/longevity alone. Re-run the balance sim if the category count,
 // budget, or cost curve changes.
-// GOAT floor sits at 92 because the r^2/535 cost curve caps achievable peaks
-// around 92-93 — at 95 GOAT would be mathematically unreachable. Verified by
-// sim: greedy Legend ~0-2% / GOAT ~0%; casual play Legend ~5% / GOAT ~0.1-0.3%.
-const TIER_OVR_FLOORS = { GOAT: 92, Legend: 90, Superstar: 85 };
+// Calibrated to the two-zone integer curve's DP-verified ceiling: max base
+// OVR 80, max peak ~83 with the +3 season roll. GOAT at 82 needs a
+// near-perfect build (base 79+) plus a hot season; at 84+ GOAT would be
+// mathematically unreachable — the trap to avoid when retuning.
+const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 
 function tierForCareer(score, peakOVR) {
   let idx = TIERS.indexOf(tierForScore(score));
@@ -614,13 +624,14 @@ function playstyleComp() {
   return { name: ref.name, pos: ref.pos, reason: compReason(ref) };
 }
 
-// What tier a build of this OVR "should" reach, for over/under-performance flavor
+// What tier a build of this OVR "should" reach, for over/under-performance
+// flavor — aligned with TIER_OVR_FLOORS on the integer-curve ceiling (~83).
 function expectedTierIndex(ovr) {
-  if (ovr >= 92) return 6; // GOAT-capable
-  if (ovr >= 87) return 5; // Legend
-  if (ovr >= 80) return 4; // Superstar
-  if (ovr >= 75) return 3; // All-Star
-  if (ovr >= 65) return 2; // Starter
+  if (ovr >= 82) return 6; // GOAT-capable
+  if (ovr >= 80) return 5; // Legend
+  if (ovr >= 76) return 4; // Superstar
+  if (ovr >= 71) return 3; // All-Star
+  if (ovr >= 62) return 2; // Starter
   return 1;
 }
 
