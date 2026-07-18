@@ -28,6 +28,7 @@ function render() {
   else if (step === "height") renderRosterStep("height", "Height", "How tall are they?", pick => lockPhysical("height", pick));
   else if (step === "frame") renderRosterStep("frame", "Body Frame", "What's their build?", pick => lockPhysical("frame", pick));
   else if (SKILL_ORDER.includes(step)) renderRosterStep(step, step, "Pick a legend to build on.", pick => lockSkill(step, pick));
+  else if (step === "chooseBadges") renderChooseBadges();
   else if (step === "confirm") renderConfirmStep();
   else if (step === "careerTeam") renderCareerTeamStep();
   else if (step === "position") renderPositionStep();
@@ -53,11 +54,21 @@ function renderTopBar() {
 // on final Height/Frame).
 function inPickingPhase() {
   const step = STEPS[state.currentStep];
-  return step === "height" || step === "frame" || step === "confirm" || SKILL_ORDER.includes(step);
+  return step === "height" || step === "frame" || step === "confirm" || step === "chooseBadges" || SKILL_ORDER.includes(step);
 }
 
 const CATEGORY_LABELS = { height: "Height", frame: "Frame" };
+// Display labels for Signature-Trait stat modifiers.
+const STAT_LABEL = { ppg: "PPG", apg: "APG", rpg: "RPG", spg: "SPG", bpg: "BPG", tpg: "3PM", fgPct: "FG%", tptPct: "3PT%" };
+const fmtMods = mods => Object.entries(mods).map(([k, v]) => `${STAT_LABEL[k]} +${v}`).join(" · ");
 function categoryLabel(cat) { return CATEGORY_LABELS[cat] || cat; }
+// Signature-Trait pill for a roster row: only for skill categories, only if this
+// exact player carries a badge there.
+function traitPillHTML(name, category) {
+  if (!SKILL_ORDER.includes(category)) return "";
+  const b = TRAIT_BADGES[name + "|" + category];
+  return b ? ` <span class="trait-pill" title="${b.name} — ${b.effect}">★ ${b.name}</span>` : "";
+}
 
 // ---- Persistent picks panel ----
 // Fixed sidebar on wide screens, collapsible drawer above the card on
@@ -74,10 +85,13 @@ function renderPicksPanel() {
   CATEGORIES.forEach(cat => {
     const pick = currentPick(cat);
     if (pick) {
+      const b = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[pick.name + "|" + cat] : null;
+      const badgeLine = b ? `<span class="picks-badge" title="${b.name} — ${b.effect}">★ ${b.name}</span>` : "";
       const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : ""),
         `<span class="picks-cat">${categoryLabel(cat)}</span>
          <span class="picks-player">${pick.name}</span>
-         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${fmtSalary(pick.cost)}</span>`);
+         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${fmtSalary(pick.cost)}</span>
+         ${badgeLine}`);
       row.onclick = () => {
         state.editingCategory = cat;
         render();
@@ -108,7 +122,7 @@ function renderEditStep(category) {
     const isCurrent = opt.name === pick.name && opt.cost === pick.cost;
     const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
     const row = el("button", "roster-row" + (opt.affordable ? "" : " locked") + (isCurrent ? " current" : ""),
-      `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}</span>
+      `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}${traitPillHTML(opt.name, category)}</span>
        <span class="roster-rating">${display}</span>
        <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
     row.disabled = !opt.affordable;
@@ -252,7 +266,7 @@ function renderRosterStep(category, title, sub, onLock) {
       // skills show the rating alone.
       const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
       const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
-        `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span></span>
+        `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${traitPillHTML(opt.name, category)}</span>
          <span class="roster-rating">${display}</span>
          <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
       row.disabled = !opt.affordable;
@@ -292,6 +306,53 @@ function renderPositionStep() {
 }
 
 // ---- Confirm: last chance to retool before the career locks in ----
+// ---- New step: activate 2 Signature Traits (only shown when 2+ acquired) ----
+function renderChooseBadges() {
+  const acquired = acquiredBadges();
+  // 0 or 1 collected: nothing to choose — auto-activate whatever's there, skip on.
+  if (acquired.length <= 1) {
+    state.activeBadges = acquired.map(b => b.key);
+    state.currentStep++;
+    render();
+    return;
+  }
+  // Drop any stale selections (e.g. after editing a pick), cap at 2.
+  state.activeBadges = state.activeBadges.filter(k => acquired.some(b => b.key === k)).slice(0, 2);
+
+  const wrap = el("div", "card");
+  wrap.appendChild(el("div", "verdict-label center", "SIGNATURE TRAITS"));
+  wrap.appendChild(el("h1", "step-title center", "Activate 2 Traits"));
+  wrap.appendChild(el("p", "step-sub center",
+    `Your build collected <strong>${acquired.length}</strong> signature traits — pick exactly 2 to power the career. The rest stay collected on your verdict but don't affect the sim.`));
+
+  const list = el("div", "badge-choose-list");
+  acquired.forEach(b => {
+    const on = state.activeBadges.includes(b.key);
+    const card = el("button", "badge-choose" + (on ? " on" : ""),
+      `<span class="bc-check">${on ? "✓" : ""}</span>
+       <span class="bc-main">
+         <span class="bc-name">${b.name}</span>
+         <span class="bc-src">${b.player} &middot; ${b.category}</span>
+         <span class="bc-effect">${b.effect}</span>
+         <span class="bc-mods">${fmtMods(b.mods)}</span>
+       </span>`);
+    card.onclick = () => {
+      if (on) state.activeBadges = state.activeBadges.filter(k => k !== b.key);
+      else if (state.activeBadges.length < 2) state.activeBadges.push(b.key);
+      render();
+    };
+    list.appendChild(card);
+  });
+  wrap.appendChild(list);
+
+  const btn = el("button", "btn-primary", `Activate ${state.activeBadges.length}/2 →`);
+  btn.disabled = state.activeBadges.length !== 2;
+  btn.style.marginTop = "12px";
+  btn.onclick = () => { state.currentStep++; render(); };
+  wrap.appendChild(btn);
+  app.appendChild(wrap);
+}
+
 function renderConfirmStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Ready to Simulate This Career?"));
@@ -323,7 +384,7 @@ function renderConfirmStep() {
     // reproduce this exact career later.
     state.seed = Math.floor(Math.random() * 4294967296);
     seedRng(state.seed);
-    career = simCareer(computeOVR(), state.team);
+    career = simCareer(computeOVR(), state.team, activeBadgeMods());
     state.currentStep++;
     render();
   };
@@ -551,6 +612,26 @@ function renderVerdict() {
     wrap.appendChild(badgeRow);
   }
 
+  // Signature Traits — a DIFFERENT system from the achievement badges above:
+  // the real-player traits this build collected, with the active ones (which
+  // actually boosted the sim) highlighted and the rest shown as "collected".
+  const acquiredTraits = acquiredBadges();
+  if (acquiredTraits.length) {
+    const activeKeys = new Set(activeBadgeList().map(b => b.key));
+    wrap.appendChild(el("div", "section-label", "SIGNATURE TRAITS"));
+    const tgrid = el("div", "traits-grid");
+    acquiredTraits.forEach(b => {
+      const on = activeKeys.has(b.key);
+      const cell = el("div", "trait-card" + (on ? " active" : " collected"),
+        `<span class="tc-top"><span class="tc-name">${b.name}</span>${on ? '<span class="tc-flag on">ACTIVE</span>' : '<span class="tc-flag off">collected</span>'}</span>
+         <span class="tc-src">${b.player} &middot; ${b.category}</span>
+         <span class="tc-effect">${b.effect}</span>
+         ${on ? `<span class="tc-mods">${fmtMods(b.mods)}</span>` : ""}`);
+      tgrid.appendChild(cell);
+    });
+    wrap.appendChild(tgrid);
+  }
+
   wrap.appendChild(el("div", "section-label", `YOUR ${CATEGORIES.length} LEGENDS`));
   const legendList = el("div", "legend-list");
   const f = finalSkills();
@@ -623,7 +704,7 @@ function encodeBuild() {
     // the remaining budget) — encode by bin index + the clamped cost.
     return ["*", BUDGET_BIN.findIndex(x => x.name === p.name), p.cost];
   };
-  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, k: CATEGORIES.map(ref) };
+  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, ab: state.activeBadges, k: CATEGORIES.map(ref) };
   return b64urlEncode(JSON.stringify(data));
 }
 
@@ -663,13 +744,15 @@ function decodeBuild(str) {
   state.name = String(data.n || "The Mystery Player").slice(0, 24);
   // Shadow target from the link (older links omit it — the verdict guards for null).
   state.shadowTarget = SHADOW_TARGETS[data.sh] ? data.sh : null;
+  // Active Signature Traits (older links omit; activeBadgeMods filters to acquired).
+  state.activeBadges = Array.isArray(data.ab) ? data.ab.slice(0, 2) : [];
   state.position = data.p;
   state.positionFit = checkPositionFit(data.p);
   state.teamNeedMet = TEAM_NEEDS[state.team.abbr] === data.p;
   state.budgetSpent = CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0);
   state.seed = data.s >>> 0;
   seedRng(state.seed);
-  career = simCareer(computeOVR(), state.team);
+  career = simCareer(computeOVR(), state.team, activeBadgeMods());
   state.sharedView = true;
   state.currentStep = STEPS.indexOf("verdict");
 }
@@ -792,6 +875,7 @@ function renderLadder(currentTier) {
 
 function resetGame() {
   state.shadowTarget = null;
+  state.activeBadges = [];
   state.name = "";
   state.height = null;
   state.frame = null;

@@ -7,6 +7,7 @@ const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
 const state = {
   shadowTarget: null,  // "Chasing the Shadow" — which all-time great this build is measured against
+  activeBadges: [],    // Signature Traits — up to 2 acquired-badge keys ("Player|Category") active in the sim
   name: "",
   height: null,       // { name, label, rating, cost }
   frame: null,         // { name, label, rating, cost }
@@ -24,7 +25,7 @@ const state = {
   currentStep: 0,       // index into STEPS
 };
 
-const STEPS = ["shadow", "name", "height", "frame", ...SKILL_ORDER, "position", "careerTeam", "confirm", "simulating", "verdict"];
+const STEPS = ["shadow", "name", "height", "frame", ...SKILL_ORDER, "chooseBadges", "position", "careerTeam", "confirm", "simulating", "verdict"];
 
 // Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
 // seeding with the same value before simCareer reproduces an identical
@@ -220,7 +221,12 @@ const TEAM_NEEDS = computeTeamNeeds();
 // individual skill on a mediocre build can't post all-time counting stats.
 // The factor runs ~0.35 at OVR 40 up to 1.0 at OVR 96+, so only 90+ builds
 // approach 30 PPG and only maxed 95+ builds reach the historical outliers.
-function generateSeasonStats(ovr, f, h, fr) {
+// mods: additive Signature-Trait deltas ({ppg, apg, rpg, spg, bpg, tpg, fgPct,
+// tptPct}), applied INSIDE each stat's clamp so boosts still respect the sim's
+// realistic ceilings. Applied every season, so Best Season and Career Totals
+// both reflect the active badges.
+function generateSeasonStats(ovr, f, h, fr, mods = {}) {
+  const m = k => mods[k] || 0;
   const jitter = () => 1 + randInt(-8, 8) / 100;
   const ovrFactor = clamp((ovr - 48) / 50, 0.35, 1);
   // Scoring output tracks the scoring SKILLS, not overall OVR. ovrFactor
@@ -237,21 +243,21 @@ function generateSeasonStats(ovr, f, h, fr) {
   // hot in the middle — a scoring-75 build hit ~25 PPG, all-star-averages for
   // a merely-good scorer — so it's re-anchored to make the top end mean
   // something. scoringOpp (0.85-1.0) is a light team-role dampener only.
-  const ppg = clamp(0.63 * (scoring - 45) * scoringOpp * jitter(), 3, 35);
-  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * ovrFactor * jitter(), 0.5, 11.5);
-  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * ovrFactor * jitter(), 1, 15);
+  const ppg = clamp(0.63 * (scoring - 45) * scoringOpp * jitter() + m("ppg"), 3, 35);
+  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * ovrFactor * jitter() + m("apg"), 0.5, 11.5);
+  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * ovrFactor * jitter() + m("rpg"), 1, 15);
   // smaller, leaner builds poke more passing lanes; bigger builds protect the rim
-  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * ovrFactor * jitter(), 0.2, 3.6);
-  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * ovrFactor * jitter(), 0.2, 3.6);
+  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * ovrFactor * jitter() + m("spg"), 0.2, 3.6);
+  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * ovrFactor * jitter() + m("bpg"), 0.2, 3.6);
   // threes come from Shooting alone; very tall or Powerful builds live closer to the rim
   const tallPenalty = h >= 85 ? (h - 85) * 0.03 : 0;
   const bulkPenalty = fr >= 90 ? 0.6 : 0;
-  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * scoringOpp * jitter(), 0, 5.2);
+  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * scoringOpp * jitter() + m("tpg"), 0, 5.2);
   // Shooting percentages are efficiency, not volume — derived from the scoring
   // skills, NOT scaled by ovrFactor, with a small per-season wobble.
   const jPct = () => randInt(-2, 2);
-  const fgPct = clamp(45 + (scoring - 25) * 0.27 + jPct(), 42, 66);
-  const tptPct = clamp(30 + (f.Shooting - 40) * 0.254 + jPct(), 28, 47);
+  const fgPct = clamp(45 + (scoring - 25) * 0.27 + jPct() + m("fgPct"), 42, 66);
+  const tptPct = clamp(30 + (f.Shooting - 40) * 0.254 + jPct() + m("tptPct"), 28, 47);
   const r1 = v => Math.round(v * 10) / 10;
   return { ppg: r1(ppg), apg: r1(apg), rpg: r1(rpg), spg: r1(spg), bpg: r1(bpg), tpg: r1(tpg), fgPct: r1(fgPct), tptPct: r1(tptPct) };
 }
@@ -311,7 +317,7 @@ function simSeason(ovr, scr, varianceRange) {
 
 const GAMES_PER_SEASON = 82;
 
-function simCareer(ovr, team) {
+function simCareer(ovr, team, mods = {}) {
   const numSeasons = randInt(15, 20); // full career, always runs to completion
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
@@ -336,7 +342,7 @@ function simCareer(ovr, team) {
     if (result.allNBA) allNBAs++;
     if (result.allStar) allStars++;
 
-    const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.frame.rating);
+    const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.frame.rating, mods);
     totals.pts += stats.ppg * GAMES_PER_SEASON;
     totals.ast += stats.apg * GAMES_PER_SEASON;
     totals.reb += stats.rpg * GAMES_PER_SEASON;
@@ -831,6 +837,46 @@ function generateShadowVerdict(career) {
   return `${name} took ${list(beat)} off ${T}, but came up short where it counts — ${list(short)} still belong to the legend. Close enough to dream on, not enough to dethrone.`;
 }
 
+// ===== SIGNATURE TRAIT BADGES =====
+// Which badges the current build has ACQUIRED: one per skill pick whose player
+// carries a TRAIT_BADGES entry for that category. Recomputed live from picks, so
+// editing a pick updates the set. Returns [{ key, category, player, name, effect, mods }].
+function acquiredBadges() {
+  const out = [];
+  for (const cat of SKILL_ORDER) {
+    const pick = state.skills[cat];
+    if (!pick) continue;
+    const key = pick.name + "|" + cat;
+    const b = TRAIT_BADGES[key];
+    if (b) out.push({ key, category: cat, player: pick.name, name: b.name, effect: b.effect, mods: b.mods });
+  }
+  return out;
+}
+
+// Summed stat deltas from the ACTIVE badges — but only those still acquired
+// (guards against a stale activeBadges after a pick edit). <=1 acquired badge is
+// auto-active; 2+ means the player chose exactly 2 on the chooseBadges step.
+function activeBadgeMods() {
+  const acquired = acquiredBadges();
+  const activeKeys = acquired.length <= 1
+    ? acquired.map(b => b.key)
+    : state.activeBadges.filter(k => acquired.some(b => b.key === k));
+  const mods = {};
+  for (const b of acquired) {
+    if (!activeKeys.includes(b.key)) continue;
+    for (const [stat, delta] of Object.entries(b.mods)) mods[stat] = (mods[stat] || 0) + delta;
+  }
+  return mods;
+}
+
+// The active badge records (for the verdict "Signature Traits" section), with
+// the same <=1 auto-active rule.
+function activeBadgeList() {
+  const acquired = acquiredBadges();
+  if (acquired.length <= 1) return acquired;
+  return acquired.filter(b => state.activeBadges.includes(b.key));
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
@@ -838,5 +884,6 @@ if (typeof module !== "undefined") {
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS,
+    TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
   };
 }

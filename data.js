@@ -649,6 +649,122 @@ const SHADOW_TARGETS = {
 // to be honored everywhere, so pin it explicitly).
 const SHADOW_ORDER = ["Michael Jordan", "LeBron James", "Stephen Curry", "Kevin Durant", "Kareem Abdul-Jabbar", "Kobe Bryant"];
 
+// ===== SIGNATURE TRAIT BADGES =====
+// 99 real-player signature traits, keyed "PlayerName|Category". A build ACQUIRES
+// a badge when it picks that player for that skill category (see acquiredBadges).
+// Modifiers are additive deltas on the exact box-score stats the sim already
+// produces (ppg/apg/rpg/spg/bpg + tpg=3PM, fgPct=FG%, tptPct=3PT%). Two unreachable
+// entries kept for completeness — Bob Cousy and Artis Gilmore aren't in
+// TEAM_ROSTERS, so those badges can never be acquired; "Metta World Peace" is
+// remapped to his roster name "Ron Artest".
+const TRAIT_BADGES = {
+  // ---- Shooting ----
+  "Stephen Curry|Shooting": { name: "Limitless Range", effect: "Elite volume 3-point shooting from deep range", mods: { tptPct: 6, tpg: 0.8 } },
+  "Ray Allen|Shooting": { name: "Limitless Sniper", effect: "Deadly catch-and-shoot efficiency off movement", mods: { tptPct: 7, tpg: 0.5 } },
+  "Klay Thompson|Shooting": { name: "Instant Heat Check", effect: "Can catch fire and score in bursts off the catch", mods: { tptPct: 5, fgPct: 2 } },
+  "Kevin Durant|Shooting": { name: "Unblockable Release", effect: "High release point makes his jumper nearly unguardable", mods: { fgPct: 3, tptPct: 4 } },
+  "Reggie Miller|Shooting": { name: "Clutch Gene", effect: "Elevates shooting efficiency in high-leverage moments", mods: { tptPct: 5, ppg: 1 } },
+  "Damian Lillard|Shooting": { name: "Deep Range Assassin", effect: "Range extends well beyond the arc", mods: { tptPct: 5, tpg: 0.6 } },
+  "Larry Bird|Shooting": { name: "Complete Marksman", effect: "Elite shooting touch from anywhere on the floor", mods: { tptPct: 4, fgPct: 2 } },
+  "Dirk Nowitzki|Shooting": { name: "Unguardable Fadeaway", effect: "Signature shot nearly impossible to contest", mods: { fgPct: 4, ppg: 1.5 } },
+  "Kyle Korver|Shooting": { name: "Movement Shooter", effect: "Constant off-ball motion creates open looks", mods: { tptPct: 6, tpg: 0.4 } },
+  "Michael Jordan|Shooting": { name: "Fadeaway Perfection", effect: "Signature mid-range shot with no counter", mods: { fgPct: 3, ppg: 1 } },
+  "Kobe Bryant|Shooting": { name: "Mamba Mentality Jumper", effect: "Elite shot-making from every level", mods: { fgPct: 3, tptPct: 3 } },
+  "Kawhi Leonard|Shooting": { name: "Two-Way Marksman", effect: "Efficient shooting to complement lockdown defense", mods: { tptPct: 3, fgPct: 2 } },
+  "Manu Ginobili|Shooting": { name: "Bank Shot Artist", effect: "Crafty, unorthodox shot-making touch", mods: { tptPct: 4, fgPct: 2 } },
+  "Jerry West|Shooting": { name: "Mr. Clutch", effect: "Elite shot-making in the biggest moments", mods: { fgPct: 3, tptPct: 3 } },
+  "George Gervin|Shooting": { name: "Iceman Touch", effect: "Effortless scoring touch from anywhere inside the arc", mods: { fgPct: 4, ppg: 1.5 } },
+  "Devin Booker|Shooting": { name: "Bucket Getter", effect: "Elite three-level scoring efficiency", mods: { tptPct: 4, fgPct: 2 } },
+  "Vince Carter|Shooting": { name: "Vinsanity Range", effect: "Explosive scoring with range to match", mods: { tptPct: 4, fgPct: 2 } },
+  // ---- Finishing ----
+  "LeBron James|Finishing": { name: "Downhill Merchant", effect: "Overpowers defenders driving to the rim", mods: { fgPct: 4, ppg: 1.5 } },
+  "Shaquille O'Neal|Finishing": { name: "Immovable Force", effect: "Impossible to stop once he gets deep post position", mods: { fgPct: 6, ppg: 1.5 } },
+  "Giannis Antetokounmpo|Finishing": { name: "Greek Freak Gather", effect: "Covers ground in two dribbles for powerful finishes", mods: { fgPct: 5, ppg: 1.5 } },
+  "Wilt Chamberlain|Finishing": { name: "Statistical Anomaly", effect: "Historically dominant interior scoring volume", mods: { fgPct: 5, ppg: 2 } },
+  "Dwyane Wade|Finishing": { name: "Flash Finisher", effect: "Elite body control finishing through contact", mods: { fgPct: 3, ppg: 1 } },
+  "Kareem Abdul-Jabbar|Finishing": { name: "Skyhook Precision", effect: "Signature shot with no real counter", mods: { fgPct: 5, ppg: 1.5 } },
+  "Hakeem Olajuwon|Finishing": { name: "Dream Shake", effect: "Footwork creates easy looks against any defender", mods: { fgPct: 4, ppg: 1 } },
+  "Joel Embiid|Finishing": { name: "Post Punisher", effect: "Combines size and skill to score at will inside", mods: { fgPct: 4, ppg: 1.5 } },
+  "Karl Malone|Finishing": { name: "Mailman Efficiency", effect: "Relentlessly efficient finisher in the pick-and-roll", mods: { fgPct: 3, ppg: 1 } },
+  "Michael Jordan|Finishing": { name: "Air Jordan", effect: "Elite scoring instincts attacking the rim", mods: { fgPct: 5, ppg: 2 } },
+  "Kobe Bryant|Finishing": { name: "Fadeaway Assassin", effect: "Signature footwork creates unblockable looks", mods: { fgPct: 4, ppg: 1.5 } },
+  "Kevin Durant|Finishing": { name: "Length Advantage", effect: "Uses size and reach to score over anyone", mods: { fgPct: 3, ppg: 1.5 } },
+  "Tim Duncan|Finishing": { name: "Bank Shot Reliability", effect: "Consistent, unspectacular, unstoppable post scoring", mods: { fgPct: 3, ppg: 1 } },
+  "Julius Erving|Finishing": { name: "Aerial Artist", effect: "Above-the-rim scoring ahead of his time", mods: { fgPct: 4, ppg: 1.5 } },
+  "David Robinson|Finishing": { name: "The Admiral's Touch", effect: "Efficient, powerful interior scoring", mods: { fgPct: 4, ppg: 1 } },
+  "Moses Malone|Finishing": { name: "Second-Chance King", effect: "Relentless put-back scoring machine", mods: { fgPct: 3, ppg: 1 } },
+  "Patrick Ewing|Finishing": { name: "Old-School Post Game", effect: "Reliable, physical low-post scoring", mods: { fgPct: 3, ppg: 1 } },
+  "Anthony Davis|Finishing": { name: "Unicorn Finisher", effect: "Rare blend of length and touch around the rim", mods: { fgPct: 4, ppg: 1.5 } },
+  // ---- Playmaking ----
+  "Magic Johnson|Playmaking": { name: "Showtime Conductor", effect: "Elevates every possession with generational vision", mods: { apg: 1.5 } },
+  "John Stockton|Playmaking": { name: "Assembly Line", effect: "Metronomic, low-mistake facilitation", mods: { apg: 1.3 } },
+  "Nikola Jokic|Playmaking": { name: "Point Center", effect: "Playmaking hub from an unconventional position", mods: { apg: 1.2 } },
+  "Chris Paul|Playmaking": { name: "Point God", effect: "Elite tempo and shot-quality control", mods: { apg: 1 } },
+  "Steve Nash|Playmaking": { name: "Offensive Maestro", effect: "Orchestrates elite offense every possession", mods: { apg: 1.3 } },
+  "Russell Westbrook|Playmaking": { name: "Relentless Engine", effect: "Downhill playmaking paired with rebounding activity", mods: { apg: 1, rpg: 0.8 } },
+  "Isiah Thomas|Playmaking": { name: "Bad Boy General", effect: "Fearless floor leader in clutch moments", mods: { apg: 1 } },
+  "Jason Kidd|Playmaking": { name: "Floor General", effect: "Elite court vision in transition and half-court", mods: { apg: 1.1 } },
+  "Rajon Rondo|Playmaking": { name: "Vision Savant", effect: "Sees plays develop before they happen", mods: { apg: 1.2 } },
+  "LeBron James|Playmaking": { name: "Full-Court Orchestrator", effect: "Elite passing vision from a non-guard position", mods: { apg: 1.2 } },
+  "Draymond Green|Playmaking": { name: "Small-Ball Five Vision", effect: "Elite passing hub from the frontcourt", mods: { apg: 1 } },
+  "Oscar Robertson|Playmaking": { name: "Triple-Double Machine", effect: "All-around statistical dominance every night", mods: { apg: 1.3 } },
+  "Luka Doncic|Playmaking": { name: "European Vision", effect: "Elite half-court passing and shot creation", mods: { apg: 1.2 } },
+  "Pete Maravich|Playmaking": { name: "Pistol Passes", effect: "Flashy, ahead-of-his-time court vision", mods: { apg: 1.2 } },
+  "Bob Cousy|Playmaking": { name: "Houdini of the Hardwood", effect: "Revolutionary ball-handling and vision for his era", mods: { apg: 1.1 } },
+  "Ben Simmons|Playmaking": { name: "Point Forward", effect: "Elite passing from a non-traditional size/position", mods: { apg: 1.1 } },
+  // ---- Handles ----
+  "Kyrie Irving|Handles": { name: "Ankle Breaker", effect: "Elite one-on-one shot creation off the dribble", mods: { ppg: 1.5, apg: 0.5 } },
+  "Allen Iverson|Handles": { name: "Crossover King", effect: "Relentless isolation shot creation", mods: { ppg: 1.5, fgPct: 1 } },
+  "Muggsy Bogues|Handles": { name: "Pocket Rocket", effect: "Elite tight-space ball security", mods: { apg: 0.8, spg: 0.3 } },
+  "James Harden|Handles": { name: "Step-Back Specialist", effect: "Creates elite separation for his own shot", mods: { tptPct: 3, ppg: 1 } },
+  "Jamal Crawford|Handles": { name: "Shake and Bake", effect: "One of the deepest handles bags ever", mods: { ppg: 1.2 } },
+  "Tim Hardaway|Handles": { name: "Killer Crossover", effect: "Signature move breaks ankles at will", mods: { ppg: 1, apg: 0.5 } },
+  "Kevin Johnson|Handles": { name: "Downhill Blur", effect: "Elite first step into the paint", mods: { ppg: 1, apg: 0.7 } },
+  "Trae Young|Handles": { name: "Handles Wizard", effect: "Creates deep separation from any angle", mods: { apg: 1, ppg: 1 } },
+  "Baron Davis|Handles": { name: "Explosive Handle", effect: "Explosive change of pace off the dribble", mods: { ppg: 1, apg: 0.5 } },
+  "Kobe Bryant|Handles": { name: "Shot-Creator's Arsenal", effect: "Deep bag of moves to get his own shot", mods: { ppg: 1.2, fgPct: 1 } },
+  "Steve Francis|Handles": { name: "Franchise Handles", effect: "Explosive, unpredictable off-the-dribble scoring", mods: { ppg: 1, apg: 0.5 } },
+  "Monta Ellis|Handles": { name: "Microwave Scorer", effect: "Instant offense off the bounce", mods: { ppg: 1.2 } },
+  "Isiah Thomas|Handles": { name: "Bad Boy Crossover", effect: "Shifty ball-handling paired with scoring instincts", mods: { ppg: 1, apg: 0.4 } },
+  "Damian Lillard|Handles": { name: "Dame Time Shake", effect: "Creates his own shot from deep range off the dribble", mods: { ppg: 1, tptPct: 2 } },
+  "Chris Paul|Handles": { name: "Elite Ball Security", effect: "Surgical control of the ball in tight spaces", mods: { ppg: 0.8, apg: 0.5 } },
+  // ---- Defense ----
+  "Bill Russell|Defense": { name: "Anchor of Titletown", effect: "Historically dominant rim protection and IQ", mods: { bpg: 1, rpg: 0.8 } },
+  "Dikembe Mutombo|Defense": { name: "Paint Patrol", effect: "Shot-blocking presence alters shots at the rim", mods: { bpg: 1.2 } },
+  "Ben Wallace|Defense": { name: "Undrafted Wall", effect: "Elite interior defense despite undersized frame", mods: { bpg: 0.8, rpg: 1 } },
+  "Gary Payton|Defense": { name: "The Glove", effect: "Suffocating on-ball perimeter defense", mods: { spg: 0.6 } },
+  "Kawhi Leonard|Defense": { name: "Klaw", effect: "Elite length and instincts disrupt passing lanes", mods: { spg: 0.5 } },
+  "Rudy Gobert|Defense": { name: "Stifle Tower", effect: "Deters shot attempts near the rim entirely", mods: { bpg: 1, rpg: 0.8 } },
+  "Draymond Green|Defense": { name: "Defensive Quarterback", effect: "Versatile disruption across every possession", mods: { spg: 0.4, bpg: 0.4 } },
+  "Tim Duncan|Defense": { name: "Fundamental Wall", effect: "Consistent, mistake-free interior defense", mods: { bpg: 0.8, rpg: 0.8 } },
+  "Scottie Pippen|Defense": { name: "Versatile Disruptor", effect: "Defends and disrupts every position on the floor", mods: { spg: 0.5, bpg: 0.3 } },
+  "Michael Jordan|Defense": { name: "Lockdown Assassin", effect: "Historically elite on-ball perimeter defender", mods: { spg: 0.6, bpg: 0.2 } },
+  "Giannis Antetokounmpo|Defense": { name: "Weak-Side Eraser", effect: "Multi-time DPOY-caliber help defense", mods: { bpg: 0.8, spg: 0.3 } },
+  "Wilt Chamberlain|Defense": { name: "Point-a-Game Wall", effect: "Overwhelming size dominates the interior", mods: { bpg: 1, rpg: 0.5 } },
+  "Hakeem Olajuwon|Defense": { name: "The Dream's Wall", effect: "All-time blocks leader with elite footwork", mods: { bpg: 1.3, spg: 0.3 } },
+  "Kobe Bryant|Defense": { name: "Lockdown Mamba", effect: "Elite on-ball defensive intensity", mods: { spg: 0.5, bpg: 0.2 } },
+  "David Robinson|Defense": { name: "The Admiral's Wall", effect: "Elite rim protection paired with mobility", mods: { bpg: 1, rpg: 0.5 } },
+  "Patrick Ewing|Defense": { name: "Paint Sentinel", effect: "Physical, imposing interior defensive presence", mods: { bpg: 0.8 } },
+  "Ron Artest|Defense": { name: "Relentless Disruptor", effect: "Physical, high-effort perimeter defense", mods: { spg: 0.5, bpg: 0.2 } },
+  "Marcus Smart|Defense": { name: "Ultimate Competitor", effect: "Elite hustle and on-ball defensive pressure", mods: { spg: 0.6 } },
+  "Alonzo Mourning|Defense": { name: "Zo's Wall", effect: "Fierce, uncompromising interior defense", mods: { bpg: 1.1 } },
+  // ---- Rebounding ----
+  "Dennis Rodman|Rebounding": { name: "Glass Eater", effect: "Elite positioning and effort on every possession", mods: { rpg: 2.5 } },
+  "Wilt Chamberlain|Rebounding": { name: "Boardroom", effect: "Historically dominant two-way rebounding", mods: { rpg: 2 } },
+  "Bill Russell|Rebounding": { name: "Winning Habit", effect: "Rebounding that fuels fast-break offense", mods: { rpg: 1.8 } },
+  "Charles Barkley|Rebounding": { name: "Undersized Powerhouse", effect: "Out-rebounds bigger players through strength/timing", mods: { rpg: 1.5 } },
+  "Karl Malone|Rebounding": { name: "Mailman Delivers", effect: "Elite consistency crashing the glass every night", mods: { rpg: 1.3 } },
+  "Kevin Garnett|Rebounding": { name: "Defensive Anchor", effect: "Elite rebounding paired with shot-blocking", mods: { rpg: 1.3, bpg: 0.3 } },
+  "Moses Malone|Rebounding": { name: "Offensive Boards King", effect: "Relentless second-chance opportunity creator", mods: { rpg: 1.5, ppg: 0.5 } },
+  "Dwight Howard|Rebounding": { name: "Paint Dominator", effect: "Physically overwhelms the glass", mods: { rpg: 1.5, bpg: 0.5 } },
+  "Andre Drummond|Rebounding": { name: "Glass Cleaner", effect: "Elite rebounding rate at high volume", mods: { rpg: 1.5 } },
+  "Elvin Hayes|Rebounding": { name: "The Big E", effect: "Relentless rebounding across a long, durable career", mods: { rpg: 1.4 } },
+  "Artis Gilmore|Rebounding": { name: "A-Train Boards", effect: "Dominant rebounding presence in the paint", mods: { rpg: 1.4 } },
+  "Ben Wallace|Rebounding": { name: "Second Wind", effect: "Non-stop motor on the offensive and defensive glass", mods: { rpg: 1.3 } },
+  "Nikola Vucevic|Rebounding": { name: "Modern Glass Cleaner", effect: "Consistent elite rebounding rate for a skilled big", mods: { rpg: 1.3 } },
+  "Domantas Sabonis|Rebounding": { name: "Elite Box-Out King", effect: "Positioning and technique dominate the boards", mods: { rpg: 1.4 } },
+};
+
 // ===== PLAYSTYLE COMP POOL =====
 // 50 iconic players (10 per position), each a full 8-attribute profile on the
 // same 0-99 scale, spanning eras and styles. Used only to find the closest
@@ -745,5 +861,5 @@ const COMP_PLAYERS = COMP_ROWS.map(([name, pos, height, frame, sh, fi, pl, ha, d
 }));
 
 if (typeof module !== "undefined") {
-  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, POSITIONS, COMP_PLAYERS, SHADOW_TARGETS, SHADOW_ORDER };
+  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, POSITIONS, COMP_PLAYERS, SHADOW_TARGETS, SHADOW_ORDER, TRAIT_BADGES };
 }
