@@ -285,19 +285,20 @@ function simSeason(ovr, scr, varianceRange) {
     }
   }
 
-  // Award gates scaled to the integer cost curve's OVR ceiling (max peak
-  // ~83): the old 90/85/80 gates would make All-NBA 1st and MVP extinct.
-  // All-NBA 3rd sits just 1 pt above the All-Star line so a consistent
-  // All-Star converts to All-NBA in most (not all) of those seasons —
-  // matching real careers where perennial All-Stars are near-perennial
-  // All-NBA too. Was 72/76/80 (a 2-pt gap to 3rd), which stranded a base-69
-  // fringe All-Star at ~35% conversion; 71/75/80 lifts that to ~68% while
-  // 1st team stays elite at 80 (aligned with the MVP gate).
+  // Award gates scaled to the integer cost curve's OVR ceiling (max peak ~83).
+  // All-NBA 3rd sits 3 pts above the All-Star line (73 vs 70): with seasonOVR =
+  // base +/-3, a build clearing All-Star most seasons converts to All-NBA in
+  // MOST but not ALL of them (base 74 ~= 73% of its All-Star seasons), with
+  // natural year-to-year variance — not automatic. A 1-pt gap (71) made it
+  // ~100% for any base >= 74 (every All-Star season became All-NBA); a 2-pt
+  // gap (72) still left base-75 builds at 100%. 3 pts lands the reported
+  // upper-All-Star build in the 60-80% band while genuine Superstars (base
+  // 76+) still make All-NBA nearly every year. 2nd/1st stay 75/80.
   const allStar = ovr >= 70;
   let allNBA = null;
   if (ovr >= 80) allNBA = "1st";
   else if (ovr >= 75) allNBA = "2nd";
-  else if (ovr >= 71) allNBA = "3rd";
+  else if (ovr >= 73) allNBA = "3rd";
 
   let mvp = false;
   if (ovr >= 80 && wins >= 50) mvp = rng() < 0.35;
