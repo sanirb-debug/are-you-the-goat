@@ -6,6 +6,7 @@ const BUDGET_CAP = 10000; // internal hundredths of $M — displays as the "$100
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
 const state = {
+  shadowTarget: null,  // "Chasing the Shadow" — which all-time great this build is measured against
   name: "",
   height: null,       // { name, label, rating, cost }
   frame: null,         // { name, label, rating, cost }
@@ -23,7 +24,7 @@ const state = {
   currentStep: 0,       // index into STEPS
 };
 
-const STEPS = ["name", "height", "frame", ...SKILL_ORDER, "position", "careerTeam", "confirm", "simulating", "verdict"];
+const STEPS = ["shadow", "name", "height", "frame", ...SKILL_ORDER, "position", "careerTeam", "confirm", "simulating", "verdict"];
 
 // Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
 // seeding with the same value before simCareer reproduces an identical
@@ -762,11 +763,80 @@ function generateHeadline(career, tier) {
   return `${name.toUpperCase()} CARRIES ${team.toUpperCase()} ON ${attr.toUpperCase()} ALONE, FALLS SHORT OF A RING`;
 }
 
+// ===== "CHASING THE SHADOW" =====
+// Compares a finished career against the chosen all-time great across the six
+// benchmark metrics. Entirely separate from the OVR tier-floor and closest-comp
+// logic — this is an additive lens, not a replacement. A metric is "beaten"
+// when the build matches or exceeds the target's number. Peak PPG/APG/RPG come
+// straight from the existing Best Season data.
+const SHADOW_METRICS = [
+  { key: "rings",  label: "Rings",     get: c => c.rings,           tgt: t => t.rings,   decimals: 0, phrase: "the rings" },
+  { key: "mvps",   label: "MVPs",      get: c => c.mvps,            tgt: t => t.mvps,    decimals: 0, phrase: "the MVPs" },
+  { key: "allNBA", label: "All-NBA",   get: c => c.allNBAs,         tgt: t => t.allNBA,  decimals: 0, phrase: "the All-NBA nods" },
+  { key: "ppg",    label: "Peak PPG",  get: c => c.bestSeason.ppg,  tgt: t => t.peakPPG, decimals: 1, phrase: "peak scoring" },
+  { key: "apg",    label: "Peak APG",  get: c => c.bestSeason.apg,  tgt: t => t.peakAPG, decimals: 1, phrase: "peak playmaking" },
+  { key: "rpg",    label: "Peak RPG",  get: c => c.bestSeason.rpg,  tgt: t => t.peakRPG, decimals: 1, phrase: "peak rebounding" },
+];
+
+// { targetName, targetLabel, target, rows:[{key,label,build,target,beat,decimals}], beatCount, majority }
+function compareToShadow(career) {
+  const targetName = state.shadowTarget;
+  const target = SHADOW_TARGETS[targetName];
+  if (!target) return null;
+  const rows = SHADOW_METRICS.map(m => {
+    const build = m.get(career);
+    const tv = m.tgt(target);
+    return { key: m.key, label: m.label, phrase: m.phrase, decimals: m.decimals, build, target: tv, beat: build >= tv };
+  });
+  const beatCount = rows.filter(r => r.beat).length;
+  return { targetName, targetLabel: target.label, target, rows, beatCount, majority: beatCount >= 4 };
+}
+
+// Verdict paragraph naming the SPECIFIC metrics beaten vs. fallen short of.
+// Three shapes: clear dethroning, statistical win but ringless, clear fall-short.
+function generateShadowVerdict(career) {
+  const cmp = compareToShadow(career);
+  if (!cmp) return "";
+  const name = state.name || "The Mystery Player";
+  const T = cmp.targetLabel;
+  const beat = cmp.rows.filter(r => r.beat);
+  const short = cmp.rows.filter(r => !r.beat);
+  const list = arr => {
+    const p = arr.map(r => r.phrase);
+    if (p.length === 0) return "";
+    if (p.length === 1) return p[0];
+    if (p.length === 2) return `${p[0]} and ${p[1]}`;
+    return `${p.slice(0, -1).join(", ")}, and ${p[p.length - 1]}`;
+  };
+  const ringRow = cmp.rows.find(r => r.key === "rings");
+  const ringBeaten = ringRow.beat;
+  const statsBeaten = beat.filter(r => ["ppg", "apg", "rpg"].includes(r.key));
+
+  // 1) Clear dethroning: majority AND the rings are in hand.
+  if (cmp.majority && ringBeaten) {
+    return `Matched or beat ${T} on ${cmp.beatCount} of 6 measures — ${list(beat)} — the rings included. ${name} didn't just chase the shadow; he stepped out of it and cast his own.`;
+  }
+  // 2) Statistical win but ringless: cleared real ground on the stat sheet, but never got the rings.
+  if (!ringBeaten && statsBeaten.length >= 2) {
+    const shortNoStats = short.filter(r => r.key !== "rings");
+    const tail = shortNoStats.length
+      ? ` — and ${list(shortNoStats)} stayed out of reach too`
+      : "";
+    return `On the numbers, ${name} went stride for stride with ${T}: beat him on ${list(statsBeaten)}${beat.length > statsBeaten.length ? ` (plus ${list(beat.filter(r => !["ppg","apg","rpg"].includes(r.key)))})` : ""}. But he never touched ${T}'s ${cmp.target.rings} rings${tail}. Immortal is spelled with jewelry.`;
+  }
+  // 3) Clear fall-short.
+  if (beat.length === 0) {
+    return `${name} chased ${T}'s shadow and never caught a piece of it — ${list(short)} all stayed the GOAT's alone. A real career, but the throne doesn't wobble.`;
+  }
+  return `${name} took ${list(beat)} off ${T}, but came up short where it counts — ${list(short)} still belong to the legend. Close enough to dream on, not enough to dethrone.`;
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
+    compareToShadow, generateShadowVerdict, SHADOW_METRICS,
   };
 }

@@ -628,6 +628,27 @@ const POSITIONS = {
   C: { label: "Center", hMin: 80, hMax: 99, frameMin: 70 },
 };
 
+// ===== "CHASING THE SHADOW" TARGETS =====
+// The 6 all-time greats a player can measure their build against. Each carries
+// six real career benchmarks: rings, MVPs, All-NBA selections, and PEAK single-
+// season PPG / APG / RPG. The build beats a metric by matching-or-exceeding it.
+// Order matches the select screen. `label` is the short first name shown in the
+// live tracker.
+// NOTE: LeBron James and Stephen Curry were still active as of this build —
+// their numbers are a SNAPSHOT through the 2025-26 NBA season, deliberately
+// frozen (this is a static site). If revisited later, update these two by hand.
+const SHADOW_TARGETS = {
+  "Michael Jordan":      { label: "Jordan",  rings: 6, mvps: 5, allNBA: 10, peakPPG: 37.1, peakAPG: 8.0,  peakRPG: 8.0 },
+  "LeBron James":        { label: "LeBron",  rings: 4, mvps: 4, allNBA: 20, peakPPG: 31.4, peakAPG: 10.2, peakRPG: 9.7 },  // 2025-26 snapshot
+  "Stephen Curry":       { label: "Curry",   rings: 4, mvps: 2, allNBA: 10, peakPPG: 32.0, peakAPG: 9.3,  peakRPG: 5.5 },  // 2025-26 snapshot
+  "Kevin Durant":        { label: "Durant",  rings: 2, mvps: 1, allNBA: 11, peakPPG: 32.0, peakAPG: 5.5,  peakRPG: 8.2 },
+  "Kareem Abdul-Jabbar": { label: "Kareem",  rings: 6, mvps: 6, allNBA: 15, peakPPG: 34.8, peakAPG: 5.0,  peakRPG: 16.6 },
+  "Kobe Bryant":         { label: "Kobe",    rings: 5, mvps: 1, allNBA: 15, peakPPG: 35.4, peakAPG: 6.0,  peakRPG: 6.9 },
+};
+// Fixed display order for the select screen (object key order isn't guaranteed
+// to be honored everywhere, so pin it explicitly).
+const SHADOW_ORDER = ["Michael Jordan", "LeBron James", "Stephen Curry", "Kevin Durant", "Kareem Abdul-Jabbar", "Kobe Bryant"];
+
 // ===== PLAYSTYLE COMP POOL =====
 // 50 iconic players (10 per position), each a full 8-attribute profile on the
 // same 0-99 scale, spanning eras and styles. Used only to find the closest
@@ -724,5 +745,5 @@ const COMP_PLAYERS = COMP_ROWS.map(([name, pos, height, frame, sh, fi, pl, ha, d
 }));
 
 if (typeof module !== "undefined") {
-  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, POSITIONS, COMP_PLAYERS };
+  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, POSITIONS, COMP_PLAYERS, SHADOW_TARGETS, SHADOW_ORDER };
 }

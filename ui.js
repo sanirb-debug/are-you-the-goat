@@ -23,7 +23,8 @@ function render() {
     return;
   }
 
-  if (step === "name") renderNameStep();
+  if (step === "shadow") renderShadowStep();
+  else if (step === "name") renderNameStep();
   else if (step === "height") renderRosterStep("height", "Height", "How tall are they?", pick => lockPhysical("height", pick));
   else if (step === "frame") renderRosterStep("frame", "Body Frame", "What's their build?", pick => lockPhysical("frame", pick));
   else if (SKILL_ORDER.includes(step)) renderRosterStep(step, step, "Pick a legend to build on.", pick => lockSkill(step, pick));
@@ -162,6 +163,29 @@ function budgetPillHTML() {
 }
 
 // ---- Step 0: Name ----
+// ---- Step 0: "Chasing the Shadow" — pick the all-time great to measure against ----
+function renderShadowStep() {
+  const wrap = el("div", "card center");
+  wrap.appendChild(el("div", "verdict-label", "CHASING THE SHADOW"));
+  wrap.appendChild(el("h1", "step-title", "Who is your GOAT?"));
+  wrap.appendChild(el("p", "step-sub", "Pick the legend your career will be measured against. You'll chase their rings, their MVPs, and their peak numbers."));
+  const grid = el("div", "shadow-select");
+  SHADOW_ORDER.forEach(name => {
+    const t = SHADOW_TARGETS[name];
+    const btn = el("button", "shadow-option",
+      `<span class="shadow-opt-name">${name}</span>
+       <span class="shadow-opt-line">${t.rings}× Ring${t.rings === 1 ? "" : "s"} &middot; ${t.mvps}× MVP &middot; ${t.peakPPG} peak PPG</span>`);
+    btn.onclick = () => {
+      state.shadowTarget = name;
+      state.currentStep++;
+      render();
+    };
+    grid.appendChild(btn);
+  });
+  wrap.appendChild(grid);
+  app.appendChild(wrap);
+}
+
 function renderNameStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Name Your Player"));
@@ -322,7 +346,6 @@ function renderSimulating() {
   wrap.appendChild(el("p", "step-sub", `${state.name || "The Mystery Player"} &nbsp;·&nbsp; ${state.team.name}`));
   const feed = el("div", "sim-feed");
   wrap.appendChild(feed);
-  app.appendChild(wrap);
 
   const lines = careerHighlights(career);
   const token = ++simRunToken; // stale timers from a previous run must not fire
@@ -332,6 +355,43 @@ function renderSimulating() {
       feed.appendChild(el("div", "sim-line", line));
     }, 400 + i * 500);
   });
+
+  // ---- Shadow tracker: build metrics count up toward the chosen legend's ----
+  const cmp = compareToShadow(career);
+  if (cmp) {
+    const track = el("div", "shadow-track");
+    track.appendChild(el("div", "shadow-track-head", `Chasing <strong>${cmp.targetName}</strong>`));
+    const grid = el("div", "shadow-track-grid");
+    const spans = cmp.rows.map(r => {
+      const row = el("div", "shadow-track-row");
+      row.appendChild(el("span", "stl", r.label));
+      const build = el("span", "stb", r.decimals ? "0.0" : "0");
+      row.appendChild(build);
+      row.appendChild(el("span", "sts", `/ ${cmp.targetLabel} ${r.target.toFixed(r.decimals)}`));
+      grid.appendChild(row);
+      return { el: build, row, final: r.build, decimals: r.decimals, beat: r.beat };
+    });
+    track.appendChild(grid);
+    wrap.appendChild(track);
+
+    // Count each build value up to its final over the feed's runtime, using a
+    // wall-clock deadline so a backgrounded tab (rAF/interval throttling) still
+    // lands on the right numbers. Colour each row once it settles.
+    const dur = 400 + lines.length * 500;
+    const start = performance.now();
+    const timer = setInterval(() => {
+      if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") { clearInterval(timer); return; }
+      const t = Math.min(1, (performance.now() - start) / dur);
+      spans.forEach(s => { s.el.textContent = (s.final * t).toFixed(s.decimals); });
+      if (t >= 1) {
+        spans.forEach(s => { s.el.textContent = s.final.toFixed(s.decimals); s.row.classList.add(s.beat ? "beat" : "short"); });
+        clearInterval(timer);
+      }
+    }, 40);
+  }
+
+  app.appendChild(wrap);
+
   setTimeout(() => {
     if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") return;
     state.currentStep++;
@@ -405,6 +465,30 @@ function renderVerdict() {
     `<span class="comp-label">Playstyle Comp</span>
      <span class="comp-name">${comp.name}</span>
      <span class="comp-reason">${comp.reason}</span>`));
+
+  // ---- Chasing the Shadow: build vs the chosen legend (additive; does not
+  // touch the tier/comp logic above). Guarded for older share links w/o a target.
+  const shadow = compareToShadow(career);
+  if (shadow) {
+    const box = el("div", "shadow-verdict");
+    // "Caught" only for a true dethroning (majority AND the rings) so the header
+    // never contradicts a ringless narrative below.
+    const ringsBeaten = shadow.rows.find(r => r.key === "rings").beat;
+    box.appendChild(el("div", "comp-label",
+      `Chasing the Shadow · ${shadow.majority && ringsBeaten ? "Caught" : "Chased"} ${shadow.targetName} — ${shadow.beatCount}/6`));
+    const grid = el("div", "shadow-cmp-grid");
+    shadow.rows.forEach(r => {
+      const cell = el("div", "shadow-cmp" + (r.beat ? " beat" : " short"));
+      cell.innerHTML =
+        `<span class="scl">${r.label}</span>
+         <span class="scv">${r.build.toFixed(r.decimals)} <span class="scvs">/ ${r.target.toFixed(r.decimals)}</span></span>
+         <span class="scm">${r.beat ? "✓" : "✕"}</span>`;
+      grid.appendChild(cell);
+    });
+    box.appendChild(grid);
+    box.appendChild(el("p", "shadow-narrative", generateShadowVerdict(career)));
+    wrap.appendChild(box);
+  }
 
   wrap.appendChild(renderLadder(tier));
 
@@ -539,7 +623,7 @@ function encodeBuild() {
     // the remaining budget) — encode by bin index + the clamped cost.
     return ["*", BUDGET_BIN.findIndex(x => x.name === p.name), p.cost];
   };
-  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, k: CATEGORIES.map(ref) };
+  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, k: CATEGORIES.map(ref) };
   return b64urlEncode(JSON.stringify(data));
 }
 
@@ -577,6 +661,8 @@ function decodeBuild(str) {
   state.team = TEAMS.find(t => t.abbr === data.t);
   if (!state.team || !POSITIONS[data.p]) throw new Error("bad team/position");
   state.name = String(data.n || "The Mystery Player").slice(0, 24);
+  // Shadow target from the link (older links omit it — the verdict guards for null).
+  state.shadowTarget = SHADOW_TARGETS[data.sh] ? data.sh : null;
   state.position = data.p;
   state.positionFit = checkPositionFit(data.p);
   state.teamNeedMet = TEAM_NEEDS[state.team.abbr] === data.p;
@@ -705,6 +791,7 @@ function renderLadder(currentTier) {
 }
 
 function resetGame() {
+  state.shadowTarget = null;
   state.name = "";
   state.height = null;
   state.frame = null;
