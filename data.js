@@ -632,93 +632,95 @@ const POSITIONS = {
 // 50 iconic players (10 per position), each a full 8-attribute profile on the
 // same 0-99 scale, spanning eras and styles. Used only to find the closest
 // real-player comp for a finished build (never position-filtered).
-// [name, pos, heightLabel, height, frame, Shooting, Finishing, Playmaking, Handles, Defense, Rebounding]
+// [name, pos, height, frame, Shooting, Finishing, Playmaking, Handles, Defense, Rebounding, Rings, MVPs, FinalsMVPs, AllNBA, AllStar, Reasoning]
 const COMP_ROWS = [
   // ---- Point Guards ----
-  ["Magic Johnson", "PG", "6'9\"", 68, 60, 66, 76, 93, 76, 56, 69],
-  ["Steve Nash", "PG", "6'3\"", 44, 32, 89, 68, 89, 84, 34, 26],
-  ["Chris Paul", "PG", "6'0\"", 32, 45, 76, 68, 90, 86, 76, 36],
-  ["John Stockton", "PG", "6'1\"", 36, 45, 76, 66, 92, 79, 74, 34],
-  ["Isiah Thomas", "PG", "6'1\"", 36, 45, 72, 76, 86, 84, 66, 32],
-  ["Allen Iverson", "PG", "6'0\"", 32, 30, 72, 82, 74, 90, 56, 29],
-  ["Russell Westbrook", "PG", "6'3\"", 44, 80, 56, 82, 79, 72, 60, 72],
-  ["Damian Lillard", "PG", "6'2\"", 40, 45, 88, 74, 78, 82, 42, 34],
-  ["Kyrie Irving", "PG", "6'2\"", 40, 45, 86, 84, 76, 93, 46, 34],
-  ["Tony Parker", "PG", "6'1\"", 36, 45, 66, 80, 76, 76, 52, 32],
-  ["Stephen Curry", "PG", "6'2\"", 40, 32, 93, 72, 78, 89, 49, 36],       // off-ball shooter/handle
-  ["Trae Young", "PG", "6'1\"", 36, 25, 84, 64, 88, 82, 22, 29],          // shoot-first playmaker, no D
-  ["Ja Morant", "PG", "6'2\"", 40, 48, 56, 86, 76, 82, 46, 39],           // athletic slasher, weak jumper
-  ["Gary Payton", "PG", "6'4\"", 48, 55, 66, 72, 78, 76, 90, 42],         // defense-first two-way PG
-  ["Derrick Rose", "PG", "6'2\"", 40, 48, 62, 84, 72, 79, 46, 36],        // explosive scoring PG
+  ["Magic Johnson", "PG", 68, 60, 66, 76, 93, 76, 56, 69, 5, 3, 3, 10, 12, "Elite floor general who controls the game with generational passing, size, and finishing. Thrives as a transition playmaker who elevates everyone around him more than as a pure scorer."],
+  ["Steve Nash", "PG", 44, 32, 89, 68, 89, 84, 34, 26, 0, 2, 0, 7, 8, "Deadly shooter and offensive engine who creates elite looks for teammates. Relies on skill, vision, and efficiency rather than defense or physicality."],
+  ["Chris Paul", "PG", 32, 45, 76, 68, 90, 86, 76, 36, 0, 0, 0, 11, 12, "Cerebral two-way point guard with elite playmaking, ball control, and defensive instincts. Controls tempo, minimizes mistakes, and picks opponents apart in the half court."],
+  ["John Stockton", "PG", 36, 45, 76, 66, 92, 79, 74, 34, 0, 0, 0, 11, 10, "Precision passer and elite decision-maker who orchestrates offenses while providing pesky perimeter defense. Built on consistency, efficiency, and longevity rather than explosive scoring."],
+  ["Isiah Thomas", "PG", 36, 45, 72, 76, 86, 84, 66, 32, 2, 0, 1, 5, 12, "Fearless leader capable of taking over games with scoring bursts and clutch playmaking. Combines toughness, creativity, and championship-level competitiveness."],
+  ["Allen Iverson", "PG", 32, 30, 72, 82, 74, 90, 56, 29, 0, 1, 0, 7, 11, "Electrifying shot creator who attacks relentlessly off the dribble and lives in the paint despite his size. Built to carry an offense with scoring and isolation brilliance."],
+  ["Russell Westbrook", "PG", 44, 80, 56, 82, 79, 72, 60, 72, 0, 1, 0, 9, 9, "Explosive downhill playmaker who overwhelms defenses with athleticism, rebounding, and relentless rim pressure. Generates offense through pace and aggression more than perimeter shooting."],
+  ["Damian Lillard", "PG", 40, 45, 88, 74, 78, 82, 42, 34, 0, 0, 0, 7, 8, "Deep-range scoring threat who stretches defenses far beyond the arc while creating his own offense. Dangerous in clutch moments with elite shot-making and pick-and-roll scoring."],
+  ["Kyrie Irving", "PG", 40, 45, 86, 84, 76, 93, 46, 34, 1, 0, 0, 3, 8, "One of the most gifted ball handlers ever, capable of scoring efficiently from anywhere on the floor. Excels in isolation and difficult shot creation with dazzling finishing touch."],
+  ["Tony Parker", "PG", 36, 45, 66, 80, 76, 76, 52, 32, 4, 0, 1, 4, 6, "Lightning-quick slasher who consistently breaks down defenses with speed and crafty finishes. Scores efficiently inside while keeping the offense flowing without dominating the ball."],
+  ["Stephen Curry", "PG", 40, 32, 93, 72, 78, 89, 49, 36, 4, 2, 1, 10, 11, "Revolutionary shooter whose gravity reshapes opposing defenses before he even touches the ball. Combines elite off-ball movement, deep-range shooting, and underrated playmaking."],
+  ["Trae Young", "PG", 36, 25, 84, 64, 88, 82, 22, 29, 0, 0, 0, 1, 3, "High-volume offensive engine built around elite passing and limitless shooting range. Creates constant pressure in pick-and-roll but gives up size and defense on the other end."],
+  ["Ja Morant", "PG", 40, 48, 56, 86, 76, 82, 46, 39, 0, 0, 0, 1, 2, "Explosive athlete who attacks the rim with fearless finishes and highlight-reel athleticism. Creates offense through relentless rim pressure and dynamic playmaking."],
+  ["Gary Payton", "PG", 48, 55, 66, 72, 78, 76, 90, 42, 1, 0, 0, 9, 9, "Elite perimeter defender who frustrates opposing guards while providing strong playmaking on offense. Brings toughness, leadership, and two-way impact every possession."],
+  ["Derrick Rose", "PG", 40, 48, 62, 84, 72, 79, 46, 36, 0, 1, 0, 1, 3, "Explosive MVP-caliber slasher with breathtaking speed, body control, and finishing ability. Constantly pressures the paint and creates offense through athleticism and attacking instincts."],
   // ---- Shooting Guards ----
-  ["Michael Jordan", "SG", "6'6\"", 55, 62, 82, 88, 74, 82, 86, 56],
-  ["Kobe Bryant", "SG", "6'6\"", 55, 60, 84, 84, 72, 84, 79, 49],
-  ["Dwyane Wade", "SG", "6'4\"", 48, 62, 64, 86, 74, 80, 76, 46],
-  ["Ray Allen", "SG", "6'5\"", 52, 60, 91, 66, 54, 64, 56, 39],
-  ["James Harden", "SG", "6'5\"", 52, 72, 84, 78, 84, 86, 44, 49],
-  ["Klay Thompson", "SG", "6'6\"", 55, 60, 90, 66, 46, 54, 70, 39],
-  ["Manu Ginobili", "SG", "6'6\"", 55, 45, 78, 78, 76, 78, 68, 39],
-  ["Reggie Miller", "SG", "6'7\"", 58, 30, 90, 64, 52, 56, 52, 34],
-  ["Vince Carter", "SG", "6'6\"", 55, 60, 76, 88, 56, 74, 56, 49],
-  ["Jerry West", "SG", "6'2\"", 40, 45, 82, 78, 76, 76, 76, 42],
-  ["Bradley Beal", "SG", "6'4\"", 48, 48, 82, 76, 64, 74, 44, 34],        // combo scorer, modest playmaking
-  ["Devin Booker", "SG", "6'5\"", 52, 45, 84, 76, 70, 76, 46, 34],        // pure three-level scorer
-  ["Tracy McGrady", "SG", "6'8\"", 62, 60, 80, 84, 74, 76, 56, 52],       // tall shot-creating wing
-  ["Jamal Crawford", "SG", "6'5\"", 52, 32, 78, 68, 62, 88, 34, 24],      // handle/microwave, no D or PM
-  ["George Gervin", "SG", "6'7\"", 58, 32, 84, 86, 56, 72, 49, 42],       // silky pure scorer
+  ["Michael Jordan", "SG", 55, 62, 82, 88, 74, 82, 86, 56, 6, 5, 6, 10, 14, "The ultimate two-way superstar, capable of dominating both ends of the floor with elite scoring, relentless competitiveness, and lockdown perimeter defense. Thrives as a primary offensive weapon while taking on the toughest defensive assignments."],
+  ["Kobe Bryant", "SG", 55, 60, 84, 84, 72, 84, 79, 49, 5, 1, 2, 15, 18, "A fearless shot creator who can score from anywhere through footwork, skill, and difficult shot-making. Built to carry an offense while bringing intensity and strong perimeter defense."],
+  ["Dwyane Wade", "SG", 48, 62, 64, 86, 74, 80, 76, 46, 3, 0, 1, 8, 13, "Explosive slasher who relentlessly attacks the rim with elite body control and athleticism. Creates offense through drives, transition play, and timely playmaking while impacting the game defensively."],
+  ["Ray Allen", "SG", 52, 60, 91, 66, 54, 64, 56, 39, 2, 0, 0, 2, 10, "One of the greatest pure shooters ever, constantly stretching defenses with elite off-ball movement and quick release. Scores efficiently without needing to dominate the ball."],
+  ["James Harden", "SG", 52, 72, 84, 78, 84, 86, 44, 49, 0, 1, 0, 7, 11, "Offensive engine built around elite shot creation, ball handling, and playmaking. Excels in isolation and pick-and-roll, generating efficient offense for both himself and his teammates."],
+  ["Klay Thompson", "SG", 55, 60, 90, 66, 46, 54, 70, 39, 4, 0, 0, 2, 5, "Elite catch-and-shoot scorer who thrives without the ball while providing strong perimeter defense. Dangerous the moment he gets daylight and capable of explosive scoring bursts"],
+  ["Manu Ginobili", "SG", 55, 45, 78, 78, 76, 78, 68, 39, 4, 0, 0, 0, 2, "Creative playmaker with crafty finishing and fearless decision-making. Brings energy, unpredictability, and winning impact whether starting or coming off the bench."],
+  ["Reggie Miller", "SG", 58, 30, 90, 64, 52, 56, 52, 34, 0, 0, 0, 3, 5, "Elite movement shooter who wears down defenses with constant off-ball activity and clutch shot-making. Creates scoring opportunities through spacing, timing, and relentless motion."],
+  ["Vince Carter", "SG", 55, 60, 76, 88, 56, 74, 56, 49, 0, 0, 0, 2, 8, "Explosive wing scorer known for elite athleticism, powerful finishing, and versatile offensive ability. Can attack above the rim while also creating offense from the perimeter"],
+  ["Jerry West", "SG", 40, 45, 82, 78, 76, 76, 76, 42, 1, 0, 1, 12, 14, "Complete two-way guard who combines efficient scoring, high-level playmaking, and strong defense. A dependable leader capable of impacting every aspect of the game."],
+  ["Bradley Beal", "SG", 48, 48, 82, 76, 64, 74, 44, 34, 0, 0, 0, 1, 3, "Smooth three-level scorer who can create his own shot while playing effectively on or off the ball. Relies on skill, touch, and offensive versatility more than physical dominance."],
+  ["Devin Booker", "SG", 52, 45, 84, 76, 70, 76, 46, 34, 0, 0, 0, 2, 4, "Elite shot-maker with polished footwork and the ability to score at all three levels. Balances efficient scoring with secondary playmaking to anchor an offense."],
+  ["Tracy McGrady", "SG", 62, 60, 80, 84, 74, 76, 56, 52, 0, 0, 0, 7, 7, "Long, versatile scorer who effortlessly creates offense with size, athleticism, and smooth shot-making. Dangerous both attacking the rim and pulling up over defenders."],
+  ["Jamal Crawford", "SG", 52, 32, 78, 68, 62, 88, 34, 24, 0, 0, 0, 0, 0, "Dynamic isolation scorer with one of the deepest ball-handling bags in NBA history. Creates space with creative dribble moves and thrives as an instant-offense microwave scorer."],
+  ["George Gervin", "SG", 58, 32, 84, 86, 56, 72, 49, 42, 0, 0, 0, 7, 12, "Silky-smooth scorer with exceptional touch around the basket and effortless mid-range scoring. Relies on finesse, length, and efficiency rather than physical power."],
   // ---- Small Forwards ----
-  ["LeBron James", "SF", "6'9\"", 68, 72, 74, 89, 86, 79, 76, 69],
-  ["Larry Bird", "SF", "6'9\"", 68, 60, 86, 78, 84, 68, 62, 76],
-  ["Kevin Durant", "SF", "6'10\"", 75, 45, 90, 86, 68, 72, 64, 62],
-  ["Kawhi Leonard", "SF", "6'7\"", 58, 72, 78, 80, 60, 68, 89, 60],
-  ["Scottie Pippen", "SF", "6'8\"", 62, 60, 62, 74, 76, 72, 86, 62],
-  ["Julius Erving", "SF", "6'7\"", 58, 45, 66, 86, 66, 76, 66, 62],
-  ["Paul George", "SF", "6'8\"", 62, 60, 78, 76, 64, 70, 78, 54],
-  ["Carmelo Anthony", "SF", "6'7\"", 58, 72, 80, 80, 54, 72, 46, 56],
-  ["Grant Hill", "SF", "6'8\"", 62, 60, 66, 80, 74, 76, 68, 56],
-  ["Rick Barry", "SF", "6'7\"", 58, 45, 82, 78, 74, 70, 60, 56],
-  ["Jimmy Butler", "SF", "6'7\"", 58, 60, 68, 79, 66, 66, 84, 49],       // two-way, defense-anchored wing
-  ["Paul Pierce", "SF", "6'7\"", 58, 60, 80, 78, 66, 70, 60, 49],        // shot-making scorer
-  ["Dominique Wilkins", "SF", "6'8\"", 62, 60, 76, 88, 49, 68, 46, 54],  // explosive scorer, weak playmaking
-  ["Jayson Tatum", "SF", "6'8\"", 62, 55, 82, 78, 64, 72, 68, 56],       // modern two-way scorer
-  ["Andre Iguodala", "SF", "6'6\"", 55, 60, 56, 68, 68, 62, 82, 52],     // 3-and-D connector, low usage
+  ["LeBron James", "SF", 68, 72, 74, 89, 86, 79, 76, 69, 4, 4, 4, 20, 21, "Generational all-around superstar who dominates with elite finishing, playmaking, and basketball IQ. Controls the game as the primary offensive engine while using size and strength to impact every possession."],
+  ["Larry Bird", "SF", 68, 60, 86, 78, 84, 68, 62, 76, 3, 3, 2, 10, 12, "Elite all-around forward whose shooting, passing, and basketball IQ make everyone around him better. Beats opponents with skill, vision, and clutch shot-making rather than overwhelming athleticism."],
+  ["Kevin Durant", "SF", 75, 45, 90, 86, 68, 72, 64, 62, 2, 1, 2, 11, 15, "Nearly unstoppable three-level scorer with elite shooting touch and effortless finishing over defenders. Uses his length and shot-making ability to score efficiently from anywhere on the floor."],
+  ["Kawhi Leonard", "SF", 58, 72, 78, 80, 60, 68, 89, 60, 2, 0, 2, 5, 6, "Elite two-way wing who combines suffocating perimeter defense with efficient, methodical scoring. Excels by controlling the pace, creating quality looks, and shutting down opposing stars."],
+  ["Scottie Pippen", "SF", 62, 60, 62, 74, 76, 72, 86, 62, 6, 0, 0, 7, 7, "Versatile two-way playmaker capable of defending every perimeter position while initiating the offense. Impacts winning through defense, transition play, and unselfish decision-making."],
+  ["Julius Erving", "SF", 58, 45, 66, 86, 66, 76, 66, 62, 3, 4, 2, 12, 16, "Dynamic high-flying scorer who attacks the basket with elite athleticism and creativity. Blends flashy finishing with smooth ball handling to create constant pressure on defenses."],
+  ["Paul George", "SF", 62, 60, 78, 76, 64, 70, 78, 54, 0, 0, 0, 6, 9, "Smooth, versatile wing who contributes on both ends with shot-making, athleticism, and strong perimeter defense. Comfortable creating offense while guarding the opponent's best scorer."],
+  ["Carmelo Anthony", "SF", 58, 72, 80, 80, 54, 72, 46, 56, 0, 0, 0, 6, 10, "Elite isolation scorer with polished footwork and one of the deepest offensive bags among forwards. Thrives by creating difficult shots from the mid-range, post, and perimeter."],
+  ["Grant Hill", "SF", 62, 60, 66, 80, 74, 76, 68, 56, 0, 0, 0, 5, 7, "Athletic point-forward who combines slashing, playmaking, and versatility to impact every phase of the offense. Creates opportunities with speed, vision, and controlled aggression."],
+  ["Rick Barry", "SF", 58, 45, 82, 78, 74, 70, 60, 56, 1, 0, 1, 10, 12, "Highly skilled offensive forward with excellent shooting, scoring versatility, and underrated playmaking. Excels through efficiency, intelligence, and a polished all-around offensive game."],
+  ["Jimmy Butler", "SF", 58, 60, 68, 79, 66, 66, 84, 49, 0, 0, 0, 5, 6, "Physical two-way competitor who thrives attacking the rim, drawing contact, and locking down opponents defensively. Elevates his game in the biggest moments through toughness and leadership."],
+  ["Paul Pierce", "SF", 58, 60, 80, 78, 66, 70, 60, 49, 1, 0, 1, 4, 10, "Clutch three-level scorer who uses strength, footwork, and shot-making to consistently create offense. Excels in late-game situations with poise and efficient isolation scoring."],
+  ["Dominique Wilkins", "SF", 62, 60, 76, 88, 49, 68, 46, 54, 0, 0, 0, 7, 9, "Explosive athletic scorer who overwhelms defenders with powerful drives and highlight-reel finishes. Generates offense through relentless attacking and elite above-the-rim ability."],
+  ["Jayson Tatum", "SF", 62, 55, 82, 78, 64, 72, 68, 56, 1, 0, 0, 4, 6, "Complete scoring wing capable of creating offense from all three levels while providing solid two-way value. Combines polished footwork, length, and shot-making to lead an offense."],
+  ["Andre Iguodala", "SF", 55, 60, 56, 68, 68, 62, 82, 52, 4, 0, 1, 0, 1, "Versatile defensive wing who impacts winning through elite perimeter defense, athleticism, and smart playmaking. Excels as a connector who does the little things on both ends of the floor."],
   // ---- Power Forwards ----
-  ["Tim Duncan", "PF", "6'11\"", 82, 72, 56, 82, 62, 39, 89, 86],
-  ["Karl Malone", "PF", "6'9\"", 68, 92, 66, 86, 54, 49, 70, 82],
-  ["Charles Barkley", "PF", "6'6\"", 55, 92, 62, 84, 62, 64, 56, 86],
-  ["Dirk Nowitzki", "PF", "7'0\"", 87, 45, 88, 76, 52, 54, 46, 72],
-  ["Kevin Garnett", "PF", "6'11\"", 82, 60, 66, 76, 64, 52, 89, 84],
-  ["Dennis Rodman", "PF", "6'7\"", 58, 72, 19, 49, 39, 34, 84, 93],
-  ["Giannis Antetokounmpo", "PF", "6'11\"", 82, 92, 49, 90, 72, 56, 82, 84],
-  ["Blake Griffin", "PF", "6'9\"", 68, 92, 56, 86, 64, 56, 49, 74],
-  ["Anthony Davis", "PF", "6'10\"", 75, 72, 64, 84, 56, 49, 87, 84],
-  ["Draymond Green", "PF", "6'6\"", 55, 80, 49, 56, 79, 56, 89, 72],
-  ["Kevin McHale", "PF", "6'10\"", 75, 60, 56, 86, 42, 39, 76, 76],      // low-post scoring big
-  ["Pau Gasol", "PF", "7'0\"", 87, 60, 62, 80, 62, 44, 66, 80],          // skilled two-way big
-  ["Chris Webber", "PF", "6'10\"", 75, 72, 60, 78, 72, 52, 62, 80],      // playmaking forward
-  ["Amar'e Stoudemire", "PF", "6'10\"", 75, 80, 54, 88, 36, 42, 44, 74], // athletic finisher, weak PM/D
-  ["Kevin Love", "PF", "6'8\"", 62, 80, 76, 68, 52, 44, 39, 84],         // stretch-4 rebounder
+  ["Tim Duncan", "PF", 82, 72, 56, 82, 62, 39, 89, 86, 5, 2, 3, 15, 15, "Fundamental two-way big who dominates through elite defense, consistency, and polished post play. Elevates winning with unselfish leadership and impeccable decision-making."],
+  ["Karl Malone", "PF", 68, 92, 66, 86, 54, 49, 70, 82, 0, 2, 0, 14, 14, "Powerful interior scorer who combines strength, durability, and a reliable mid-range game. Punishes defenders in transition and the pick-and-roll."],
+  ["Charles Barkley", "PF", 55, 92, 62, 84, 62, 64, 56, 86, 0, 1, 0, 11, 11, "Undersized powerhouse who overwhelms opponents with elite rebounding, explosive scoring, and relentless energy. Creates mismatches through strength and skill."],
+  ["Dirk Nowitzki", "PF", 87, 45, 88, 76, 52, 54, 46, 72, 1, 1, 1, 12, 14, "Revolutionary stretch big whose elite shooting and signature fadeaway make him nearly impossible to guard. Scores efficiently from anywhere on the floor."],
+  ["Kevin Garnett", "PF", 82, 60, 66, 76, 64, 52, 89, 84, 1, 1, 0, 9, 15, "Intense two-way forward with elite defensive versatility, rebounding, and mid-range scoring. Brings relentless energy and leadership every night."],
+  ["Dennis Rodman", "PF", 58, 72, 19, 49, 39, 34, 84, 93, 5, 0, 0, 2, 2, "Generational rebounder and defensive specialist who impacts winning without needing to score. Thrives by shutting down opponents and controlling the glass."],
+  ["Giannis Antetokounmpo", "PF", 82, 92, 49, 90, 72, 56, 82, 84, 1, 2, 1, 8, 9, "Dominant downhill force who overwhelms defenses with elite athleticism, length, and relentless rim attacks. Impacts every possession as a two-way superstar."],
+  ["Blake Griffin", "PF", 68, 92, 56, 86, 64, 56, 49, 74, 0, 0, 0, 5, 6, "Explosive power forward who attacks the rim with elite athleticism while creating offense in transition. Combines physicality with underrated playmaking."],
+  ["Anthony Davis", "PF", 75, 72, 64, 84, 56, 49, 87, 84, 1, 0, 0, 5, 9, "Elite two-way big who protects the rim while scoring efficiently inside and from mid-range. Anchors defenses with length and versatility."],
+  ["Draymond Green", "PF", 55, 80, 49, 56, 79, 56, 89, 72, 4, 0, 0, 2, 4, "Defensive quarterback who impacts every possession through versatility, playmaking, and basketball IQ. Does the little things that elevate championship teams."],
+  ["Kevin McHale", "PF", 75, 60, 56, 86, 42, 39, 76, 76, 3, 0, 0, 1, 7, "Highly skilled post scorer with elite footwork and efficient interior offense. Provides strong defense and dependable rebounding."],
+  ["Pau Gasol", "PF", 87, 60, 62, 80, 62, 44, 66, 80, 2, 0, 0, 4, 6, "Skilled all-around big who blends scoring, passing, and rebounding with excellent touch around the basket. Thrives in team-oriented offenses."],
+  ["Chris Webber", "PF", 75, 72, 60, 78, 72, 52, 62, 80, 0, 0, 0, 5, 5, "Versatile offensive forward with polished passing, scoring, and rebounding. Creates matchup problems through skill and athleticism."],
+  ["Amar'e Stoudemire", "PF", 75, 80, 54, 88, 36, 42, 44, 74, 0, 0, 0, 5, 6, "Explosive pick-and-roll finisher who attacks the rim with power and athleticism. Excels as an efficient interior scorer."],
+  ["Kevin Love", "PF", 62, 80, 76, 68, 52, 44, 39, 84, 1, 0, 0, 2, 5, "Elite rebounder and floor-spacing big who stretches defenses with outside shooting. Combines strong outlet passing with high basketball IQ."],
   // ---- Centers ----
-  ["Shaquille O'Neal", "C", "7'1\"", 90, 92, 24, 90, 49, 34, 76, 87],
-  ["Kareem Abdul-Jabbar", "C", "7'2\"", 93, 72, 54, 90, 56, 39, 82, 86],
-  ["Hakeem Olajuwon", "C", "7'0\"", 87, 60, 49, 87, 54, 56, 91, 87],
-  ["Wilt Chamberlain", "C", "7'1\"", 90, 92, 39, 90, 54, 39, 84, 93],
-  ["Bill Russell", "C", "6'10\"", 75, 72, 34, 69, 54, 36, 91, 93],
-  ["Nikola Jokic", "C", "6'11\"", 82, 80, 76, 84, 90, 52, 52, 84],
-  ["David Robinson", "C", "7'1\"", 90, 60, 54, 84, 49, 44, 89, 86],
-  ["Patrick Ewing", "C", "7'0\"", 87, 92, 56, 82, 39, 36, 84, 84],
-  ["Dikembe Mutombo", "C", "7'2\"", 93, 92, 18, 62, 24, 29, 91, 89],
-  ["Rudy Gobert", "C", "7'1\"", 90, 72, 18, 72, 24, 24, 89, 88],
-  ["Joel Embiid", "C", "7'0\"", 87, 80, 72, 84, 56, 49, 82, 84],         // dominant two-way scoring C
-  ["Karl-Anthony Towns", "C", "6'11\"", 82, 72, 82, 78, 49, 52, 49, 82], // stretch-5 shooter
-  ["Alonzo Mourning", "C", "6'10\"", 75, 80, 39, 80, 34, 32, 89, 82],    // defense/rim-run big
-  ["Yao Ming", "C", "7'6\"", 99, 88, 56, 82, 44, 34, 74, 82],            // skyscraper post scorer
-  ["Ben Wallace", "C", "6'9\"", 68, 80, 18, 54, 24, 24, 91, 90],         // pure defense/rebound anchor
+  ["Shaquille O'Neal", "C", 90, 92, 24, 90, 49, 34, 76, 87, 4, 1, 3, 14, 15, "Physically dominant interior force who overwhelms defenders with power, finishing, and rebounding. Demands constant defensive attention in the paint."],
+  ["Kareem Abdul-Jabbar", "C", 93, 72, 54, 90, 56, 39, 82, 86, 6, 6, 2, 15, 19, "One of the most unstoppable scorers ever, powered by graceful post play and the iconic skyhook. Anchors both ends with size and consistency."],
+  ["Hakeem Olajuwon", "C", 87, 60, 49, 87, 54, 56, 91, 87, 2, 1, 2, 12, 12, "Elite two-way center with unmatched footwork, post scoring, and rim protection. Dominates through skill, agility, and defensive instincts."],
+  ["Wilt Chamberlain", "C", 90, 92, 39, 90, 54, 39, 84, 93, 2, 4, 1, 10, 13, "Generational athletic marvel who dominates the paint with overwhelming scoring, rebounding, and physical presence. Capable of taking over games in every facet."],
+  ["Bill Russell", "C", 75, 72, 34, 69, 54, 36, 91, 93, 11, 5, 0, 11, 12, "Legendary defensive anchor whose rim protection, rebounding, and leadership drive championship success. Prioritizes winning over individual scoring."],
+  ["Nikola Jokic", "C", 82, 80, 76, 84, 90, 52, 52, 84, 1, 3, 1, 6, 6, "Unique offensive hub who combines elite passing, scoring efficiency, and rebounding from the center position. Controls the game with vision and basketball IQ."],
+  ["David Robinson", "C", 90, 60, 54, 84, 49, 44, 89, 86, 2, 1, 0, 10, 10, "Athletic two-way center who protects the rim while scoring efficiently inside. Combines mobility, length, and leadership on both ends."],
+  ["Patrick Ewing", "C", 87, 92, 56, 82, 39, 36, 84, 84, 0, 0, 0, 7, 11, "Reliable two-way center with polished post scoring, strong rebounding, and rim protection. Provides a steady presence on both ends of the floor."],
+  ["Dikembe Mutombo", "C", 93, 92, 18, 62, 24, 29, 91, 89, 0, 0, 0, 3, 8, "Elite rim protector whose defense and shot blocking define his impact. Controls the paint while anchoring championship-caliber defenses."],
+  ["Rudy Gobert", "C", 90, 72, 18, 72, 24, 24, 89, 88, 0, 0, 0, 4, 3, "Defensive specialist who dominates the paint with elite rim protection and rebounding. Creates value through screening, finishing, and interior defense."],
+  ["Joel Embiid", "C", 87, 80, 72, 84, 56, 49, 82, 84, 0, 1, 0, 5, 7, "Dominant two-way scorer who blends power, footwork, and touch in the post with elite rim protection. Can carry an offense while anchoring a defense."],
+  ["Karl-Anthony Towns", "C", 82, 72, 82, 78, 49, 52, 49, 82, 0, 0, 0, 1, 4, "Highly skilled scoring big who stretches defenses with elite shooting while providing strong interior scoring. Creates matchup problems with his offensive versatility."],
+  ["Alonzo Mourning", "C", 75, 80, 39, 80, 34, 32, 89, 82, 1, 0, 0, 2, 7, "Physical defensive anchor known for elite shot blocking, rebounding, and interior toughness. Brings intensity on both ends of the floor."],
+  ["Yao Ming", "C", 99, 88, 56, 82, 44, 34, 74, 82, 0, 0, 0, 5, 8, "Massive interior presence with soft touch, polished post scoring, and reliable rim protection. Uses size and skill to control the paint."],
+  ["Ben Wallace", "C", 68, 80, 18, 54, 24, 24, 91, 90, 1, 0, 0, 5, 4, "Defensive powerhouse who dominates through rebounding, rim protection, and relentless effort. Impacts winning without needing offensive touches."],
 ];
 
-const COMP_PLAYERS = COMP_ROWS.map(([name, pos, heightLabel, height, frame, sh, fi, pl, ha, de, re]) => ({
-  name, pos, heightLabel,
+const COMP_PLAYERS = COMP_ROWS.map(([name, pos, height, frame, sh, fi, pl, ha, de, re, rings, mvps, finalsMVPs, allNBA, allStar, reasoning]) => ({
+  name, pos,
   dims: { height, frame, Shooting: sh, Finishing: fi, Playmaking: pl, Handles: ha, Defense: de, Rebounding: re },
+  accomplishments: { rings, mvps, finalsMVPs, allNBA, allStar },
+  reasoning,
 }));
 
 if (typeof module !== "undefined") {
