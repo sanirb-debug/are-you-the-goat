@@ -229,12 +229,15 @@ function generateSeasonStats(ovr, f, h, fr, mods = {}) {
   const m = k => mods[k] || 0;
   const jitter = () => 1 + randInt(-8, 8) / 100;
   const ovrFactor = clamp((ovr - 48) / 50, 0.35, 1);
-  // Scoring output tracks the scoring SKILLS, not overall OVR. ovrFactor
-  // used to multiply ppg directly, so an elite Shooting/Finishing specialist
-  // with weak unrelated categories (94 Finishing but OVR 68) was crushed to
-  // ~11 PPG. Scoring stats (ppg, tpg) now use only a light opportunity
-  // dampener derived from OVR (x0.85-1.0); non-scoring stats keep ovrFactor.
-  const scoringOpp = 0.85 + 0.15 * ovrFactor;
+  // EVERY box-score volume stat tracks its OWN driving attribute, not overall
+  // OVR. Multiplying by ovrFactor (0.35-1.0) crushed specialists whose other
+  // categories were weak: a 94-Finishing scorer fell to ~11 PPG (fixed
+  // earlier), and a 90-Playmaking passer fell to ~3.6 APG because a weak
+  // Defense/Rebounding/frame dragged OVR to ~54 => ovrFactor 0.35. All volume
+  // stats now use the same light team-role dampener (x0.85-1.0) instead, so
+  // the driving attribute — Playmaking for APG, Rebounding for RPG, Defense
+  // for SPG/BPG — sets the output regardless of unrelated weaknesses.
+  const oppFactor = 0.85 + 0.15 * ovrFactor;
   const scoring = (f.Shooting + f.Finishing) / 2;
   // PPG is anchored directly to the scoring skills with a proper ceiling: the
   // 0.63 slope off a rating-45 baseline gives decent (scoring ~75) builds
@@ -242,17 +245,17 @@ function generateSeasonStats(ovr, f, h, fr, mods = {}) {
   // elite (~90+) Shooting/Finishing. Earlier `4 + (scoring-25)*0.42` was too
   // hot in the middle — a scoring-75 build hit ~25 PPG, all-star-averages for
   // a merely-good scorer — so it's re-anchored to make the top end mean
-  // something. scoringOpp (0.85-1.0) is a light team-role dampener only.
-  const ppg = clamp(0.63 * (scoring - 45) * scoringOpp * jitter() + m("ppg"), 3, 35);
-  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * ovrFactor * jitter() + m("apg"), 0.5, 11.5);
-  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * ovrFactor * jitter() + m("rpg"), 1, 15);
+  // something. oppFactor (0.85-1.0) is a light team-role dampener only.
+  const ppg = clamp(0.63 * (scoring - 45) * oppFactor * jitter() + m("ppg"), 3, 35);
+  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * oppFactor * jitter() + m("apg"), 0.5, 11.5);
+  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * oppFactor * jitter() + m("rpg"), 1, 15);
   // smaller, leaner builds poke more passing lanes; bigger builds protect the rim
-  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * ovrFactor * jitter() + m("spg"), 0.2, 3.6);
-  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * ovrFactor * jitter() + m("bpg"), 0.2, 3.6);
+  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * oppFactor * jitter() + m("spg"), 0.2, 3.6);
+  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * oppFactor * jitter() + m("bpg"), 0.2, 3.6);
   // threes come from Shooting alone; very tall or Powerful builds live closer to the rim
   const tallPenalty = h >= 85 ? (h - 85) * 0.03 : 0;
   const bulkPenalty = fr >= 90 ? 0.6 : 0;
-  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * scoringOpp * jitter() + m("tpg"), 0, 5.2);
+  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * oppFactor * jitter() + m("tpg"), 0, 5.2);
   // Shooting percentages are efficiency, not volume — derived from the scoring
   // skills, NOT scaled by ovrFactor, with a small per-season wobble.
   const jPct = () => randInt(-2, 2);
@@ -442,20 +445,39 @@ const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 // so short-career greats aren't mathematically locked out), while GOAT's
 // 18+ All-Star line deliberately requires an 18-20 season career of sustained
 // dominance — rare by construction, but reachable.
+// The All-Star tier is gated on ACTUAL All-Star selections alone. It used to
+// also require 3 All-NBA nods, which capped a legitimate 7x All-Star / 2x
+// All-NBA career at *Starter* — no tier sits between them, so failing the
+// All-NBA sub-gate dropped it two tiers. Being a repeat All-Star IS the
+// All-Star tier; All-NBA requirements start at Superstar.
 const TIER_AWARD_FLOORS = {
-  "All-Star":  { allStars: 6,  allNBAs: 3 },
+  "All-Star":  { allStars: 6 },
   "Superstar": { allStars: 9,  allNBAs: 6 },
   "Legend":    { allStars: 14, allNBAs: 12, mvps: 1 },
   "GOAT":      { allStars: 18, allNBAs: 15, mvps: 4, hardware: 4 },
 };
+// FAIL-SAFE: a missing career counts every award as ZERO, so it fails every
+// floor. The old `if (!req || !career) return true` was fail-OPEN — any caller
+// that forgot to pass the career silently disabled all award floors, which is
+// how a 0-award build reached All-Star. Absent data can now only demote.
 function meetsAwardFloor(tierName, career) {
   const req = TIER_AWARD_FLOORS[tierName];
-  if (!req || !career) return true; // tiers without floors, or legacy callers
-  if (req.allStars && career.allStars < req.allStars) return false;
-  if (req.allNBAs && career.allNBAs < req.allNBAs) return false;
-  if (req.mvps && career.mvps < req.mvps) return false;
-  if (req.hardware && (career.rings + career.finalsMVPs) < req.hardware) return false;
+  if (!req) return true; // Starter and below carry no award requirement
+  const c = career || {};
+  if ((c.allStars || 0) < (req.allStars || 0)) return false;
+  if ((c.allNBAs || 0) < (req.allNBAs || 0)) return false;
+  if ((c.mvps || 0) < (req.mvps || 0)) return false;
+  if (req.hardware && ((c.rings || 0) + (c.finalsMVPs || 0)) < req.hardware) return false;
   return true;
+}
+
+// One gate for a tier: BOTH the peak-OVR floor and the award floor must pass.
+// Every tier assignment routes through this — there is no path that sets a
+// tier without running both checks.
+function meetsTierFloors(tierName, effectivePeak, career) {
+  const ovrFloor = TIER_OVR_FLOORS[tierName];
+  if (ovrFloor && effectivePeak < ovrFloor) return false;
+  return meetsAwardFloor(tierName, career);
 }
 
 // A tier's OVR floor is satisfied by EITHER the tracked career peak OR the
@@ -466,14 +488,28 @@ function meetsAwardFloor(tierName, career) {
 // equals the Legend floor — but it guards any future retune where the MVP
 // gate drops below a floor or peak tracking changes.)
 // `career` (when passed) additionally enforces TIER_AWARD_FLOORS above.
-function tierForCareer(score, peakOVR, bestMVPOVR = 0, career = null) {
-  const effectivePeak = Math.max(peakOVR, bestMVPOVR);
-  let idx = TIERS.indexOf(tierForScore(score));
-  while (idx > 0) {
-    const floor = TIER_OVR_FLOORS[TIERS[idx].name];
-    if ((!floor || effectivePeak >= floor) && meetsAwardFloor(TIERS[idx].name, career)) break;
-    idx--;
+// PREFERRED CALL: tierForCareer(career) — the career object carries score,
+// peak OVR and every award count, so the floors can never be accidentally
+// bypassed. The legacy positional form (score, peakOVR, bestMVPOVR, career)
+// still works, but omitting the career now counts awards as zero (fail-safe)
+// instead of skipping the award floors entirely.
+// Starts at the tier the raw GOAT Score implies, then walks DOWN one tier at a
+// time and returns the HIGHEST tier whose FULL requirements (score bucket +
+// peak-OVR floor + award floors) are all satisfied.
+function tierForCareer(career, ...legacy) {
+  let score, effectivePeak, c;
+  if (typeof career === "number") {
+    const [peakOVR = 0, bestMVPOVR = 0, careerArg = null] = legacy;
+    score = career;
+    effectivePeak = Math.max(peakOVR, bestMVPOVR);
+    c = careerArg;
+  } else {
+    c = career || null;
+    score = c ? c.goatScore : -Infinity;
+    effectivePeak = c ? Math.max(c.peakOVR, c.bestMVPOVR || 0) : 0;
   }
+  let idx = TIERS.indexOf(tierForScore(score));
+  while (idx > 0 && !meetsTierFloors(TIERS[idx].name, effectivePeak, c)) idx--;
   return TIERS[idx];
 }
 
@@ -970,6 +1006,6 @@ if (typeof module !== "undefined") {
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
-    TIER_AWARD_FLOORS, meetsAwardFloor, isHallOfFame,
+    TIER_AWARD_FLOORS, meetsAwardFloor, meetsTierFloors, isHallOfFame,
   };
 }
