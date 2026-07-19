@@ -263,7 +263,7 @@ function generateSeasonStats(ovr, f, h, fr, mods = {}) {
 }
 
 // ---- Season / career sim ----
-function simSeason(ovr, scr, varianceRange) {
+function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   const variance = randInt(-varianceRange, varianceRange);
   let wins = Math.round(41 + (ovr - 75) * 0.9 + (scr - 60) * 0.35 + variance);
   wins = clamp(wins, 12, 73);
@@ -312,7 +312,19 @@ function simSeason(ovr, scr, varianceRange) {
 
   let finalsMVP = ring && ovr >= 78;
 
-  return { wins, madePlayoffs, ring, finalsMVP, allStar, allNBA, mvp, roundsWon };
+  // Rookie of the Year: first simulated season only — an All-Star-caliber
+  // debut (OVR 72+) has a real but not guaranteed shot (same probabilistic
+  // pattern as the MVP roll above).
+  let roty = false;
+  if (isRookie && ovr >= 72) roty = rng() < 0.5;
+
+  // Defensive Player of the Year: gated on the build's post-modifier DEFENSE
+  // rating specifically, not overall OVR — a defensive specialist with a
+  // modest OVR can still rack these up.
+  let dpoy = false;
+  if (defRating >= 85) dpoy = rng() < 0.3;
+
+  return { wins, madePlayoffs, ring, finalsMVP, allStar, allNBA, mvp, roty, dpoy, roundsWon };
 }
 
 const GAMES_PER_SEASON = 82;
@@ -322,6 +334,7 @@ function simCareer(ovr, team, mods = {}) {
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
   let bestMVPOVR = 0; // OVR of the strongest MVP-winning season (0 if none)
+  let roty = 0, dpoys = 0; // Rookie of the Year (0/1), Defensive Player of the Year (repeatable)
   const varianceRange = state.positionFit ? 4 : 8;
   const f = finalSkills();
   const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
@@ -334,13 +347,15 @@ function simCareer(ovr, team, mods = {}) {
     // Filling the team's positional need lifts the supporting cast a touch.
     const teamScr = team.scr + (state.teamNeedMet ? 5 : 0);
     const scrThisYear = clamp(teamScr + randInt(-5, 5), 15, 99);
-    const result = simSeason(seasonOVR, scrThisYear, varianceRange);
+    const result = simSeason(seasonOVR, scrThisYear, varianceRange, i === 0, f.Defense);
     careerWins += result.wins;
     if (result.ring) rings++;
     if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, seasonOVR); }
     if (result.finalsMVP) finalsMVPs++;
     if (result.allNBA) allNBAs++;
     if (result.allStar) allStars++;
+    if (result.roty) roty = 1;
+    if (result.dpoy) dpoys++;
 
     const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.frame.rating, mods);
     totals.pts += stats.ppg * GAMES_PER_SEASON;
@@ -362,6 +377,7 @@ function simCareer(ovr, team, mods = {}) {
   // multi-MVP haul is a dominance signal, not a stat line — without the
   // bonus, a 4-MVP / 18x All-NBA career (score ~589) capped at Superstar
   // below the Legend line (600), which read as a design gap.
+  // DPOY counts like an All-NBA nod per occurrence; ROTY is a small one-time bonus.
   const goatScore = Math.round(
     peakOVR * 4 +
     rings * 15 +
@@ -369,12 +385,14 @@ function simCareer(ovr, team, mods = {}) {
     finalsMVPs * 10 +
     allNBAs * 3 +
     allStars * 1 +
+    dpoys * 3 +
+    roty * 2 +
     careerWins / 10
   );
 
   const avgFgPct = Math.round(fgSum / numSeasons * 10) / 10;
   const avgTptPct = Math.round(tptSum / numSeasons * 10) / 10;
-  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, careerWins, peakOVR, bestMVPOVR, goatScore, totals, avgFgPct, avgTptPct, bestSeason };
+  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, roty, dpoys, careerWins, peakOVR, bestMVPOVR, goatScore, totals, avgFgPct, avgTptPct, bestSeason };
 }
 
 // ---- Tier ladder ----
@@ -415,6 +433,31 @@ function tierForScore(score) {
 // unreachable — the trap to avoid when retuning.
 const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 
+// Award-count floors per tier — the same AND-gate pattern as TIER_OVR_FLOORS:
+// a career must clear EVERY requirement of a tier (score, OVR floor, and all
+// award counts) or it drops to the tier below and is re-checked there.
+// `hardware` = rings + Finals MVPs combined. Calibrated against 15-20 season
+// careers: Legend's 14 All-Star / 12 All-NBA is clearable by a 15-season
+// career that stars nearly every year (the low end of the requested ~15/~13,
+// so short-career greats aren't mathematically locked out), while GOAT's
+// 18+ All-Star line deliberately requires an 18-20 season career of sustained
+// dominance — rare by construction, but reachable.
+const TIER_AWARD_FLOORS = {
+  "All-Star":  { allStars: 6,  allNBAs: 3 },
+  "Superstar": { allStars: 9,  allNBAs: 6 },
+  "Legend":    { allStars: 14, allNBAs: 12, mvps: 1 },
+  "GOAT":      { allStars: 18, allNBAs: 15, mvps: 4, hardware: 4 },
+};
+function meetsAwardFloor(tierName, career) {
+  const req = TIER_AWARD_FLOORS[tierName];
+  if (!req || !career) return true; // tiers without floors, or legacy callers
+  if (req.allStars && career.allStars < req.allStars) return false;
+  if (req.allNBAs && career.allNBAs < req.allNBAs) return false;
+  if (req.mvps && career.mvps < req.mvps) return false;
+  if (req.hardware && (career.rings + career.finalsMVPs) < req.hardware) return false;
+  return true;
+}
+
 // A tier's OVR floor is satisfied by EITHER the tracked career peak OR the
 // best MVP-winning season's OVR: winning MVP is proof of a floor-worthy
 // season, so a technicality in peak tracking can never cap an MVP winner.
@@ -422,15 +465,26 @@ const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 // the max over all seasons so it always >= bestMVPOVR, and the MVP gate (80)
 // equals the Legend floor — but it guards any future retune where the MVP
 // gate drops below a floor or peak tracking changes.)
-function tierForCareer(score, peakOVR, bestMVPOVR = 0) {
+// `career` (when passed) additionally enforces TIER_AWARD_FLOORS above.
+function tierForCareer(score, peakOVR, bestMVPOVR = 0, career = null) {
   const effectivePeak = Math.max(peakOVR, bestMVPOVR);
   let idx = TIERS.indexOf(tierForScore(score));
   while (idx > 0) {
     const floor = TIER_OVR_FLOORS[TIERS[idx].name];
-    if (!floor || effectivePeak >= floor) break;
+    if ((!floor || effectivePeak >= floor) && meetsAwardFloor(TIERS[idx].name, career)) break;
     idx--;
   }
   return TIERS[idx];
+}
+
+// Hall of Fame: a top-tier career (Superstar+) — OR the very-good/long-career
+// path many real Hall of Famers took: a 10+ season career with 5+ All-Star nods
+// even without ever reaching a top tier.
+function isHallOfFame(career, tier) {
+  const tierIdx = TIERS.findIndex(t => t.name === tier.name);
+  const superstarIdx = TIERS.findIndex(t => t.name === "Superstar");
+  if (tierIdx >= superstarIdx) return true;
+  return career.numSeasons >= 10 && career.allStars >= 5;
 }
 
 // ---- Percentile (z-score approx against assumed distribution) ----
@@ -593,22 +647,47 @@ function computeBadges(ovr, career) {
 // ---- Career highlight reel (sim loading screen) ----
 // A handful of real moments pulled from the just-computed season-by-season
 // data: firsts, every early ring/MVP, retirement.
+// Full chronological career timeline for the sim-loading feed: rookie entry
+// (+ROTY), then one line per notable year combining that season's honors
+// (each All-Star selection with its ordinal, each All-NBA nod, MVP, DPOY,
+// rings/Finals MVP), the career-best season, playoff firsts for quieter
+// careers, and a retirement summary. A great career yields ~15-22 lines; the
+// loading screen paces them across 10-14s so it reads as a career unfolding.
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 function careerHighlights(career) {
   const h = [];
-  let firstAllStar = false, firstAllNBA = false, mvps = 0, rings = 0;
+  let asCount = 0, anCount = 0, madePO = false;
   career.seasons.forEach((s, i) => {
-    const y = "Year " + (i + 1);
-    if (s.allStar && !firstAllStar) { h.push(y + ": First All-Star selection"); firstAllStar = true; }
-    if (s.allNBA && !firstAllNBA) { h.push(y + ": Named All-NBA " + s.allNBA + " Team"); firstAllNBA = true; }
-    if (s.mvp && mvps < 2) { h.push(y + ": Wins MVP"); mvps++; }
-    if (s.ring && rings < 2) { h.push(y + ": Wins the NBA Championship" + (s.finalsMVP ? " and Finals MVP" : "")); rings++; }
+    const yr = i + 1;
+    const parts = [];
+    if (i === 0) {
+      let entry = `Drafted by the ${state.team.name} — ${s.stats.ppg} PPG as a rookie`;
+      if (s.roty) entry += " · ROOKIE OF THE YEAR";
+      h.push(`Year 1: ${entry}`);
+    }
+    if (s.allStar) { asCount++; parts.push(`All-Star (${ordinal(asCount)})`); }
+    if (s.allNBA) { anCount++; parts.push(`All-NBA ${s.allNBA} Team (${ordinal(anCount)})`); }
+    if (s.mvp) parts.push("WINS MVP");
+    if (s.dpoy) parts.push("Defensive Player of the Year");
+    if (s.ring) parts.push("NBA CHAMPION" + (s.finalsMVP ? " · Finals MVP" : ""));
+    if (!parts.length && !madePO && s.madePlayoffs && i > 0) parts.push(`Leads the ${state.team.name} to the playoffs`);
+    if (s.madePlayoffs) madePO = true;
+    if (career.bestSeason && career.bestSeason.year === yr)
+      parts.push(`career-best ${career.bestSeason.ppg}/${career.bestSeason.rpg}/${career.bestSeason.apg}`);
+    if (parts.length && !(i === 0 && parts.length === 0)) {
+      if (i === 0 && parts.length) h.push(`Year 1: ${parts.join(" · ")}`);
+      else if (i > 0) h.push(`Year ${yr}: ${parts.join(" · ")}`);
+    }
   });
-  if (!h.length) {
-    const b = career.bestSeason;
-    h.push("Year " + b.year + ": Career-best " + b.ppg + " points per game");
-  }
-  h.push("Retires after " + career.numSeasons + " season" + (career.numSeasons === 1 ? "" : "s"));
-  return h.slice(0, 7);
+  const summary = [];
+  if (career.allStars) summary.push(`${career.allStars}× All-Star`);
+  if (career.allNBAs) summary.push(`${career.allNBAs}× All-NBA`);
+  if (career.rings) summary.push(`${career.rings} ring${career.rings === 1 ? "" : "s"}`);
+  h.push(`Retires after ${career.numSeasons} seasons` + (summary.length ? ` — ${summary.join(", ")}` : ""));
+  return h;
 }
 
 // ---- Scouting report (verdict narrative) ----
@@ -891,5 +970,6 @@ if (typeof module !== "undefined") {
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
+    TIER_AWARD_FLOORS, meetsAwardFloor, isHallOfFame,
   };
 }

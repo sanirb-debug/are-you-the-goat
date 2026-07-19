@@ -410,11 +410,17 @@ function renderSimulating() {
 
   const lines = careerHighlights(career);
   const token = ++simRunToken; // stale timers from a previous run must not fire
+  // Pace the full timeline across 10-14s: ~700ms/line for a packed great
+  // career, stretched out for sparse careers, so it reads as a career
+  // unfolding rather than a wall of text.
+  const feedDur = clamp(lines.length * 700, 10000, 14000);
+  const lineGap = feedDur / lines.length;
   lines.forEach((line, i) => {
     setTimeout(() => {
       if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") return;
       feed.appendChild(el("div", "sim-line", line));
-    }, 400 + i * 500);
+      feed.scrollTop = feed.scrollHeight; // keep the newest line in view
+    }, 400 + i * lineGap);
   });
 
   // ---- Shadow tracker: build metrics count up toward the chosen legend's ----
@@ -438,7 +444,7 @@ function renderSimulating() {
     // Count each build value up to its final over the feed's runtime, using a
     // wall-clock deadline so a backgrounded tab (rAF/interval throttling) still
     // lands on the right numbers. Colour each row once it settles.
-    const dur = 400 + lines.length * 500;
+    const dur = 400 + feedDur;
     const start = performance.now();
     const timer = setInterval(() => {
       if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") { clearInterval(timer); return; }
@@ -457,7 +463,7 @@ function renderSimulating() {
     if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") return;
     state.currentStep++;
     render();
-  }, 400 + lines.length * 500 + 800);
+  }, 400 + feedDur + 1200);
 }
 
 // ---- Step 2: Career Team (manual pick from all 30, with positional needs) ----
@@ -500,7 +506,7 @@ function renderCareerTeamStep() {
 // ---- Verdict ----
 function renderVerdict() {
   const ovr = computeOVR();
-  const tier = tierForCareer(career.goatScore, career.peakOVR, career.bestMVPOVR || 0);
+  const tier = tierForCareer(career.goatScore, career.peakOVR, career.bestMVPOVR || 0, career);
   const pct = percentileForScore(career.goatScore).toFixed(1);
   const badges = computeBadges(ovr, career);
   const headline = generateHeadline(career, tier);
@@ -556,15 +562,20 @@ function renderVerdict() {
 
   const pctRow = el("div", "pct-row");
   pctRow.appendChild(el("div", "pct-badge", `TOP ${pct}%`));
+  // Hall of Fame verdict: Superstar+ tier, or a long very-good career (10+
+  // seasons, 5+ All-Star) — the classic non-superstar Hall of Fame path.
+  const hof = isHallOfFame(career, tier);
+  pctRow.appendChild(el("div", "hof-badge " + (hof ? "hof-yes" : "hof-no"), hof ? "★ HALL OF FAME" : "NOT A HALL OF FAMER"));
   if (isNewBest) pctRow.appendChild(el("div", "best-badge", "★ NEW PERSONAL BEST"));
   wrap.appendChild(pctRow);
 
   wrap.appendChild(el("div", "seasons-line", `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"} &middot; Peak OVR ${career.peakOVR} &middot; GOAT Score ${career.goatScore}`));
 
-  const statsGrid = el("div", "stats-grid");
+  const statsGrid = el("div", "stats-grid seven");
   [
     // Rings + Finals MVP adjacent: the two awards tied directly to team success
     [career.rings, "RINGS"], [career.finalsMVPs, "FINALS MVP"], [career.mvps, "MVP"],
+    [career.dpoys || 0, "DPOY"], [career.roty || 0, "ROTY"],
     [career.allNBAs, "ALL-NBA"], [career.allStars, "ALL-STAR"],
   ].forEach(([val, label]) => {
     statsGrid.appendChild(el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-suffix="×">0×</div><div class="stat-label">${label}</div>`));
@@ -781,7 +792,7 @@ function startFresh() {
 
 // ---- Downloadable verdict card, hand-drawn on a canvas (no libraries) ----
 function exportVerdictImage(btn) {
-  const tier = tierForCareer(career.goatScore, career.peakOVR, career.bestMVPOVR || 0);
+  const tier = tierForCareer(career.goatScore, career.peakOVR, career.bestMVPOVR || 0, career);
   const pct = percentileForScore(career.goatScore).toFixed(1);
   const b = career.bestSeason;
   const W = 1080, H = 1080, cx = W / 2;
