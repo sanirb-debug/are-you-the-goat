@@ -686,24 +686,30 @@ function compDistance(profile, ref) {
 // similarly decorated one, while skill still discriminates among peers of like
 // standing. Never position-filtered; ties break on name.
 const ACCOMP_MATCH_WEIGHT = 3.5;
+// Full comp pool ranked closest-first: skill distance + accolade proximity,
+// ties broken alphabetically (so ordering is deterministic and the #1 match is
+// identical to the old single-best loop). Returns the top `n` refs.
+function topComps(profile, career = null, n = 3) {
+  return COMP_PLAYERS
+    .map(ref => ({ ref, dist: compDistance(profile, ref) + ACCOMP_MATCH_WEIGHT * accompDistance(career, accompOf(ref)) }))
+    .sort((a, b) => a.dist - b.dist || (a.ref.name < b.ref.name ? -1 : 1))
+    .slice(0, n)
+    .map(x => x.ref);
+}
+
 function closestComp(profile, career = null) {
-  let best = null, bestDist = Infinity;
-  for (const ref of COMP_PLAYERS) {
-    const dist = compDistance(profile, ref) + ACCOMP_MATCH_WEIGHT * accompDistance(career, accompOf(ref));
-    if (dist < bestDist || (dist === bestDist && (!best || ref.name < best.name))) {
-      bestDist = dist; best = ref;
-    }
-  }
-  return best;
+  return topComps(profile, career, 1)[0];
 }
 
 // Convenience for the verdict screen: returns { name, pos, reason }. Pass the
 // career so a decorated build prefers a comp with matching real-life hardware.
 function playstyleComp(career = null) {
   const profile = buildProfile();
-  const ref = closestComp(profile, career);
+  const top = topComps(profile, career, 3);
+  const ref = top[0];
   // Reasoning is the hand-written per-player text stored on the comp record.
-  return { name: ref.name, pos: ref.pos, reason: ref.reasoning };
+  // `shades` = the next-closest names (no reasoning), a supporting detail.
+  return { name: ref.name, pos: ref.pos, reason: ref.reasoning, shades: top.slice(1).map(r => r.name) };
 }
 
 // What tier a build of this OVR "should" reach, for over/under-performance
@@ -882,7 +888,7 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
-    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
+    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
   };

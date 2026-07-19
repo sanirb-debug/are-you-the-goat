@@ -523,6 +523,16 @@ button { cursor: pointer; border: none; font-family: inherit; }
   color: var(--text-dim);
   font-style: italic;
 }
+/* Secondary "Shades of" comps — deliberately small/subdued so it supports the
+   primary comp rather than competing with it. */
+.comp-shades {
+  margin-top: 6px;
+  font-family: var(--font-cond);
+  font-size: 10.5px;
+  letter-spacing: 0.6px;
+  color: rgba(156, 163, 175, 0.72);
+  text-transform: uppercase;
+}
 
 /* Tier ladder → broadcast progress strip */
 .ladder {

@@ -525,7 +525,8 @@ function renderVerdict() {
   wrap.appendChild(el("div", "comp-callout",
     `<span class="comp-label">Playstyle Comp</span>
      <span class="comp-name">${comp.name}</span>
-     <span class="comp-reason">${comp.reason}</span>`));
+     <span class="comp-reason">${comp.reason}</span>
+     ${comp.shades && comp.shades.length ? `<span class="comp-shades">Shades of: ${comp.shades.join(", ")}</span>` : ""}`));
 
   // ---- Chasing the Shadow: build vs the chosen legend (additive; does not
   // touch the tier/comp logic above). Guarded for older share links w/o a target.
