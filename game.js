@@ -325,7 +325,8 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   // rating specifically, not overall OVR — a defensive specialist with a
   // modest OVR can still rack these up.
   let dpoy = false;
-  if (defRating >= 85) dpoy = rng() < 0.3;
+  // 85 was too strict — a Defense-84 build won 0 DPOYs across 19 seasons.
+  if (defRating >= 80) dpoy = rng() < 0.3;
 
   return { wins, madePlayoffs, ring, finalsMVP, allStar, allNBA, mvp, roty, dpoy, roundsWon };
 }
@@ -508,9 +509,20 @@ function tierForCareer(career, ...legacy) {
     score = c ? c.goatScore : -Infinity;
     effectivePeak = c ? Math.max(c.peakOVR, c.bestMVPOVR || 0) : 0;
   }
+  // Tiers All-Star and up are decided by REAL ACCOMPLISHMENTS (award floors +
+  // peak-OVR floor), walking down from GOAT to the highest one fully met. The
+  // GOAT Score bucket no longer gates them: a 15x All-Star / 8x All-NBA career
+  // scores only ~410 (All-Star = 1pt each, peakOVR*4 dominates) and so was
+  // capped at All-Star despite clearing Superstar's 9 AS / 6 AN floor outright.
+  // Below All-Star there are no award floors, so those tiers stay score-ranked.
+  const firstFloorTier = TIERS.findIndex(t => TIER_AWARD_FLOORS[t.name]);
+  for (let i = TIERS.length - 1; i >= firstFloorTier; i--) {
+    if (meetsTierFloors(TIERS[i].name, effectivePeak, c)) return TIERS[i];
+  }
+  // No floor tier earned — fall back to the score bucket, capped below All-Star.
   let idx = TIERS.indexOf(tierForScore(score));
-  while (idx > 0 && !meetsTierFloors(TIERS[idx].name, effectivePeak, c)) idx--;
-  return TIERS[idx];
+  if (idx >= firstFloorTier) idx = firstFloorTier - 1;
+  return TIERS[Math.max(0, idx)];
 }
 
 // Hall of Fame: a top-tier career (Superstar+) — OR the very-good/long-career
