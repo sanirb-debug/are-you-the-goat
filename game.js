@@ -323,10 +323,15 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
 
   // Defensive Player of the Year: gated on the build's post-modifier DEFENSE
   // rating specifically, not overall OVR — a defensive specialist with a
-  // modest OVR can still rack these up.
+  // modest OVR can still win it. Eligibility now requires ELITE defense (90+),
+  // and even then the per-season odds are low: the real all-time record is 4,
+  // and it takes anchor-level, generational defense. The old "Defense 80 →
+  // rng() < 0.3" handed a merely-good defender ~6 expected DPOYs over 20
+  // seasons (one build won 9). The ramp below tops out at ~0.094 for a 99
+  // Defense, so even a perfect-defense 20-season career averages <2 and lands
+  // in the realistic 0-4 range essentially always.
   let dpoy = false;
-  // 85 was too strict — a Defense-84 build won 0 DPOYs across 19 seasons.
-  if (defRating >= 80) dpoy = rng() < 0.3;
+  if (defRating >= 90) dpoy = rng() < (0.04 + (defRating - 90) * 0.006);
 
   return { wins, madePlayoffs, ring, finalsMVP, allStar, allNBA, mvp, roty, dpoy, roundsWon };
 }
@@ -461,24 +466,41 @@ const TIER_AWARD_FLOORS = {
 // floor. The old `if (!req || !career) return true` was fail-OPEN — any caller
 // that forgot to pass the career silently disabled all award floors, which is
 // how a 0-award build reached All-Star. Absent data can now only demote.
-function meetsAwardFloor(tierName, career) {
+// DPOY count that stands in as an alternate qualifying path for a tier — the
+// defensive equivalent of the MVP-season-OVR path. An all-time defensive
+// anchor (peak Russell, prime Mutombo-level) is unambiguously Legend-tier even
+// when weak offensive categories drag the tracked peak OVR below the floor and
+// the MVPs never came. Only Legend (2+) and GOAT (3+) offer it.
+const TIER_DPOY_ALT = { Legend: 2, GOAT: 3 };
+function hasDpoyPath(tierName, career) {
+  const need = TIER_DPOY_ALT[tierName];
+  return !!need && ((career && career.dpoys) || 0) >= need;
+}
+
+// `dpoyPath` (elite repeated DPOY dominance) substitutes ONLY for the MVP
+// requirement here — All-Star / All-NBA / hardware floors still stand, so this
+// is a defensive route to the tier, not a blanket bypass.
+function meetsAwardFloor(tierName, career, dpoyPath = false) {
   const req = TIER_AWARD_FLOORS[tierName];
   if (!req) return true; // Starter and below carry no award requirement
   const c = career || {};
   if ((c.allStars || 0) < (req.allStars || 0)) return false;
   if ((c.allNBAs || 0) < (req.allNBAs || 0)) return false;
-  if ((c.mvps || 0) < (req.mvps || 0)) return false;
+  if (!dpoyPath && (c.mvps || 0) < (req.mvps || 0)) return false;
   if (req.hardware && ((c.rings || 0) + (c.finalsMVPs || 0)) < req.hardware) return false;
   return true;
 }
 
 // One gate for a tier: BOTH the peak-OVR floor and the award floor must pass.
 // Every tier assignment routes through this — there is no path that sets a
-// tier without running both checks.
+// tier without running both checks. Elite DPOY dominance is a second alternate
+// path (alongside the MVP-season OVR already folded into effectivePeak): it can
+// clear the peak-OVR floor AND waive the MVP award requirement.
 function meetsTierFloors(tierName, effectivePeak, career) {
+  const dpoyPath = hasDpoyPath(tierName, career);
   const ovrFloor = TIER_OVR_FLOORS[tierName];
-  if (ovrFloor && effectivePeak < ovrFloor) return false;
-  return meetsAwardFloor(tierName, career);
+  if (ovrFloor && effectivePeak < ovrFloor && !dpoyPath) return false;
+  return meetsAwardFloor(tierName, career, dpoyPath);
 }
 
 // A tier's OVR floor is satisfied by EITHER the tracked career peak OR the
