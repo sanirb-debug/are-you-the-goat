@@ -405,6 +405,26 @@ function renderSimulating() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Simulating Career..."));
   wrap.appendChild(el("p", "step-sub", `${state.name || "The Mystery Player"} &nbsp;·&nbsp; ${state.team.name}`));
+
+  // Small looping dribbler — pure inline SVG + CSS (no assets, no libraries).
+  // Animates transform/opacity only, so it stays off the layout/paint path.
+  wrap.appendChild(el("div", "dribbler",
+    `<svg viewBox="0 0 120 92" width="120" height="92" aria-hidden="true" focusable="false">
+       <line class="dr-floor" x1="12" y1="82" x2="108" y2="82" />
+       <ellipse class="dr-shadow" cx="84" cy="82" rx="8" ry="2.4" />
+       <g class="dr-body">
+         <circle class="dr-head" cx="44" cy="20" r="8" />
+         <path class="dr-line" d="M44 29 V56" />
+         <path class="dr-line" d="M44 56 L36 82 M44 56 L53 82" />
+         <path class="dr-line" d="M44 37 L31 47" />
+       </g>
+       <path class="dr-line dr-arm" d="M44 37 L67 46" />
+       <g class="dr-ball">
+         <circle class="dr-ballbody" cx="84" cy="46" r="7" />
+         <path class="dr-ballseam" d="M77 46 H91 M84 39 V53" />
+       </g>
+     </svg>`));
+
   const feed = el("div", "sim-feed");
   wrap.appendChild(feed);
 
