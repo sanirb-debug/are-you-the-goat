@@ -295,21 +295,11 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
     }
   }
 
-  // Award gates scaled to the integer cost curve's OVR ceiling (max peak ~83).
-  // All-NBA 3rd sits 2 pts above the All-Star line (72 vs 70). The earlier 3-pt
-  // gap (73) was tuned around base-74 builds, but it created a dead zone at the
-  // BOTTOM of the All-Star range: a build peaking at OVR 72 (elite scoring but a
-  // modest overall OVR) cleared All-Star every strong season yet could NEVER
-  // reach even 3rd-team — 5x All-Star, ZERO All-NBA across 17 seasons. With
-  // seasonOVR = base +/-3, a 2-pt gap converts ~33% of a base-69 build's All-Star
-  // seasons to All-NBA, ~50% at base-70, scaling up so genuine Superstars still
-  // make it nearly every year — meaningful, not automatic, and never zero for a
-  // repeat All-Star. 2nd/1st stay 75/80.
+  // All-Star is a pure OVR gate (70+). All-NBA (selection AND 1st/2nd/3rd tier)
+  // is decided later in simCareer by allNbaSelection(), which sees the season's
+  // real box score and hardware — raw OVR alone flattened every qualifying
+  // season of a modest-OVR scorer to 3rd team regardless of how dominant it was.
   const allStar = ovr >= 70;
-  let allNBA = null;
-  if (ovr >= 80) allNBA = "1st";
-  else if (ovr >= 75) allNBA = "2nd";
-  else if (ovr >= 72) allNBA = "3rd";
 
   let mvp = false;
   if (ovr >= 80 && wins >= 50) mvp = rng() < 0.35;
@@ -334,7 +324,34 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   let dpoy = false;
   if (defRating >= 90) dpoy = rng() < (0.04 + (defRating - 90) * 0.006);
 
-  return { wins, madePlayoffs, ring, finalsMVP, allStar, allNBA, mvp, roty, dpoy, roundsWon };
+  return { wins, madePlayoffs, ring, finalsMVP, allStar, mvp, roty, dpoy, roundsWon };
+}
+
+// All-NBA selection AND 1st/2nd/3rd tier from a season's real quality, called
+// from simCareer once the box score and hardware are known. Qualification keeps
+// overall OVR as the spine — with a small, capped assist so an elite-but-modest-
+// OVR scorer isn't shut out — while the tier split is driven by how dominant the
+// season actually was (scoring, efficiency, and DPOY/MVP hardware). This is what
+// stops a genuinely great two-way year from flattening to 3rd team just because
+// the build's overall OVR is held down by weak non-scoring categories.
+function allNbaSelection(seasonOVR, stats, mvp, dpoy) {
+  // Qualify on OVR alone (71+), a uniform gate so the qualifying pool spans the
+  // full range of season quality — a DPOY-anchor season always makes it. This
+  // is deliberately decoupled from the tier below: if scoring gated entry too,
+  // every qualifying season would already be a big-scoring one and the tiers
+  // would collapse to a single band.
+  if (seasonOVR < 71 && !dpoy) return null;
+  if (mvp) return "1st"; // an MVP season is a 1st-team season, always
+  // Tier: how dominant was THIS season? OVR base, lifted by heavy scoring, elite
+  // efficiency, and a DPOY anchor — so a 26/66 year reads 2nd and pairing it with
+  // DPOY reads 1st, while a bare qualifying season stays 3rd.
+  const quality = seasonOVR
+    + Math.max(0, stats.ppg - 20) * 0.55
+    + Math.max(0, stats.fgPct - 52) * 0.18
+    + (dpoy ? 5 : 0);
+  if (quality >= 80) return "1st";
+  if (quality >= 77) return "2nd";
+  return "3rd";
 }
 
 const GAMES_PER_SEASON = 82;
@@ -362,12 +379,14 @@ function simCareer(ovr, team, mods = {}) {
     if (result.ring) rings++;
     if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, seasonOVR); }
     if (result.finalsMVP) finalsMVPs++;
-    if (result.allNBA) allNBAs++;
     if (result.allStar) allStars++;
     if (result.roty) roty = 1;
     if (result.dpoy) dpoys++;
 
     const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.frame.rating, mods);
+    // All-NBA needs the season's box score + hardware, so it's resolved here.
+    result.allNBA = allNbaSelection(seasonOVR, stats, result.mvp, result.dpoy);
+    if (result.allNBA) allNBAs++;
     totals.pts += stats.ppg * GAMES_PER_SEASON;
     totals.ast += stats.apg * GAMES_PER_SEASON;
     totals.reb += stats.rpg * GAMES_PER_SEASON;
