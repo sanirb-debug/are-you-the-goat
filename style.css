@@ -994,6 +994,51 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   margin-left: 6px;
   vertical-align: middle;
   white-space: nowrap;
+  cursor: pointer;
+}
+.trait-pill:hover { background: rgba(212, 167, 44, 0.24); }
+.trait-pill:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 1px; }
+
+/* Floating trait tooltip (click-toggled / hover). Fixed to the viewport and on
+   <body>, so the scrolling roster list can't clip it. Same gold/navy broadcast
+   treatment as the verdict badge tooltip. */
+.trait-tip {
+  position: fixed;
+  z-index: 200;
+  max-width: 230px;
+  background: linear-gradient(180deg, #12213a, #0a1120);
+  border: 1px solid var(--gold);
+  border-left: 3px solid var(--gold-bright);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  color: var(--text);
+  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.85);
+  pointer-events: none;   /* never intercept the click that would dismiss it */
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.trait-tip.show { opacity: 1; transform: none; }
+/* Pointer arrow — under the tip when it sits above the pill, flipped when below. */
+.trait-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: var(--arrow-x, 50%);
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--gold);
+}
+.trait-tip.below::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--gold);
 }
 .picks-badge {
   display: block;

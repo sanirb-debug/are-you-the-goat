@@ -71,6 +71,7 @@ function openModal(titleText, body, actions, trigger) {
 
 function render() {
   closeModal();
+  hideTraitTip(); // the pinned pill is about to be detached by the rebuild
   app.innerHTML = "";
   const step = STEPS[state.currentStep];
   // The home screen is its own full-bleed title card: no broadcast chrome, since
@@ -175,8 +176,84 @@ function categoryLabel(cat) { return CATEGORY_LABELS[cat] || cat; }
 function traitPillHTML(name, category) {
   if (!SKILL_ORDER.includes(category)) return "";
   const b = TRAIT_BADGES[name + "|" + category];
-  return b ? ` <span class="trait-pill" title="${b.name} — ${b.effect}">★ ${b.name}</span>` : "";
+  if (!b) return "";
+  const tip = `${b.name} — ${b.effect}`;
+  // role/tabindex make it a real button (click + Enter/Space); the tooltip is
+  // driven by data-tip via the delegated trait-tip controller, so it works by
+  // tap on mobile as well as hover on desktop.
+  return ` <span class="trait-pill" role="button" tabindex="0" data-tip="${tip}" aria-label="Trait ${b.name}. ${b.effect}">★ ${b.name}</span>`;
 }
+
+// ---- Trait-pill info tooltip: click-to-toggle (primary), hover-preview (bonus) ----
+// The roster list is a scroll container that would clip a CSS ::after tooltip,
+// so this floats a single element on <body> positioned to the clicked pill.
+// Delegated capture-phase click handling means tapping a pill toggles its info
+// WITHOUT the surrounding roster-row button also selecting that player.
+let traitTipEl = null;
+let pinnedPill = null; // the pill whose tip is "pinned" open by a click/tap
+
+function positionTraitTip(pill) {
+  const tip = traitTipEl;
+  const r = pill.getBoundingClientRect();
+  const tr = tip.getBoundingClientRect();
+  let left = r.left + r.width / 2 - tr.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tr.width - 8));
+  let top = r.top - tr.height - 9;        // preferred: above the pill
+  const below = top < 8;
+  if (below) top = r.bottom + 9;          // flip beneath if there's no room above
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+  tip.classList.toggle("below", below);
+  tip.style.setProperty("--arrow-x", (r.left + r.width / 2 - left) + "px");
+}
+
+function showTraitTip(pill, pinned) {
+  const text = pill.dataset.tip;
+  if (!text) return;
+  if (!traitTipEl) { traitTipEl = el("div", "trait-tip"); document.body.appendChild(traitTipEl); }
+  traitTipEl.textContent = text;
+  traitTipEl.classList.add("show");
+  positionTraitTip(pill);                  // measure after content + show are set
+  pinnedPill = pinned ? pill : pinnedPill;
+}
+
+function hideTraitTip() {
+  pinnedPill = null;
+  if (traitTipEl) traitTipEl.classList.remove("show");
+}
+
+function toggleTraitTip(pill) {
+  const openOnThis = pinnedPill === pill && traitTipEl && traitTipEl.classList.contains("show");
+  if (openOnThis) hideTraitTip(); else showTraitTip(pill, true);
+}
+
+// Registered once at load. Capture phase so stopPropagation beats the row
+// button's own bubble-phase onclick (requirement: the pill must not select).
+function initTraitTips() {
+  document.addEventListener("click", e => {
+    const pill = e.target.closest && e.target.closest(".trait-pill");
+    if (pill) { e.preventDefault(); e.stopPropagation(); toggleTraitTip(pill); return; }
+    if (!(e.target.closest && e.target.closest(".trait-tip"))) hideTraitTip();
+  }, true);
+  document.addEventListener("keydown", e => {
+    const pill = e.target.closest && e.target.closest(".trait-pill");
+    if (pill && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); toggleTraitTip(pill); }
+    else if (e.key === "Escape") hideTraitTip();
+  }, true);
+  // Hover preview (desktop bonus) — only when nothing is pinned by a click.
+  document.addEventListener("mouseover", e => {
+    const pill = e.target.closest && e.target.closest(".trait-pill");
+    if (pill && !pinnedPill) showTraitTip(pill, false);
+  });
+  document.addEventListener("mouseout", e => {
+    const pill = e.target.closest && e.target.closest(".trait-pill");
+    if (pill && !pinnedPill) hideTraitTip();
+  });
+  // The pill moves under a floating tip on scroll/resize; simplest is to hide.
+  window.addEventListener("scroll", hideTraitTip, true);
+  window.addEventListener("resize", hideTraitTip);
+}
+initTraitTips();
 
 // ---- Persistent picks panel ----
 // Fixed sidebar on wide screens, collapsible drawer above the card on
