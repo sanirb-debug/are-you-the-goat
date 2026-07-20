@@ -4,6 +4,7 @@ const app = document.getElementById("app");
 let career = null;
 let picksDrawerOpen = false; // mobile drawer toggle, persists across renders
 let simRunToken = 0; // invalidates sim-screen timers from earlier runs
+let runUnlocks = []; // achievements earned during THIS playthrough (for the verdict toast)
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -322,9 +323,101 @@ function renderHome() {
   modes.appendChild(cta);
   wrap.appendChild(modes);
 
+  // Two secondary entry points into the Trophy Case (one modal, two tabs).
+  const sub = el("div", "home-secondary");
+  const statsBtn = el("button", "home-link", "Lifetime Stats");
+  statsBtn.onclick = () => showTrophyCase("stats", statsBtn);
+  const achBtn = el("button", "home-link", "Achievements");
+  achBtn.onclick = () => showTrophyCase("achievements", achBtn);
+  sub.appendChild(statsBtn);
+  sub.appendChild(achBtn);
+  wrap.appendChild(sub);
+
   wrap.appendChild(el("div", "home-foot", "v1.0"));
   app.appendChild(wrap);
   cta.focus();
+}
+
+// ---- Trophy Case: one modal, two tabs (Lifetime Stats + Achievements) ----
+// Reads straight from persisted progress so it always reflects localStorage.
+function showTrophyCase(initialTab, trigger) {
+  const p = loadProgress();
+  const body = el("div", "trophy");
+
+  // Tab bar
+  const tabs = el("div", "trophy-tabs");
+  const statsTab = el("button", "trophy-tab", "Lifetime Stats");
+  const achTab = el("button", "trophy-tab", "Achievements");
+  tabs.appendChild(statsTab);
+  tabs.appendChild(achTab);
+  body.appendChild(tabs);
+
+  const statsPanel = buildLifetimePanel(p);
+  const achPanel = buildAchievementsPanel(p);
+  body.appendChild(statsPanel);
+  body.appendChild(achPanel);
+
+  const select = which => {
+    const onStats = which === "stats";
+    statsTab.classList.toggle("active", onStats);
+    achTab.classList.toggle("active", !onStats);
+    statsPanel.style.display = onStats ? "" : "none";
+    achPanel.style.display = onStats ? "none" : "";
+  };
+  statsTab.onclick = () => select("stats");
+  achTab.onclick = () => select("achievements");
+  select(initialTab === "achievements" ? "achievements" : "stats");
+
+  openModal("Trophy Case", body, null, trigger);
+}
+
+function buildLifetimePanel(p) {
+  const panel = el("div", "trophy-panel");
+  const bestTier = p.bestTierIdx >= 0 ? TIERS[p.bestTierIdx].name : "—";
+  const rows = [
+    ["Careers Played", p.careersPlayed],
+    ["Best Tier Reached", bestTier],
+    ["Best GOAT Score", p.bestScore],
+    ["Total Rings", p.totalRings],
+    ["Total MVPs", p.totalMVPs],
+    ["Total DPOYs", p.totalDPOYs],
+    ["Total ROTYs", p.totalROTYs],
+    ["Trait Badges Activated", p.activatedBadges.length],
+  ];
+  const grid = el("div", "lifetime-grid");
+  rows.forEach(([label, val]) => {
+    grid.appendChild(el("div", "lifetime-cell",
+      `<span class="lc-val">${val}</span><span class="lc-label">${label}</span>`));
+  });
+  panel.appendChild(grid);
+
+  // Dethroned legends: all 14, the cleared ones lit up.
+  panel.appendChild(el("div", "trophy-sub",
+    `Legends Dethroned &nbsp;·&nbsp; ${p.dethronedTargets.length} of ${SHADOW_ORDER.length}`));
+  const chips = el("div", "dethrone-chips");
+  SHADOW_ORDER.forEach(name => {
+    const got = p.dethronedTargets.includes(name);
+    chips.appendChild(el("span", "dethrone-chip" + (got ? " got" : ""),
+      `${got ? "✓ " : ""}${SHADOW_TARGETS[name].label}`));
+  });
+  panel.appendChild(chips);
+  return panel;
+}
+
+function buildAchievementsPanel(p) {
+  const panel = el("div", "trophy-panel");
+  const earned = ACHIEVEMENTS.filter(a => p.unlocked[a.id]).length;
+  panel.appendChild(el("div", "trophy-sub", `Unlocked &nbsp;·&nbsp; ${earned} of ${ACHIEVEMENTS.length}`));
+  const grid = el("div", "ach-grid");
+  ACHIEVEMENTS.forEach(a => {
+    const got = !!p.unlocked[a.id];
+    grid.appendChild(el("div", "ach-card" + (got ? " unlocked" : " locked"),
+      `<span class="ach-icon">${got ? "🏆" : "🔒"}</span>
+       <span class="ach-name">${a.name}</span>
+       <span class="ach-desc">${a.desc}</span>`));
+  });
+  panel.appendChild(grid);
+  return panel;
 }
 
 function renderNameStep() {
@@ -512,6 +605,10 @@ function renderConfirmStep() {
     state.seed = Math.floor(Math.random() * 4294967296);
     seedRng(state.seed);
     career = simCareer(computeOVR(), state.team, activeBadgeMods());
+    // Fold this finished career into lifetime progress exactly once, here at the
+    // moment of completion — not in renderVerdict, which can re-run. Capture any
+    // fresh unlocks for the verdict toast.
+    runUnlocks = recordCareerRun(buildCareerRun(career)).newlyUnlocked;
     state.currentStep++;
     render();
   };
@@ -525,6 +622,30 @@ function renderConfirmStep() {
   wrap.appendChild(retoolBtn);
 
   app.appendChild(wrap);
+}
+
+// Assemble the plain fact-sheet recordCareerRun() consumes. Kept here (not in
+// game.js) because it reads UI-side state (budget spent, active badges).
+function buildCareerRun(car) {
+  const tier = tierForCareer(car);
+  const active = activeBadgeList();
+  const byPlayer = {};
+  active.forEach(b => { byPlayer[b.player] = (byPlayer[b.player] || 0) + 1; });
+  const fullStack = active.length >= 2 && Object.values(byPlayer).some(n => n >= 2);
+  const sh = compareToShadow(car);
+  return {
+    goatScore: car.goatScore,
+    tierIdx: TIERS.findIndex(t => t.name === tier.name),
+    tierName: tier.name,
+    isHOF: isHallOfFame(car, tier),
+    rings: car.rings, mvps: car.mvps, dpoys: car.dpoys, rotys: car.roty,
+    dethroned: sh && sh.majority ? sh.targetName : null,
+    activatedBadgeKeys: active.map(b => b.key),
+    fullStack,
+    budgetExact: state.budgetSpent === BUDGET_CAP,
+    // "Unanimous": an MVP won in a 99-caliber peak season.
+    unanimous: car.mvps >= 1 && car.bestMVPOVR >= 95,
+  };
 }
 
 // ---- Simulating: animated highlight reel from the real career data ----
@@ -671,6 +792,18 @@ function renderVerdict() {
   wrap.appendChild(el("div", "verdict-label", "THE VERDICT"));
   wrap.appendChild(el("h1", "verdict-tier", tier.name.toUpperCase()));
   wrap.appendChild(el("div", "verdict-headline", `"${headline}"`));
+
+  // Achievement toast: only for a real playthrough that unlocked something new.
+  // A shared ?build= view never records, so runUnlocks is empty there.
+  if (!state.sharedView && runUnlocks.length) {
+    const toast = el("div", "ach-toast");
+    toast.appendChild(el("div", "ach-toast-head",
+      `🏆 Achievement${runUnlocks.length > 1 ? "s" : ""} Unlocked`));
+    const names = el("div", "ach-toast-names");
+    runUnlocks.forEach(a => names.appendChild(el("span", "ach-toast-pill", a.name)));
+    toast.appendChild(names);
+    wrap.appendChild(toast);
+  }
 
   wrap.appendChild(el("div", "scout-report", generateScoutingReport(career, ovr, tier)));
 
@@ -1102,6 +1235,7 @@ function resetGame() {
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;
+  runUnlocks = [];
   render();
 }
 

@@ -1039,6 +1039,102 @@ function activeBadgeList() {
   return acquired.filter(b => state.activeBadges.includes(b.key));
 }
 
+// ===== PERSISTENT PROGRESS: lifetime stats + achievements =====
+// Everything the player accumulates across careers lives under one localStorage
+// key. Unlike the per-build state, this survives Play Again and page reloads.
+const PROGRESS_KEY = "aytg_progress";
+const LEGACY_BEST_KEY = "aytg_best_score"; // the one thing that already persisted
+
+function blankProgress() {
+  return {
+    version: 1,
+    careersPlayed: 0,
+    bestScore: 0,
+    bestTierIdx: -1,       // index into TIERS; -1 = no career yet
+    totalRings: 0, totalMVPs: 0, totalDPOYs: 0, totalROTYs: 0,
+    activatedBadges: [],   // unique "Player|Category" keys ever activated
+    dethronedTargets: [],  // shadow target names ever dethroned (majority cleared)
+    unlocked: {},          // { achievementId: true } — sticky once earned
+  };
+}
+
+// Fill in any keys a newer version added, and fold the legacy best-score key in
+// on first run so an existing player doesn't lose their personal best.
+function loadProgress() {
+  let p;
+  try { p = JSON.parse(localStorage.getItem(PROGRESS_KEY)); } catch (e) { p = null; }
+  const base = blankProgress();
+  p = (p && typeof p === "object") ? Object.assign(base, p) : base;
+  const legacy = parseInt(localStorage.getItem(LEGACY_BEST_KEY) || "0", 10);
+  if (legacy > p.bestScore) p.bestScore = legacy;
+  return p;
+}
+
+function saveProgress(p) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* storage full/blocked — non-fatal */ }
+}
+
+// The 18 achievements. Each check() sees the just-finished run and the lifetime
+// object AFTER this run's stats were folded in, so cumulative milestones read
+// the up-to-date totals. Sticky: once true it's never re-evaluated (see below).
+const ACHIEVEMENTS = [
+  // Progression / tiers
+  { id: "hof_first",   name: "Hall of Famer",     desc: "Retire a build into the Hall of Fame.",              check: (r) => r.isHOF },
+  { id: "tier_super",  name: "Superstar Status",  desc: "Reach the Superstar tier or higher.",                check: (r) => r.tierIdx >= TIERS.findIndex(t => t.name === "Superstar") },
+  { id: "tier_legend", name: "Living Legend",     desc: "Reach the Legend tier or higher.",                   check: (r) => r.tierIdx >= TIERS.findIndex(t => t.name === "Legend") },
+  { id: "tier_goat",   name: "The Ceiling",       desc: "Reach the GOAT tier.",                               check: (r) => r.tierName === "GOAT" },
+  { id: "careers_5",   name: "Regular",           desc: "Play 5 careers.",                                    check: (r, L) => L.careersPlayed >= 5 },
+  { id: "careers_25",  name: "Obsessed",          desc: "Play 25 careers.",                                   check: (r, L) => L.careersPlayed >= 25 },
+  // Shadow-chasing
+  { id: "dethrone_1",  name: "Out of the Shadow", desc: "Dethrone your first legend (clear the majority of their benchmarks).", check: (r) => !!r.dethroned },
+  { id: "dethrone_all",name: "Cast Your Own Shadow", desc: "Dethrone all 14 shadow legends across your careers.", check: (r, L) => L.dethronedTargets.length >= SHADOW_ORDER.length },
+  // Extreme builds
+  { id: "perfect_spend", name: "Perfect Spend",   desc: "Finish a build spending the cap to the last dollar.", check: (r) => r.budgetExact },
+  { id: "draft_bust",  name: "Bust on Purpose",   desc: "Land the Draft Bust tier.",                          check: (r) => r.tierName === "Draft Bust" },
+  { id: "full_stack",  name: "Full Stack",        desc: "Activate two trait badges from the same player in one build.", check: (r) => r.fullStack },
+  // Career milestones
+  { id: "unanimous",   name: "Unanimous",         desc: "Win MVP in a near-perfect season (99-caliber peak).", check: (r) => r.unanimous },
+  { id: "two_way",     name: "Two-Way Great",     desc: "Win both MVP and DPOY in one career.",               check: (r) => r.mvps >= 1 && r.dpoys >= 1 },
+  { id: "dynasty",     name: "Dynasty",           desc: "Win 4 or more rings in one career.",                 check: (r) => r.rings >= 4 },
+  { id: "rushmore",    name: "Mount Rushmore",    desc: "Win 5 or more MVPs in one career.",                  check: (r) => r.mvps >= 5 },
+  // Lifetime cumulative
+  { id: "life_rings",  name: "Ring Dynasty",      desc: "Win 20 rings across all your careers.",              check: (r, L) => L.totalRings >= 20 },
+  { id: "life_mvps",   name: "MVP Machine",       desc: "Win 10 MVPs across all your careers.",               check: (r, L) => L.totalMVPs >= 10 },
+  { id: "life_traits", name: "Trait Collector",   desc: "Activate 25 different trait badges across all careers.", check: (r, L) => L.activatedBadges.length >= 25 },
+];
+
+// Fold a finished career into lifetime progress and unlock anything newly
+// earned. `run` is a plain fact-sheet the UI assembles (kept free of DOM/state
+// so this is unit-testable). Returns { progress, newlyUnlocked: [achievement] }.
+// Call EXACTLY once per real career (not on shared views, not on re-render).
+function recordCareerRun(run) {
+  const p = loadProgress();
+  p.careersPlayed += 1;
+  p.bestScore = Math.max(p.bestScore, run.goatScore);
+  p.bestTierIdx = Math.max(p.bestTierIdx, run.tierIdx);
+  p.totalRings += run.rings;
+  p.totalMVPs += run.mvps;
+  p.totalDPOYs += run.dpoys;
+  p.totalROTYs += run.rotys;
+  for (const key of run.activatedBadgeKeys) {
+    if (!p.activatedBadges.includes(key)) p.activatedBadges.push(key);
+  }
+  if (run.dethroned && !p.dethronedTargets.includes(run.dethroned)) {
+    p.dethronedTargets.push(run.dethroned);
+  }
+
+  const newlyUnlocked = [];
+  for (const a of ACHIEVEMENTS) {
+    if (p.unlocked[a.id]) continue;         // sticky — already earned
+    if (a.check(run, p)) { p.unlocked[a.id] = true; newlyUnlocked.push(a); }
+  }
+
+  saveProgress(p);
+  // Keep the legacy key in sync so the existing "personal best" path agrees.
+  try { localStorage.setItem(LEGACY_BEST_KEY, String(p.bestScore)); } catch (e) { /* non-fatal */ }
+  return { progress: p, newlyUnlocked };
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
@@ -1048,5 +1144,6 @@ if (typeof module !== "undefined") {
     compareToShadow, generateShadowVerdict, SHADOW_METRICS,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
     TIER_AWARD_FLOORS, meetsAwardFloor, meetsTierFloors, isHallOfFame,
+    PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
   };
 }

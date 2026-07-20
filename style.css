@@ -1497,3 +1497,165 @@ body.modal-open { overflow: hidden; }
   .modal-backdrop, .modal { animation: none; }
   .nav-btn { transition: none; }
 }
+
+/* ---- Home secondary links (Trophy Case entry points) ---- */
+.home-secondary {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.home-link {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 8px 16px;
+  font-family: var(--font-cond);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.home-link:hover { color: var(--gold-bright); border-color: var(--line-gold); }
+.home-link:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+/* ---- Verdict: achievement toast ---- */
+.ach-toast {
+  margin: 14px auto 4px;
+  max-width: 460px;
+  background: linear-gradient(180deg, rgba(242,201,76,0.14), rgba(242,201,76,0.05));
+  border: 1px solid var(--line-gold);
+  border-radius: 8px;
+  padding: 12px 16px;
+  animation: modalRise 0.4s ease both;
+}
+.ach-toast-head {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-bottom: 8px;
+}
+.ach-toast-names { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.ach-toast-pill {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--line-gold);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+/* ---- Trophy Case modal ---- */
+.trophy-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.trophy-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px 10px;
+  font-family: var(--font-cond);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.trophy-tab:hover { color: var(--text); }
+.trophy-tab.active { color: var(--gold-bright); border-bottom-color: var(--gold-bright); }
+.trophy-tab:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+.trophy-sub {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 18px 0 10px;
+}
+.trophy-panel:first-of-type .trophy-sub:first-child { margin-top: 4px; }
+
+.lifetime-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.lifetime-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: #0a1120;
+  border: 1px solid var(--card-border);
+  border-left: 3px solid var(--gold);
+  border-radius: 5px;
+  padding: 11px 13px;
+}
+.lc-val { font-family: var(--font-display); font-size: 24px; color: var(--gold-bright); line-height: 1; }
+.lc-label { font-family: var(--font-cond); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); }
+
+.dethrone-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dethrone-chip {
+  font-family: var(--font-cond);
+  font-size: 11.5px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 4px 9px;
+  opacity: 0.55;
+}
+.dethrone-chip.got {
+  color: var(--navy);
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  font-weight: 700;
+  opacity: 1;
+}
+
+.ach-grid {
+  display: grid;
+  /* 3-up on desktop, folding to a single readable column on a phone (forcing
+     2-up would cramp the multi-line descriptions). */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 9px;
+}
+.ach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+.ach-card.unlocked {
+  background: linear-gradient(180deg, rgba(242,201,76,0.10), rgba(242,201,76,0.03));
+  border-color: var(--line-gold);
+}
+.ach-card.locked { background: #0a1018; opacity: 0.5; }
+.ach-icon { font-size: 18px; }
+.ach-name {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.ach-card.unlocked .ach-name { color: var(--gold-bright); }
+.ach-desc { font-size: 11.5px; line-height: 1.45; color: var(--text-dim); }
+
+@media (prefers-reduced-motion: reduce) { .ach-toast { animation: none; } }
