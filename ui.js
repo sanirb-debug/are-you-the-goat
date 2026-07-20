@@ -12,7 +12,64 @@ function el(tag, cls, html) {
   return e;
 }
 
+// ---- Modal / overlay ----
+// Mounted on document.body rather than inside #app so the screen underneath is
+// left completely untouched — opening and closing never triggers a re-render.
+let openModalEl = null;
+
+function closeModal() {
+  if (!openModalEl) return;
+  const trigger = openModalEl._trigger;
+  openModalEl.remove();
+  openModalEl = null;
+  document.body.classList.remove("modal-open");
+  document.removeEventListener("keydown", modalKeydown);
+  if (trigger && document.contains(trigger)) trigger.focus();
+}
+
+function modalKeydown(e) {
+  if (e.key === "Escape") { e.preventDefault(); closeModal(); }
+}
+
+// `body` is a DOM node; `actions` is an optional list of [label, className, onClick].
+function openModal(titleText, body, actions, trigger) {
+  closeModal();
+  const backdrop = el("div", "modal-backdrop");
+  const modal = el("div", "modal");
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", titleText);
+
+  const close = el("button", "modal-x", "&times;");
+  close.setAttribute("aria-label", "Close");
+  close.onclick = closeModal;
+  modal.appendChild(close);
+  modal.appendChild(el("h2", "modal-title", titleText));
+  modal.appendChild(body);
+
+  if (actions && actions.length) {
+    const row = el("div", "modal-actions");
+    actions.forEach(([label, cls, fn]) => {
+      const b = el("button", cls, label);
+      b.onclick = () => { closeModal(); fn && fn(); };
+      row.appendChild(b);
+    });
+    modal.appendChild(row);
+  }
+
+  // Click the backdrop (but not the panel) to dismiss.
+  backdrop.onclick = e => { if (e.target === backdrop) closeModal(); };
+  backdrop.appendChild(modal);
+  backdrop._trigger = trigger || null;
+  document.body.appendChild(backdrop);
+  document.body.classList.add("modal-open");
+  document.addEventListener("keydown", modalKeydown);
+  openModalEl = backdrop;
+  (modal.querySelector(".modal-actions button") || close).focus();
+}
+
 function render() {
+  closeModal();
   app.innerHTML = "";
   const step = STEPS[state.currentStep];
   // The home screen is its own full-bleed title card: no broadcast chrome, since
@@ -41,15 +98,62 @@ function render() {
 
 function renderTopBar() {
   const bar = el("div", "topbar");
-  const title = el("div", "brand", "🏀 ARE YOU THE GOAT?");
-  bar.appendChild(title);
-
   const step = STEPS[state.currentStep];
+
+  const left = el("div", "topbar-side left");
+  const home = el("button", "nav-btn", "← Home");
+  home.title = "Back to the home screen";
+  home.onclick = () => goHome(home);
+  left.appendChild(home);
+  bar.appendChild(left);
+
+  bar.appendChild(el("div", "brand", "🏀 ARE YOU THE GOAT?"));
+
+  const right = el("div", "topbar-side right");
   if (step === "height" || step === "frame" || SKILL_ORDER.includes(step)) {
-    const budget = el("div", "budget-pill", budgetPillHTML());
-    bar.appendChild(budget);
+    right.appendChild(el("div", "budget-pill", budgetPillHTML()));
   }
+  const help = el("button", "nav-btn", "How to Play");
+  help.title = "How this game works";
+  help.onclick = () => showHowToPlay(help);
+  right.appendChild(help);
+  bar.appendChild(right);
+
   return bar;
+}
+
+// Any locked-in pick past the shadow-target step counts as progress worth
+// warning about. A shared ?build= view has nothing of the player's own to lose.
+function hasBuildProgress() {
+  if (state.sharedView) return false;
+  return !!(state.height || state.frame || state.position || state.team ||
+            Object.keys(state.skills).length || career);
+}
+
+function goHome(trigger) {
+  if (!hasBuildProgress()) { resetGame(); return; }
+  const body = el("p", "modal-text", "Leave this build? Your progress will be lost.");
+  openModal("Leave Build", body, [
+    ["Cancel", "btn-secondary", null],
+    ["Leave", "btn-primary", () => resetGame()],
+  ], trigger);
+}
+
+function showHowToPlay(trigger) {
+  const body = el("div", "howto", `
+    <p class="modal-text">Build a player from scratch, run their career, and see where they land.</p>
+    <ol class="howto-list">
+      <li><b>Pick your shadow.</b> Choose an all-time great to measure yourself against. The <b>Chasing the Shadow</b> tracker compares your final stats to theirs, category by category.</li>
+      <li><b>Name your player.</b></li>
+      <li><b>Make 8 attribute picks</b> — Height, Frame, and the five skills. Each pick spins up a scouted team, and you buy from that team's roster. Every player costs cap space against one shared <b>$100M budget</b>, so a max-rated pick early means bargain-bin picks later.</li>
+      <li><b>Claim trait badges.</b> Some legends carry a signature trait (★). Land one and you choose two to activate for stat bonuses.</li>
+      <li><b>Pick a position and a career team.</b> Fitting your position and filling the team's need both help.</li>
+      <li><b>Simulate.</b> Watch the career play out season by season, then read the verdict.</li>
+    </ol>
+    <p class="modal-text">Your career earns a spot on the ladder — awards and rings matter as much as ratings:</p>
+    <div class="howto-ladder">${TIERS.map(t => `<span>${t.name}</span>`).join("")}</div>
+  `);
+  openModal("How to Play", body, null, trigger);
 }
 
 // Picks are editable while choosing attributes and on the confirm screen;

@@ -1345,3 +1345,153 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   .home-cta { transition: none; }
   .home-cta:hover { transform: none; }
 }
+
+/* ---- Top bar nav buttons ---- */
+/* Sized to sit alongside the CAP pill without competing with the brand. */
+.topbar-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+.topbar-side.right { justify-content: flex-end; }
+.topbar .brand { flex: 0 1 auto; text-align: center; }
+
+.nav-btn {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 5px 11px;
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.nav-btn:hover {
+  color: var(--gold-bright);
+  border-color: var(--line-gold);
+  background: var(--panel-2);
+}
+.nav-btn:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+/* Narrow screens: brand takes its own row above the controls. */
+@media (max-width: 560px) {
+  .topbar .brand { order: -1; flex: 1 1 100%; font-size: 17px; }
+}
+
+/* ---- Modal / overlay ---- */
+body.modal-open { overflow: hidden; }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(4, 8, 16, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: modalFade 0.18s ease both;
+}
+
+@keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalRise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line-gold);
+  border-radius: 8px;
+  padding: 26px 24px 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  animation: modalRise 0.22s ease both;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 1px;
+  color: var(--gold-bright);
+  margin: 0 0 14px;
+  padding-right: 28px;
+}
+
+.modal-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.modal-x:hover { color: var(--gold-bright); }
+.modal-x:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 1px; }
+
+.modal-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+.modal-actions button { width: auto; padding: 10px 20px; font-size: 14px; }
+
+.howto-list {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
+}
+.howto-list li { margin-bottom: 9px; }
+.howto-list b { color: var(--text); font-weight: 600; }
+
+.howto-ladder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.howto-ladder span {
+  font-family: var(--font-cond);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 3px 8px;
+}
+.howto-ladder span:last-child {
+  color: var(--navy);
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop, .modal { animation: none; }
+  .nav-btn { transition: none; }
+}
