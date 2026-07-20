@@ -731,7 +731,9 @@ function buildCareerRun(car) {
     tierName: tier.name,
     isHOF: isHallOfFame(car, tier),
     rings: car.rings, mvps: car.mvps, dpoys: car.dpoys, rotys: car.roty,
-    dethroned: sh && sh.majority ? sh.targetName : null,
+    // Gate the "Out of the Shadow" achievement + lifetime dethroned list on the
+    // true weighted/tier outcome, not the old flat benchmark count.
+    dethroned: sh && isDethroned(car) ? sh.targetName : null,
     activatedBadgeKeys: active.map(b => b.key),
     fullStack,
     budgetExact: state.budgetSpent === BUDGET_CAP,
@@ -911,11 +913,11 @@ function renderVerdict() {
   const shadow = compareToShadow(career);
   if (shadow) {
     const box = el("div", "shadow-verdict");
-    // "Caught" only for a true dethroning (majority AND the rings) so the header
-    // never contradicts a ringless narrative below.
-    const ringsBeaten = shadow.rows.find(r => r.key === "rings").beat;
+    // "Caught" only for a true dethroning — cleared the résumé pillars AND a
+    // Legend/GOAT-tier career — so the header matches the triumphant narrative
+    // and never contradicts a measured one below.
     box.appendChild(el("div", "comp-label",
-      `Chasing the Shadow · ${shadow.majority && ringsBeaten ? "Caught" : "Chased"} ${shadow.targetName} — ${shadow.beatCount}/${shadow.total}`));
+      `Chasing the Shadow · ${isDethroned(career) ? "Caught" : "Chased"} ${shadow.targetName} — ${shadow.beatCount}/${shadow.total}`));
     const grid = el("div", "shadow-cmp-grid");
     shadow.rows.forEach(r => {
       const cell = el("div", "shadow-cmp" + (r.beat ? " beat" : " short"));

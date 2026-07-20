@@ -930,20 +930,26 @@ function generateHeadline(career, tier) {
 // logic — this is an additive lens, not a replacement. A metric is "beaten"
 // when the build matches or exceeds the target's number. Peak PPG/APG/RPG come
 // straight from the existing Best Season data.
+// `weight` reflects what a metric actually signals about greatness. The three
+// résumé pillars — Rings, MVPs, All-NBA — carry 3x the weight of ROTY, DPOY and
+// the peak-stat categories, so piling up volume stats and minor hardware can
+// never add up to "beating" a legend the way matching their MVP/All-NBA
+// résumé does. Rings/MVPs/All-NBA are additionally a hard prestige gate below.
 const SHADOW_METRICS = [
-  { key: "rings",  label: "Rings",     get: c => c.rings,           tgt: t => t.rings,   decimals: 0, phrase: "the rings" },
-  { key: "mvps",   label: "MVPs",      get: c => c.mvps,            tgt: t => t.mvps,    decimals: 0, phrase: "the MVPs" },
-  { key: "allNBA", label: "All-NBA",   get: c => c.allNBAs,         tgt: t => t.allNBA,  decimals: 0, phrase: "the All-NBA nods" },
-  { key: "roty",   label: "ROTY",      get: c => c.roty || 0,       tgt: t => t.roty,    decimals: 0, phrase: "Rookie of the Year" },
-  { key: "dpoy",   label: "DPOY",      get: c => c.dpoys || 0,      tgt: t => t.dpoys,   decimals: 0, phrase: "Defensive Player of the Year" },
-  { key: "ppg",    label: "Peak PPG",  get: c => c.bestSeason.ppg,  tgt: t => t.peakPPG, decimals: 1, phrase: "peak scoring" },
-  { key: "apg",    label: "Peak APG",  get: c => c.bestSeason.apg,  tgt: t => t.peakAPG, decimals: 1, phrase: "peak playmaking" },
-  { key: "rpg",    label: "Peak RPG",  get: c => c.bestSeason.rpg,  tgt: t => t.peakRPG, decimals: 1, phrase: "peak rebounding" },
+  { key: "rings",  label: "Rings",     get: c => c.rings,           tgt: t => t.rings,   decimals: 0, weight: 3, phrase: "the rings" },
+  { key: "mvps",   label: "MVPs",      get: c => c.mvps,            tgt: t => t.mvps,    decimals: 0, weight: 3, phrase: "the MVPs" },
+  { key: "allNBA", label: "All-NBA",   get: c => c.allNBAs,         tgt: t => t.allNBA,  decimals: 0, weight: 3, phrase: "the All-NBA nods" },
+  { key: "roty",   label: "ROTY",      get: c => c.roty || 0,       tgt: t => t.roty,    decimals: 0, weight: 1, phrase: "Rookie of the Year" },
+  { key: "dpoy",   label: "DPOY",      get: c => c.dpoys || 0,      tgt: t => t.dpoys,   decimals: 0, weight: 1, phrase: "Defensive Player of the Year" },
+  { key: "ppg",    label: "Peak PPG",  get: c => c.bestSeason.ppg,  tgt: t => t.peakPPG, decimals: 1, weight: 1, phrase: "peak scoring" },
+  { key: "apg",    label: "Peak APG",  get: c => c.bestSeason.apg,  tgt: t => t.peakAPG, decimals: 1, weight: 1, phrase: "peak playmaking" },
+  { key: "rpg",    label: "Peak RPG",  get: c => c.bestSeason.rpg,  tgt: t => t.peakRPG, decimals: 1, weight: 1, phrase: "peak rebounding" },
 ];
-// Majority of the 8 tracked benchmarks (kept proportional to the old 4-of-6).
-const SHADOW_MAJORITY = 5;
+// The résumé pillars that gate a true "dethroning": you must match ALL THREE.
+const SHADOW_PILLARS = ["rings", "mvps", "allNBA"];
 
-// { targetName, targetLabel, target, rows:[{key,label,build,target,beat,decimals}], beatCount, majority }
+// { targetName, targetLabel, target, rows, beatCount, total, weightedBeat,
+//   weightedTotal, resumeCleared, majority }
 function compareToShadow(career) {
   const targetName = state.shadowTarget;
   const target = SHADOW_TARGETS[targetName];
@@ -951,10 +957,32 @@ function compareToShadow(career) {
   const rows = SHADOW_METRICS.map(m => {
     const build = m.get(career);
     const tv = m.tgt(target);
-    return { key: m.key, label: m.label, phrase: m.phrase, decimals: m.decimals, build, target: tv, beat: build >= tv };
+    return { key: m.key, label: m.label, phrase: m.phrase, decimals: m.decimals, weight: m.weight, build, target: tv, beat: build >= tv };
   });
   const beatCount = rows.filter(r => r.beat).length;
-  return { targetName, targetLabel: target.label, target, rows, beatCount, total: rows.length, majority: beatCount >= SHADOW_MAJORITY };
+  const weightedBeat = rows.filter(r => r.beat).reduce((s, r) => s + r.weight, 0);
+  const weightedTotal = rows.reduce((s, r) => s + r.weight, 0);
+  // The prestige gate: all three résumé pillars (rings, MVPs, All-NBA) beaten.
+  const resumeCleared = SHADOW_PILLARS.every(k => rows.find(r => r.key === k).beat);
+  return {
+    targetName, targetLabel: target.label, target, rows, beatCount, total: rows.length,
+    weightedBeat, weightedTotal, resumeCleared,
+    majority: weightedBeat * 2 >= weightedTotal, // weighted majority (informational)
+  };
+}
+
+// The single canonical "you dethroned this legend" test — used by the verdict
+// header, the triumphant narrative, the achievement, and the lifetime
+// dethroned-legends list, so none of them can disagree. Requires BOTH clearing
+// the target's résumé pillars AND a Legend/GOAT-tier career of one's own: a
+// volume-stat "win" on an All-Star career is not a dethroning.
+function tierIsLegendPlus(career) {
+  const idx = TIERS.findIndex(t => t.name === tierForCareer(career).name);
+  return idx >= TIERS.findIndex(t => t.name === "Legend");
+}
+function isDethroned(career) {
+  const cmp = compareToShadow(career);
+  return !!cmp && cmp.resumeCleared && tierIsLegendPlus(career);
 }
 
 // Verdict paragraph naming the SPECIFIC metrics beaten vs. fallen short of.
@@ -973,9 +1001,15 @@ function generateShadowVerdict(career) {
     if (p.length === 2) return `${p[0]} and ${p[1]}`;
     return `${p.slice(0, -1).join(", ")}, and ${p[p.length - 1]}`;
   };
-  const ringRow = cmp.rows.find(r => r.key === "rings");
-  const ringBeaten = ringRow.beat;
-  const statsBeaten = beat.filter(r => ["ppg", "apg", "rpg"].includes(r.key));
+  // Tone is tied to the build's OWN tier, not just the benchmark comparison: a
+  // triumphant "cast his own shadow" is reserved for a Legend/GOAT career that
+  // also cleared the target's résumé pillars. The pillar rows (Rings/MVPs/
+  // All-NBA) drive the "why it isn't a dethroning" callouts below.
+  const tier = tierForCareer(career);
+  const isLegendPlus = TIERS.findIndex(t => t.name === tier.name) >= TIERS.findIndex(t => t.name === "Legend");
+  const resume = cmp.resumeCleared;
+  const pillarRows = SHADOW_PILLARS.map(k => cmp.rows.find(r => r.key === k));
+  const lostPillars = pillarRows.filter(r => !r.beat);
 
   // ROTY/DPOY get their own editorial aside below, so keep them out of the
   // generic prose enumeration — otherwise each award would be named twice in
@@ -1000,25 +1034,31 @@ function generateShadowVerdict(career) {
     return " " + joined.charAt(0).toUpperCase() + joined.slice(1) + ".";
   };
 
-  // 1) Clear dethroning: majority AND the rings are in hand.
-  if (cmp.majority && ringBeaten) {
-    return `Matched or beat ${T} on ${cmp.beatCount} of ${cmp.total} measures — ${list(beatP)} — the rings included. ${name} didn't just chase the shadow; he stepped out of it and cast his own.${awardAside()}`;
+  // A) FULL TRIUMPH — cleared the target's résumé pillars (rings + MVPs +
+  //    All-NBA) AND backed it with a Legend/GOAT-tier career. Only here does the
+  //    "stepped out of the shadow" language fire.
+  if (resume && isLegendPlus) {
+    return `Matched or beat ${T} on ${cmp.beatCount} of ${cmp.total} measures — the rings, the MVPs and the All-NBA nods included. ${name} didn't just chase the shadow; he stepped out of it and cast his own.${awardAside()}`;
   }
-  // 2) Statistical win but ringless: cleared real ground on the stat sheet, but never got the rings.
-  if (!ringBeaten && statsBeaten.length >= 2) {
-    const shortNoStats = shortP.filter(r => r.key !== "rings");
-    const otherBeat = beatP.filter(r => !["ppg", "apg", "rpg"].includes(r.key));
-    const tail = shortNoStats.length
-      ? ` — and ${list(shortNoStats)} stayed out of reach too`
-      : "";
-    return `On the numbers, ${name} went stride for stride with ${T}: beat him on ${list(statsBeaten)}${otherBeat.length ? ` (plus ${list(otherBeat)})` : ""}. But he never touched ${T}'s ${cmp.target.rings} rings${tail}. Immortal is spelled with jewelry.${awardAside()}`;
+  // B) Cleared the pillars on paper, but the career itself never reached Legend
+  //    tier — measured, not triumphant.
+  if (resume) {
+    return `On paper ${name} matched ${T} where it counts — ${list(pillarRows)} — but a ${tier.name}-tier career never built the sustained, year-after-year résumé to call it a dethroning. A hell of a run in the shadow, not out of it.${awardAside()}`;
   }
-  // 3) Clear fall-short.
+  // C) A Legend/GOAT in his own right, but didn't clear the target's pillars —
+  //    respectful concession rather than a fall-short.
+  if (isLegendPlus) {
+    return `${name} carved out a ${tier.name}'s career of his own, but ${list(lostPillars)} still belong to ${T} — the separation that keeps a legend a legend.${awardAside()}`;
+  }
+  // D) Missed the pillars and isn't Legend-tier, with nothing on the board.
   if (beat.length === 0) {
     return `${name} chased ${T}'s shadow and never caught a piece of it — ${list(shortP)} all stayed the GOAT's alone. A real career, but the throne doesn't wobble.${awardAside()}`;
   }
-  const beatClause = beatP.length ? `took ${list(beatP)} off ${T}, but ` : `pushed ${T} in spots, but `;
-  return `${name} ${beatClause}came up short where it counts — ${list(shortP)} still belong to the legend. Close enough to dream on, not enough to dethrone.${awardAside()}`;
+  // E) Won something — often volume stats and/or rings — but the MVPs and
+  //    All-NBA that mark sustained greatness stayed the legend's. Explicitly NOT
+  //    a dethroning, which is the case issue #1 was about.
+  const beatClause = beatP.length ? `took ${list(beatP)} off ${T}` : `pushed ${T} in spots`;
+  return `${name} ${beatClause}, but ${list(lostPillars)} — the markers of sustained greatness — stayed his. Flashes of the legend, not a dethroning.${awardAside()}`;
 }
 
 // ===== SIGNATURE TRAIT BADGES =====
@@ -1163,7 +1203,7 @@ if (typeof module !== "undefined") {
     seedRng, currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
-    compareToShadow, generateShadowVerdict, SHADOW_METRICS,
+    compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
     TIER_AWARD_FLOORS, meetsAwardFloor, meetsTierFloors, isHallOfFame,
     PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
