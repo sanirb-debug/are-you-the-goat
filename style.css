@@ -1150,3 +1150,104 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 @media (max-width: 520px) {
   .dribbler { transform: scale(0.85); margin-bottom: -10px; }
 }
+
+/* ===== All-NBA season breakdown (expandable stat box) ===== */
+.stat-box.expandable {
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.12s ease, filter 0.12s ease;
+}
+.stat-box.expandable:hover { filter: brightness(1.12); border-color: var(--line-gold); }
+.stat-box.expandable::after {
+  content: "▾";
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  font-size: 9px;
+  color: var(--gold-bright);
+  opacity: 0.75;
+  transition: transform 0.15s ease;
+}
+.stat-box.expandable.open::after { transform: rotate(180deg); }
+.stat-box.expandable.open { border-color: var(--gold); }
+
+.season-panel {
+  display: none;
+  /* the verdict card centers its text; this panel reads as a left-aligned list */
+  text-align: left;
+  background: #0a1120;
+  border: 1px solid var(--card-border);
+  border-top: 2px solid var(--gold);
+  border-radius: 6px;
+  margin: -6px 0 18px;
+  padding: 10px 12px;
+}
+.season-panel.open { display: block; animation: cutIn 0.22s ease both; }
+.season-panel-head {
+  font-family: var(--font-cond);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  text-align: center;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.season-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.season-row:last-child { border-bottom: none; }
+.season-row .sp-year {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #fff;
+  min-width: 52px;
+}
+.season-row .sp-team {
+  font-family: var(--font-cond);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  border: 1px solid var(--card-border);
+  border-radius: 3px;
+  padding: 0 5px;
+}
+.season-row .sp-tier {
+  font-family: var(--font-cond);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.sp-tier.tier-1 { color: #0a1120; background: var(--gold-bright); font-weight: 700; }
+.sp-tier.tier-2 { color: var(--gold-bright); border: 1px solid var(--line-gold); }
+.sp-tier.tier-3 { color: var(--text-dim); border: 1px solid var(--card-border); }
+.season-row .sp-tag {
+  font-family: var(--font-cond);
+  font-size: 9px;
+  letter-spacing: 1px;
+  border-radius: 3px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.sp-tag.mvp { color: var(--alert); border: 1px solid var(--alert); }
+.sp-tag.ring { color: var(--green); border: 1px solid var(--green); }
+.sp-tag.dpoy { color: #7dd3fc; border: 1px solid #7dd3fc; }
+.season-row .sp-line {
+  /* always its own full-width line under the chips — the stat line is too long
+     to sit inline beside them at any realistic card width */
+  flex: 1 1 100%;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  padding-left: 2px;
+}

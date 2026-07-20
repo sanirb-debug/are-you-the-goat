@@ -592,15 +592,65 @@ function renderVerdict() {
   wrap.appendChild(el("div", "seasons-line", `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"} &middot; Peak OVR ${career.peakOVR} &middot; GOAT Score ${career.goatScore}`));
 
   const statsGrid = el("div", "stats-grid seven");
+  let allNbaBox = null;
   [
     // Rings + Finals MVP adjacent: the two awards tied directly to team success
     [career.rings, "RINGS"], [career.finalsMVPs, "FINALS MVP"], [career.mvps, "MVP"],
     [career.dpoys || 0, "DPOY"], [career.roty || 0, "ROTY"],
     [career.allNBAs, "ALL-NBA"], [career.allStars, "ALL-STAR"],
   ].forEach(([val, label]) => {
-    statsGrid.appendChild(el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-suffix="×">0×</div><div class="stat-label">${label}</div>`));
+    const box = el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-suffix="×">0×</div><div class="stat-label">${label}</div>`);
+    if (label === "ALL-NBA") allNbaBox = box;
+    statsGrid.appendChild(box);
   });
   wrap.appendChild(statsGrid);
+
+  // ---- All-NBA season-by-season breakdown ----
+  // Every season's full stat line and All-NBA tier are already produced by
+  // simCareer (seasons[] carries {...simSeason result, stats}); this just
+  // surfaces the ones that earned a nod instead of only showing the total.
+  // The career team is a single team for the whole career (simCareer takes one
+  // team), so every row shows state.team.
+  const allNbaSeasons = career.seasons
+    .map((s, i) => ({ s, year: i + 1 }))
+    .filter(x => x.s.allNBA);
+  if (allNbaBox && allNbaSeasons.length) {
+    const panel = el("div", "season-panel");
+    panel.appendChild(el("div", "season-panel-head",
+      `All-NBA Seasons &nbsp;·&nbsp; ${allNbaSeasons.length} of ${career.numSeasons} &nbsp;·&nbsp; ${state.team.name}`));
+    allNbaSeasons.forEach(({ s, year }) => {
+      const st = s.stats;
+      const extras = [
+        s.mvp ? '<span class="sp-tag mvp">MVP</span>' : "",
+        s.ring ? '<span class="sp-tag ring">CHAMPION</span>' : "",
+        s.dpoy ? '<span class="sp-tag dpoy">DPOY</span>' : "",
+      ].join("");
+      panel.appendChild(el("div", "season-row",
+        `<span class="sp-year">Year ${year}</span>
+         <span class="sp-team">${state.team.abbr}</span>
+         <span class="sp-tier tier-${s.allNBA.replace(/\D/g, "")}">All-NBA ${s.allNBA}</span>
+         ${extras}
+         <span class="sp-line">${st.ppg} PPG &middot; ${st.rpg} RPG &middot; ${st.apg} APG &middot; ${st.spg} SPG &middot; ${st.bpg} BPG &middot; ${st.tpg} 3PM &middot; ${st.fgPct} FG% &middot; ${st.tptPct} 3PT%</span>`));
+    });
+    wrap.appendChild(panel);
+
+    // Toggle by mutating classes directly rather than calling render(), so the
+    // stat count-up animations don't replay on every open/close.
+    allNbaBox.classList.add("expandable");
+    allNbaBox.setAttribute("role", "button");
+    allNbaBox.tabIndex = 0;
+    allNbaBox.title = "Show every All-NBA season";
+    const toggle = () => {
+      const open = panel.classList.toggle("open");
+      allNbaBox.classList.toggle("open", open);
+      allNbaBox.setAttribute("aria-expanded", String(open));
+    };
+    allNbaBox.setAttribute("aria-expanded", "false");
+    allNbaBox.onclick = toggle;
+    allNbaBox.onkeydown = e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+    };
+  }
 
   wrap.appendChild(el("div", "career-wins", `${career.careerWins.toLocaleString()} career wins with the ${state.team.name}`));
 
