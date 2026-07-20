@@ -690,7 +690,7 @@ function renderVerdict() {
     // never contradicts a ringless narrative below.
     const ringsBeaten = shadow.rows.find(r => r.key === "rings").beat;
     box.appendChild(el("div", "comp-label",
-      `Chasing the Shadow · ${shadow.majority && ringsBeaten ? "Caught" : "Chased"} ${shadow.targetName} — ${shadow.beatCount}/6`));
+      `Chasing the Shadow · ${shadow.majority && ringsBeaten ? "Caught" : "Chased"} ${shadow.targetName} — ${shadow.beatCount}/${shadow.total}`));
     const grid = el("div", "shadow-cmp-grid");
     shadow.rows.forEach(r => {
       const cell = el("div", "shadow-cmp" + (r.beat ? " beat" : " short"));

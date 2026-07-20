@@ -912,10 +912,14 @@ const SHADOW_METRICS = [
   { key: "rings",  label: "Rings",     get: c => c.rings,           tgt: t => t.rings,   decimals: 0, phrase: "the rings" },
   { key: "mvps",   label: "MVPs",      get: c => c.mvps,            tgt: t => t.mvps,    decimals: 0, phrase: "the MVPs" },
   { key: "allNBA", label: "All-NBA",   get: c => c.allNBAs,         tgt: t => t.allNBA,  decimals: 0, phrase: "the All-NBA nods" },
+  { key: "roty",   label: "ROTY",      get: c => c.roty || 0,       tgt: t => t.roty,    decimals: 0, phrase: "Rookie of the Year" },
+  { key: "dpoy",   label: "DPOY",      get: c => c.dpoys || 0,      tgt: t => t.dpoys,   decimals: 0, phrase: "Defensive Player of the Year" },
   { key: "ppg",    label: "Peak PPG",  get: c => c.bestSeason.ppg,  tgt: t => t.peakPPG, decimals: 1, phrase: "peak scoring" },
   { key: "apg",    label: "Peak APG",  get: c => c.bestSeason.apg,  tgt: t => t.peakAPG, decimals: 1, phrase: "peak playmaking" },
   { key: "rpg",    label: "Peak RPG",  get: c => c.bestSeason.rpg,  tgt: t => t.peakRPG, decimals: 1, phrase: "peak rebounding" },
 ];
+// Majority of the 8 tracked benchmarks (kept proportional to the old 4-of-6).
+const SHADOW_MAJORITY = 5;
 
 // { targetName, targetLabel, target, rows:[{key,label,build,target,beat,decimals}], beatCount, majority }
 function compareToShadow(career) {
@@ -928,7 +932,7 @@ function compareToShadow(career) {
     return { key: m.key, label: m.label, phrase: m.phrase, decimals: m.decimals, build, target: tv, beat: build >= tv };
   });
   const beatCount = rows.filter(r => r.beat).length;
-  return { targetName, targetLabel: target.label, target, rows, beatCount, majority: beatCount >= 4 };
+  return { targetName, targetLabel: target.label, target, rows, beatCount, total: rows.length, majority: beatCount >= SHADOW_MAJORITY };
 }
 
 // Verdict paragraph naming the SPECIFIC metrics beaten vs. fallen short of.
@@ -951,23 +955,48 @@ function generateShadowVerdict(career) {
   const ringBeaten = ringRow.beat;
   const statsBeaten = beat.filter(r => ["ppg", "apg", "rpg"].includes(r.key));
 
+  // ROTY/DPOY get their own editorial aside below, so keep them out of the
+  // generic prose enumeration — otherwise each award would be named twice in
+  // the same paragraph. They still count toward beatCount and show in the grid.
+  const AWARD_KEYS = ["roty", "dpoy"];
+  const beatP = beat.filter(r => !AWARD_KEYS.includes(r.key));
+  const shortP = short.filter(r => !AWARD_KEYS.includes(r.key));
+
+  // A one-off aside when the two careers diverge on the hardware the base
+  // Rings/MVP/stat metrics don't speak to — the DPOY and ROTY. Returns ""
+  // when neither award separates the two.
+  const awardAside = () => {
+    const rotyRow = cmp.rows.find(r => r.key === "roty");
+    const dpoyRow = cmp.rows.find(r => r.key === "dpoy");
+    const notes = [];
+    if (dpoyRow.build > 0 && dpoyRow.target === 0) notes.push(`he anchored a defense all the way to a DPOY ${T} never won`);
+    else if (dpoyRow.target > 0 && dpoyRow.build === 0) notes.push(`${T}'s ${dpoyRow.target === 1 ? "DPOY" : `${dpoyRow.target} DPOYs`} on the other end went unanswered`);
+    if (rotyRow.build > 0 && rotyRow.target === 0) notes.push(`he arrived a Rookie of the Year, which ${T} never was`);
+    else if (rotyRow.target > 0 && rotyRow.build === 0) notes.push(`${T} broke in as Rookie of the Year while he did not`);
+    if (!notes.length) return "";
+    const joined = notes.length === 2 ? `${notes[0]}, and ${notes[1]}` : notes[0];
+    return " " + joined.charAt(0).toUpperCase() + joined.slice(1) + ".";
+  };
+
   // 1) Clear dethroning: majority AND the rings are in hand.
   if (cmp.majority && ringBeaten) {
-    return `Matched or beat ${T} on ${cmp.beatCount} of 6 measures — ${list(beat)} — the rings included. ${name} didn't just chase the shadow; he stepped out of it and cast his own.`;
+    return `Matched or beat ${T} on ${cmp.beatCount} of ${cmp.total} measures — ${list(beatP)} — the rings included. ${name} didn't just chase the shadow; he stepped out of it and cast his own.${awardAside()}`;
   }
   // 2) Statistical win but ringless: cleared real ground on the stat sheet, but never got the rings.
   if (!ringBeaten && statsBeaten.length >= 2) {
-    const shortNoStats = short.filter(r => r.key !== "rings");
+    const shortNoStats = shortP.filter(r => r.key !== "rings");
+    const otherBeat = beatP.filter(r => !["ppg", "apg", "rpg"].includes(r.key));
     const tail = shortNoStats.length
       ? ` — and ${list(shortNoStats)} stayed out of reach too`
       : "";
-    return `On the numbers, ${name} went stride for stride with ${T}: beat him on ${list(statsBeaten)}${beat.length > statsBeaten.length ? ` (plus ${list(beat.filter(r => !["ppg","apg","rpg"].includes(r.key)))})` : ""}. But he never touched ${T}'s ${cmp.target.rings} rings${tail}. Immortal is spelled with jewelry.`;
+    return `On the numbers, ${name} went stride for stride with ${T}: beat him on ${list(statsBeaten)}${otherBeat.length ? ` (plus ${list(otherBeat)})` : ""}. But he never touched ${T}'s ${cmp.target.rings} rings${tail}. Immortal is spelled with jewelry.${awardAside()}`;
   }
   // 3) Clear fall-short.
   if (beat.length === 0) {
-    return `${name} chased ${T}'s shadow and never caught a piece of it — ${list(short)} all stayed the GOAT's alone. A real career, but the throne doesn't wobble.`;
+    return `${name} chased ${T}'s shadow and never caught a piece of it — ${list(shortP)} all stayed the GOAT's alone. A real career, but the throne doesn't wobble.${awardAside()}`;
   }
-  return `${name} took ${list(beat)} off ${T}, but came up short where it counts — ${list(short)} still belong to the legend. Close enough to dream on, not enough to dethrone.`;
+  const beatClause = beatP.length ? `took ${list(beatP)} off ${T}, but ` : `pushed ${T} in spots, but `;
+  return `${name} ${beatClause}came up short where it counts — ${list(shortP)} still belong to the legend. Close enough to dream on, not enough to dethrone.${awardAside()}`;
 }
 
 // ===== SIGNATURE TRAIT BADGES =====
