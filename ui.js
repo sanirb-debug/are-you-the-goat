@@ -294,9 +294,12 @@ function renderShadowStep() {
   const grid = el("div", "shadow-select");
   SHADOW_ORDER.forEach(name => {
     const t = SHADOW_TARGETS[name];
+    // DPOY segment only for legends who actually won one — keeps the common
+    // 0-DPOY case from cluttering the line with "0× DPOY".
+    const dpoySeg = t.dpoys > 0 ? `${t.dpoys}× DPOY &middot; ` : "";
     const btn = el("button", "shadow-option",
       `<span class="shadow-opt-name">${name}</span>
-       <span class="shadow-opt-line">${t.rings}× Ring${t.rings === 1 ? "" : "s"} &middot; ${t.mvps}× MVP &middot; ${t.peakPPG} peak PPG</span>`);
+       <span class="shadow-opt-line">${t.rings}× Ring${t.rings === 1 ? "" : "s"} &middot; ${t.mvps}× MVP &middot; ${dpoySeg}${t.peakPPG} peak PPG</span>`);
     btn.onclick = () => {
       state.shadowTarget = name;
       state.currentStep++;
