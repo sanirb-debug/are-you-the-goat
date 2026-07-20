@@ -178,10 +178,11 @@ function traitPillHTML(name, category) {
   const b = TRAIT_BADGES[name + "|" + category];
   if (!b) return "";
   const tip = `${b.name} — ${b.effect}`;
+  const mods = fmtMods(b.mods); // same "3PT% +3 · FG% +2" format as the verdict cards
   // role/tabindex make it a real button (click + Enter/Space); the tooltip is
-  // driven by data-tip via the delegated trait-tip controller, so it works by
-  // tap on mobile as well as hover on desktop.
-  return ` <span class="trait-pill" role="button" tabindex="0" data-tip="${tip}" aria-label="Trait ${b.name}. ${b.effect}">★ ${b.name}</span>`;
+  // driven by data-tip (+ data-mods) via the delegated trait-tip controller, so
+  // it works by tap on mobile as well as hover on desktop.
+  return ` <span class="trait-pill" role="button" tabindex="0" data-tip="${tip}" data-mods="${mods}" aria-label="Trait ${b.name}. ${b.effect}. ${mods}">★ ${b.name}</span>`;
 }
 
 // ---- Trait-pill info tooltip: click-to-toggle (primary), hover-preview (bonus) ----
@@ -211,7 +212,18 @@ function showTraitTip(pill, pinned) {
   const text = pill.dataset.tip;
   if (!text) return;
   if (!traitTipEl) { traitTipEl = el("div", "trait-tip"); document.body.appendChild(traitTipEl); }
-  traitTipEl.textContent = text;
+  // Flavor line + a distinct stat-modifier line (green, matching the verdict
+  // Signature Traits cards). Built from textContent so badge data can't inject.
+  traitTipEl.textContent = "";
+  const desc = el("span", "trait-tip-desc");
+  desc.textContent = text;
+  traitTipEl.appendChild(desc);
+  const mods = pill.dataset.mods;
+  if (mods) {
+    const m = el("span", "trait-tip-mods");
+    m.textContent = mods;
+    traitTipEl.appendChild(m);
+  }
   traitTipEl.classList.add("show");
   positionTraitTip(pill);                  // measure after content + show are set
   pinnedPill = pinned ? pill : pinnedPill;

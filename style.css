@@ -1024,6 +1024,16 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   transition: opacity 0.14s ease, transform 0.14s ease;
 }
 .trait-tip.show { opacity: 1; transform: none; }
+.trait-tip-desc { display: block; }
+/* Stat-modifier line — green, same treatment as the verdict Signature Traits. */
+.trait-tip-mods {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-cond);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--green);
+}
 /* Pointer arrow — under the tip when it sits above the pill, flipped when below. */
 .trait-tip::after {
   content: "";
