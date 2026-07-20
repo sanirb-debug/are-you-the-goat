@@ -1251,3 +1251,97 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   color: var(--text-dim);
   padding-left: 2px;
 }
+
+/* ---- Home / title screen ---- */
+/* Full-viewport centered title card. Uses the same navy/gold broadcast palette
+   as the rest of the game, just with more air around everything. */
+.home {
+  min-height: calc(100vh - 82px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0;
+  animation: homeIn 0.5s ease both;
+}
+
+@keyframes homeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.home-title {
+  font-family: var(--font-display);
+  font-size: clamp(46px, 13vw, 96px);
+  line-height: 0.92;
+  letter-spacing: 1.5px;
+  margin: 0;
+  color: var(--gold-bright);
+  text-shadow: 0 0 34px rgba(242, 201, 76, 0.22);
+}
+
+.home-tagline {
+  font-family: var(--font-cond);
+  font-size: clamp(13px, 3.4vw, 16px);
+  font-weight: 400;
+  letter-spacing: 2.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 18px 0 0;
+}
+
+/* Gold hairline between the title block and the CTA. */
+.home-modes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 380px;
+  margin-top: 44px;
+  padding-top: 40px;
+  border-top: 1px solid var(--line-gold);
+}
+
+.home-cta {
+  width: 100%;
+  padding: 20px 26px;
+  font-family: var(--font-display);
+  font-size: clamp(19px, 5vw, 26px);
+  letter-spacing: 1.2px;
+  color: var(--navy);
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 6px 22px rgba(242, 201, 76, 0.20);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+.home-cta:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 10px 30px rgba(242, 201, 76, 0.32);
+}
+
+.home-cta:active { transform: translateY(0); }
+
+.home-cta:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 4px;
+}
+
+.home-foot {
+  margin-top: 38px;
+  font-family: var(--font-cond);
+  font-size: 11px;
+  letter-spacing: 2.2px;
+  color: rgba(156, 163, 175, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home { animation: none; }
+  .home-cta { transition: none; }
+  .home-cta:hover { transform: none; }
+}

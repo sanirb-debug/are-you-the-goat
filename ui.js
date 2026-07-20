@@ -15,6 +15,9 @@ function el(tag, cls, html) {
 function render() {
   app.innerHTML = "";
   const step = STEPS[state.currentStep];
+  // The home screen is its own full-bleed title card: no broadcast chrome, since
+  // the top bar's brand would just repeat the big title sitting under it.
+  if (step === "home") { renderHome(); return; }
   app.appendChild(renderTopBar());
 
   if (inPickingPhase()) app.appendChild(renderPicksPanel());
@@ -198,6 +201,26 @@ function renderShadowStep() {
   });
   wrap.appendChild(grid);
   app.appendChild(wrap);
+}
+
+// ---- Home / title screen ----
+// First thing the player sees. Deliberately sparse: title, tagline, one CTA.
+// The CTA lives in a .home-modes column so a second game mode can be dropped in
+// later without any layout work — with one child it just reads as a single button.
+function renderHome() {
+  const wrap = el("div", "home");
+  wrap.appendChild(el("h1", "home-title", "ARE YOU<br>THE GOAT?"));
+  wrap.appendChild(el("p", "home-tagline", "Build a legend. Chase the shadow. Find out."));
+
+  const modes = el("div", "home-modes");
+  const cta = el("button", "home-cta", "ARE YOU THE GOAT?");
+  cta.onclick = () => { state.currentStep++; render(); };
+  modes.appendChild(cta);
+  wrap.appendChild(modes);
+
+  wrap.appendChild(el("div", "home-foot", "v1.0"));
+  app.appendChild(wrap);
+  cta.focus();
 }
 
 function renderNameStep() {

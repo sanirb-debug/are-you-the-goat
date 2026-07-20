@@ -25,7 +25,7 @@ const state = {
   currentStep: 0,       // index into STEPS
 };
 
-const STEPS = ["shadow", "name", "height", "frame", ...SKILL_ORDER, "chooseBadges", "position", "careerTeam", "confirm", "simulating", "verdict"];
+const STEPS = ["home", "shadow", "name", "height", "frame", ...SKILL_ORDER, "chooseBadges", "position", "careerTeam", "confirm", "simulating", "verdict"];
 
 // Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
 // seeding with the same value before simCareer reproduces an identical
