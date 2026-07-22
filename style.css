@@ -281,7 +281,9 @@ button { cursor: pointer; border: none; font-family: inherit; }
 .roster-row {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 84px 58px;
+  /* 96px (not 84) so the longest Athleticism band, "Explosive", fits on one
+     line beside its rating instead of wrapping. */
+  grid-template-columns: 1fr 96px 58px;
   gap: 8px;
   align-items: center;
   width: 100%;

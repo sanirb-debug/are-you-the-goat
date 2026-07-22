@@ -34,7 +34,7 @@ for (const f of ["data.js", "game.js"]) {
 const { TEAM_ROSTER_ROWS, BUDGET_BIN, BUDGET_CAP, wheelCost } =
   vm.runInContext("({ TEAM_ROSTER_ROWS, BUDGET_BIN, BUDGET_CAP, wheelCost })", ctx);
 
-const CATS = [["height", 3], ["frame", 5], ["Shooting", 6], ["Finishing", 7],
+const CATS = [["height", 3], ["athleticism", 5], ["Shooting", 6], ["Finishing", 7],
   ["Playmaking", 8], ["Handles", 9], ["Defense", 10], ["Rebounding", 11]];
 let failures = 0;
 const fail = msg => { failures++; console.error("FAIL: " + msg); };

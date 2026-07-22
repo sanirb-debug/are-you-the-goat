@@ -164,7 +164,7 @@ function simN(skill, def, runs) {
   G.state.name = "T"; G.state.position = "SF"; G.state.positionFit = true;
   G.state.team = T; G.state.teamNeedMet = true;
   G.state.height = { rating: 74, label: "H", name: "H", cost: 0, team: T };
-  G.state.frame = { rating: 76, label: "F", name: "F", cost: 0, team: T };
+  G.state.athleticism = { rating: 76, label: "F", name: "F", cost: 0, team: T };
   G.state.skills = {};
   for (const s of G.SKILL_ORDER) G.state.skills[s] = { rating: skill, name: s, cost: 0, era: "-", team: T };
   if (def != null) G.state.skills.Defense = { rating: def, name: "D", cost: 0, era: "-", team: T };

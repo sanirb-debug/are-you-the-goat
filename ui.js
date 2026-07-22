@@ -88,7 +88,7 @@ function render() {
   if (step === "shadow") renderShadowStep();
   else if (step === "name") renderNameStep();
   else if (step === "height") renderRosterStep("height", "Height", "How tall are they?", pick => lockPhysical("height", pick));
-  else if (step === "frame") renderRosterStep("frame", "Body Frame", "What's their build?", pick => lockPhysical("frame", pick));
+  else if (step === "athleticism") renderRosterStep("athleticism", "Athleticism", "How athletic are they?", pick => lockPhysical("athleticism", pick));
   else if (SKILL_ORDER.includes(step)) renderRosterStep(step, step, "Pick a legend to build on.", pick => lockSkill(step, pick));
   else if (step === "chooseBadges") renderChooseBadges();
   else if (step === "confirm") renderConfirmStep();
@@ -112,7 +112,7 @@ function renderTopBar() {
   bar.appendChild(el("div", "brand", "🏀 ARE YOU THE GOAT?"));
 
   const right = el("div", "topbar-side right");
-  if (step === "height" || step === "frame" || SKILL_ORDER.includes(step)) {
+  if (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step)) {
     right.appendChild(el("div", "budget-pill", budgetPillHTML()));
   }
   const help = el("button", "nav-btn", "How to Play");
@@ -128,7 +128,7 @@ function renderTopBar() {
 // warning about. A shared ?build= view has nothing of the player's own to lose.
 function hasBuildProgress() {
   if (state.sharedView) return false;
-  return !!(state.height || state.frame || state.position || state.team ||
+  return !!(state.height || state.athleticism || state.position || state.team ||
             Object.keys(state.skills).length || career);
 }
 
@@ -147,7 +147,7 @@ function showHowToPlay(trigger) {
     <ol class="howto-list">
       <li><b>Pick your shadow.</b> Choose an all-time great to measure yourself against. The <b>Chasing the Shadow</b> tracker compares your final stats to theirs, category by category.</li>
       <li><b>Name your player.</b></li>
-      <li><b>Make 8 attribute picks</b> — Height, Frame, and the five skills. Each pick spins up a scouted team, and you buy from that team's roster. Every player costs cap space against one shared <b>$100M budget</b>, so a max-rated pick early means bargain-bin picks later.</li>
+      <li><b>Make 8 attribute picks</b> — Height, Athleticism, and the five skills. Each pick spins up a scouted team, and you buy from that team's roster. Every player costs cap space against one shared <b>$100M budget</b>, so a max-rated pick early means bargain-bin picks later.</li>
       <li><b>Claim trait badges.</b> Some legends carry a signature trait (★). Land one and you choose two to activate for stat bonuses.</li>
       <li><b>Pick a position and a career team.</b> Fitting your position and filling the team's need both help.</li>
       <li><b>Simulate.</b> Watch the career play out season by season, then read the verdict.</li>
@@ -160,13 +160,13 @@ function showHowToPlay(trigger) {
 
 // Picks are editable while choosing attributes and on the confirm screen;
 // from the career team step onward they lock in for good (Position depends
-// on final Height/Frame).
+// on final Height/Athleticism).
 function inPickingPhase() {
   const step = STEPS[state.currentStep];
-  return step === "height" || step === "frame" || step === "confirm" || step === "chooseBadges" || SKILL_ORDER.includes(step);
+  return step === "height" || step === "athleticism" || step === "confirm" || step === "chooseBadges" || SKILL_ORDER.includes(step);
 }
 
-const CATEGORY_LABELS = { height: "Height", frame: "Frame" };
+const CATEGORY_LABELS = { height: "Height", athleticism: "Athleticism" };
 // Display labels for Signature-Trait stat modifiers.
 const STAT_LABEL = { ppg: "PPG", apg: "APG", rpg: "RPG", spg: "SPG", bpg: "BPG", tpg: "3PM", fgPct: "FG%", tptPct: "3PT%" };
 const fmtMods = mods => Object.entries(mods).map(([k, v]) => `${STAT_LABEL[k]} +${v}`).join(" · ");
@@ -531,7 +531,7 @@ function renderNameStep() {
   input.focus();
 }
 
-// ---- Shared roster picker (Height, Frame, and all 5 skills) ----
+// ---- Shared roster picker (Height, Athleticism, and all 5 skills) ----
 // Each pick gets its own independent team spin. Spinning reveals the team's
 // FULL roster for the category right away — sorted best to worst, clickable
 // to lock in. "Spin Again" (3 shared rerolls per build) sits above the list.
@@ -574,7 +574,7 @@ function renderRosterStep(category, title, sub, onLock) {
        </div>`));
     const list = el("div", "roster-list");
     getRosterOptions(category).forEach(opt => {
-      // Height/Frame show their real-world label plus the individual rating;
+      // Height/Athleticism show their real-world label plus the individual rating;
       // skills show the rating alone.
       const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
       const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
@@ -600,7 +600,7 @@ function renderRosterStep(category, title, sub, onLock) {
 function renderPositionStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Choose Your Position"));
-  wrap.appendChild(el("p", "step-sub", "Lock your position first, then build toward it. A body that fits the position (right height/frame) earns a +3 OVR fit bonus — go off-position for a higher-risk anomaly run."));
+  wrap.appendChild(el("p", "step-sub", "Lock your position first, then build toward it. A body that fits the position (right height) earns a +3 OVR fit bonus — go off-position for a higher-risk anomaly run."));
 
   const grid = el("div", "position-grid");
   Object.entries(POSITIONS).forEach(([key, pos]) => {
@@ -1108,7 +1108,7 @@ function renderVerdict() {
   const f = finalSkills();
   const rows = [
     ["Height", `${state.height.name} (${state.height.label})`, state.height.rating, fmtSalary(state.height.cost)],
-    ["Frame", `${state.frame.name} (${state.frame.label})`, state.frame.rating, fmtSalary(state.frame.cost)],
+    ["Athleticism", `${state.athleticism.name} (${state.athleticism.label})`, state.athleticism.rating, fmtSalary(state.athleticism.cost)],
     ...SKILL_ORDER.map(s => [s, state.skills[s].name, f[s], fmtSalary(state.skills[s].cost)]),
   ];
   rows.forEach(([cat, name, rating, cost]) => {
@@ -1205,10 +1205,10 @@ function decodeBuild(str) {
       if (!team || !roster || !roster[idx]) throw new Error("unknown pick");
       const pl = roster[idx];
       const rating = categoryRating(pl, cat);
-      const label = cat === "height" ? pl.height.label : cat === "frame" ? pl.frame.label : null;
+      const label = cat === "height" ? pl.height.label : cat === "athleticism" ? pl.athleticism.label : null;
       pick = { name: pl.name, era: pl.era, label, rating, cost: wheelCost(rating), team };
     }
-    if (cat === "height" || cat === "frame") state[cat] = pick; else state.skills[cat] = pick;
+    if (cat === "height" || cat === "athleticism") state[cat] = pick; else state.skills[cat] = pick;
   });
   state.team = TEAMS.find(t => t.abbr === data.t);
   if (!state.team || !POSITIONS[data.p]) throw new Error("bad team/position");
@@ -1349,7 +1349,7 @@ function resetGame() {
   state.activeBadges = [];
   state.name = "";
   state.height = null;
-  state.frame = null;
+  state.athleticism = null;
   state.skills = {};
   state.budgetSpent = 0;
   state.position = null;

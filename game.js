@@ -1,7 +1,7 @@
 // ===== ARE YOU THE GOAT? — GAME LOGIC =====
 
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Handles", "Defense", "Rebounding"];
-const CATEGORIES = ["height", "frame", ...SKILL_ORDER];
+const CATEGORIES = ["height", "athleticism", ...SKILL_ORDER];
 const BUDGET_CAP = 10000; // internal hundredths of $M — displays as the "$100M cap" via fmtSalary
 const TEAM_REROLLS = 3; // shared across all 7 scouting spins
 
@@ -10,7 +10,7 @@ const state = {
   activeBadges: [],    // Signature Traits — up to 2 acquired-badge keys ("Player|Category") active in the sim
   name: "",
   height: null,       // { name, label, rating, cost }
-  frame: null,         // { name, label, rating, cost }
+  athleticism: null,   // { name, label, rating, cost }
   skills: {},          // { Shooting: {name, rating, cost}, ... }
   budgetSpent: 0,
   position: null,
@@ -25,7 +25,7 @@ const state = {
   currentStep: 0,       // index into STEPS
 };
 
-const STEPS = ["home", "shadow", "name", "height", "frame", ...SKILL_ORDER, "chooseBadges", "position", "careerTeam", "confirm", "simulating", "verdict"];
+const STEPS = ["home", "shadow", "name", "height", "athleticism", ...SKILL_ORDER, "chooseBadges", "position", "careerTeam", "confirm", "simulating", "verdict"];
 
 // Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
 // seeding with the same value before simCareer reproduces an identical
@@ -72,7 +72,7 @@ function budgetRemaining() {
 
 function categoryRating(player, category) {
   if (category === "height") return player.height.rating;
-  if (category === "frame") return player.frame.rating;
+  if (category === "athleticism") return player.athleticism.rating;
   return player.skills[category];
 }
 
@@ -88,7 +88,7 @@ function getRosterOptions(category, team = state.scoutTeam, extraBudget = 0) {
     const rating = categoryRating(p, category);
     const cost = wheelCost(rating);
     const label = category === "height" ? p.height.label
-      : category === "frame" ? p.frame.label
+      : category === "athleticism" ? p.athleticism.label
       : null;
     return { name: p.name, era: p.era, label, rating, cost, team, affordable: cost <= remaining };
   }).sort((a, b) => b.rating - a.rating);
@@ -104,7 +104,7 @@ function getRosterOptions(category, team = state.scoutTeam, extraBudget = 0) {
 }
 
 function currentPick(category) {
-  if (category === "height" || category === "frame") return state[category];
+  if (category === "height" || category === "athleticism") return state[category];
   return state.skills[category];
 }
 
@@ -112,7 +112,7 @@ function currentPick(category) {
 function replacePick(category, newPick) {
   const old = currentPick(category);
   state.budgetSpent += newPick.cost - old.cost;
-  if (category === "height" || category === "frame") state[category] = newPick;
+  if (category === "height" || category === "athleticism") state[category] = newPick;
   else state.skills[category] = newPick;
 }
 
@@ -129,13 +129,18 @@ function lockPhysical(key, result) {
 // ---- Modifiers ----
 function applyModifiers(baseRating, statName) {
   const h = state.height.rating;
-  const f = state.frame.rating;
+  const a = state.athleticism.rating;
   let mod = 0;
   if (["Rebounding", "Defense"].includes(statName)) mod += (h - 70) * 0.15;
-  if (["Finishing", "Rebounding", "Defense"].includes(statName)) mod += (f - 70) * 0.15;
+  // Athleticism is a CLEAN one-directional bonus: explosion finishes over rim
+  // protection, closing speed and lateral quickness defend, leaping rebounds.
+  // Unlike the old Frame it has no penalty side — bulk used to punish
+  // Shooting/Handles at the extremes, but there is no equivalent downside to
+  // being a better athlete. Below-average athleticism is simply neutral, and
+  // you still pay for the bonus through the shared cap.
+  if (["Finishing", "Defense", "Rebounding"].includes(statName)) mod += Math.max(0, a - 55) * 0.15;
   if (["Playmaking", "Shooting", "Handles"].includes(statName)) {
     if (h >= 90) mod -= (h - 70) * 0.15;
-    if (f >= 90) mod -= (f - 70) * 0.15;
   }
   return clamp(Math.round(baseRating + mod), 25, 99);
 }
@@ -158,7 +163,7 @@ function computeOVR() {
     f.Defense * 0.18 +
     f.Rebounding * 0.14 +
     state.height.rating * 0.05 +
-    state.frame.rating * 0.05;
+    state.athleticism.rating * 0.05;
   let bonus = state.positionFit ? 3 : 0;
   return clamp(Math.round(ovr + bonus), 25, 99);
 }
@@ -166,16 +171,17 @@ function computeOVR() {
 function checkPositionFit(posKey) {
   const pos = POSITIONS[posKey];
   const h = state.height.rating;
-  const f = state.frame.rating;
-  let fits = h >= pos.hMin && h <= pos.hMax;
-  if (pos.frameMin) fits = fits && f >= pos.frameMin;
-  return fits;
+  // Height alone gates position fit. Center used to also require a bulk floor,
+  // but height already carries the size requirement and Athleticism explicitly
+  // does not mean mass — gating Centers on explosiveness would wrongly exclude
+  // grounded bigs like Jokic.
+  return h >= pos.hMin && h <= pos.hMax;
 }
 
 // ---- Team positional needs (for the Career Team pick) ----
 // Each team's "need" is the position where its roster is weakest RELATIVE to
 // the rest of the league. Per position, score a team by the top skill-total
-// among players who physically fit it (height in range, +frame for C), then
+// among players who physically fit it (height in range), then
 // z-score that against all 30 teams so a position's inherent difficulty (e.g.
 // C is hard to fill everywhere) doesn't bias every team toward the same need.
 // The need is the position with the lowest z-score. Data-driven; spreads
@@ -184,7 +190,7 @@ function bestFitScore(abbr, posKey) {
   const pos = POSITIONS[posKey];
   let best = 0;
   (TEAM_ROSTERS[abbr] || []).forEach(p => {
-    const fits = p.height.rating >= pos.hMin && p.height.rating <= pos.hMax && (!pos.frameMin || p.frame.rating >= pos.frameMin);
+    const fits = p.height.rating >= pos.hMin && p.height.rating <= pos.hMax;
     if (fits) { const total = Object.values(p.skills).reduce((a, b) => a + b, 0); if (total > best) best = total; }
   });
   return best;
@@ -215,7 +221,7 @@ const TEAM_NEEDS = computeTeamNeeds();
 
 // ---- Per-season box score ----
 // Per-game averages for one season, jittered so no two years look identical.
-// ovr = that season's overall, f = finalSkills(), h = height, fr = frame.
+// ovr = that season's overall, f = finalSkills(), h = height, fr = athleticism.
 // OVR is a global governor on the whole line: skills set the SHAPE of the
 // box score (which stats dominate), but OVR gates the MAGNITUDE, so an elite
 // individual skill on a mediocre build can't post all-time counting stats.
@@ -233,7 +239,7 @@ function generateSeasonStats(ovr, f, h, fr, mods = {}) {
   // OVR. Multiplying by ovrFactor (0.35-1.0) crushed specialists whose other
   // categories were weak: a 94-Finishing scorer fell to ~11 PPG (fixed
   // earlier), and a 90-Playmaking passer fell to ~3.6 APG because a weak
-  // Defense/Rebounding/frame dragged OVR to ~54 => ovrFactor 0.35. All volume
+  // Defense/Rebounding/athleticism dragged OVR to ~54 => ovrFactor 0.35. All volume
   // stats now use the same light team-role dampener (x0.85-1.0) instead, so
   // the driving attribute — Playmaking for APG, Rebounding for RPG, Defense
   // for SPG/BPG — sets the output regardless of unrelated weaknesses.
@@ -430,7 +436,7 @@ function simCareer(ovr, team, mods = {}) {
     if (result.dpoy) dpoys++;
     if (result.allDefensive) allDefensives++;
 
-    const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.frame.rating, mods);
+    const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.athleticism.rating, mods);
     // All-NBA needs the season's box score + hardware, so it's resolved here.
     result.allNBA = allNbaSelection(seasonOVR, stats, result.mvp, result.dpoy);
     if (result.allNBA) allNBAs++;
@@ -692,13 +698,13 @@ const BADGE_INFO = {
   "Positional Anomaly": "Played a position the build doesn't naturally fit",
   "Certified Bust": "GOAT Score under 100 — this build never got going",
   // ---- skill / physical archetypes ----
-  "3-Point Sniper": "88+ Shooting on a slight or lean frame — a pure perimeter marksman",
+  "3-Point Sniper": "88+ Shooting without elite athleticism — wins on pure shotmaking",
   "Stretch Big": "A 6'11\"+ big with 82+ Shooting — spaces the floor from the frontcourt",
   "Mid-Range Maestro": "Elite shot creation: 84+ Shooting, 82+ Handles, and 80+ Finishing",
-  "Post-Up Punisher": "88+ Finishing on a bulky or powerful frame — bullies the post",
+  "Post-Up Punisher": "88+ Finishing without elite athleticism — scores on craft and footwork",
   "Slasher": "88+ Finishing and 82+ Handles on a guard or wing — lives at the rim",
   "Rim Protector": "88+ Defense at 6'11\"+ — anchors the paint",
-  "Perimeter Lockdown": "88+ Defense on a 6'7\" or smaller frame — smothers ball-handlers",
+  "Perimeter Lockdown": "88+ Defense at 6'7\" or shorter — smothers ball-handlers",
   "Playmaking Savant": "Elite 90+ Playmaking — sees the whole floor",
   "Floor General": "84+ Playmaking and Handles on a true guard (6'4\" or under)",
   "Handles God": "Elite 92+ Handles — ankle-breaking ball control",
@@ -744,7 +750,7 @@ function computeBadges(ovr, career) {
   const f = finalSkills();
   const SH = f.Shooting, FI = f.Finishing, PL = f.Playmaking, HA = f.Handles, DE = f.Defense, RE = f.Rebounding;
   const skills = [SH, FI, PL, HA, DE, RE];
-  const h = state.height.rating, fr = state.frame.rating;
+  const h = state.height.rating, ath = state.athleticism.rating;
   const t = career.totals, b = career.bestSeason;
   const scoring = Math.max(SH, FI);
   const eliteCount = skills.filter(s => s >= 90).length;
@@ -766,10 +772,10 @@ function computeBadges(ovr, career) {
   if (career.goatScore < 100) add("Certified Bust", 45);
 
   // ---- skill / physical archetypes ----
-  if (SH >= 88 && fr <= 52) add("3-Point Sniper", SH);
+  if (SH >= 88 && ath <= 52) add("3-Point Sniper", SH);
   if (h >= 82 && SH >= 82) add("Stretch Big", (SH + h) / 2);
   if (SH >= 84 && HA >= 82 && FI >= 80) add("Mid-Range Maestro", (SH + HA + FI) / 3);
-  if (FI >= 88 && fr >= 80) add("Post-Up Punisher", FI);
+  if (FI >= 88 && ath <= 55) add("Post-Up Punisher", FI);
   if (FI >= 88 && HA >= 82 && h <= 62) add("Slasher", (FI + HA) / 2);
   if (DE >= 88 && h >= 82) add("Rim Protector", DE);
   if (DE >= 88 && h <= 58) add("Perimeter Lockdown", DE);
@@ -865,18 +871,18 @@ function careerHighlights(career) {
 }
 
 // ---- Scouting report (verdict narrative) ----
-const FRAME_ADJ = {
-  Slight: "wiry", Lean: "lean", Athletic: "athletic",
-  Strong: "sturdy", Bulky: "bruising", Powerful: "overpowering",
+const ATH_ADJ = {
+  Grounded: "ground-bound", Limited: "unspectacular", Solid: "capable",
+  Athletic: "athletic", Explosive: "explosive", Elite: "freakishly explosive",
 };
 
 // ---- Playstyle comp ----
 // The finished build's 8-D on-court profile: physicals raw, skills post-modifier.
-const COMP_DIMS = ["height", "frame", ...SKILL_ORDER];
-// Height and frame are physically defining, so they carry more weight than any
+const COMP_DIMS = ["height", "athleticism", ...SKILL_ORDER];
+// Height and athleticism are physically defining, so they carry more weight than any
 // single skill — without this a short body with forward-like skills could be
 // outvoted across the 6 skill dims and match a much taller player.
-const COMP_WEIGHTS = { height: 4, frame: 1.5, Shooting: 1, Finishing: 1, Playmaking: 1, Handles: 1, Defense: 1, Rebounding: 1 };
+const COMP_WEIGHTS = { height: 4, athleticism: 1.5, Shooting: 1, Finishing: 1, Playmaking: 1, Handles: 1, Defense: 1, Rebounding: 1 };
 // Signature emphasis: a skill dimension where EITHER the build or the candidate
 // is extreme (far from a ~55 average) is a defining trait, and a gap there
 // should hurt far more than a gap on a middling dimension. Without this, a
@@ -892,7 +898,7 @@ function sigEmphasis(a, b) {
 }
 function buildProfile() {
   const f = finalSkills();
-  const p = { height: state.height.rating, frame: state.frame.rating };
+  const p = { height: state.height.rating, athleticism: state.athleticism.rating };
   SKILL_ORDER.forEach(s => { p[s] = f[s]; });
   return p;
 }
@@ -979,7 +985,7 @@ function expectedTierIndex(ovr) {
 function generateScoutingReport(career, ovr, tier) {
   const name = state.name || "The Mystery Player";
   const pos = POSITIONS[state.position].label.toLowerCase();
-  const adj = FRAME_ADJ[state.frame.label] || "unorthodox";
+  const adj = ATH_ADJ[state.athleticism.label] || "unorthodox";
   const attr = topAttribute().toLowerCase();
   const b = career.bestSeason;
   const team = state.team.name;
