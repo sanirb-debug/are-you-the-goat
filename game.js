@@ -324,7 +324,23 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   let dpoy = false;
   if (defRating >= 90) dpoy = rng() < (0.04 + (defRating - 90) * 0.006);
 
-  return { wins, madePlayoffs, ring, finalsMVP, allStar, mvp, roty, dpoy, roundsWon };
+  // All-Defensive Team: the defensive analogue of All-NBA, keyed on the build's
+  // DEFENSE rating rather than overall OVR. Defense gets its own +/-3 season
+  // swing (same shape as seasonOVR) so a strong defender isn't simply all-or-
+  // nothing every year. Real All-Defensive has two teams, not three. The ladder
+  // reads: 85+ is a genuine stopper (2nd), 92+ is generational (1st), with
+  // DPOY's 90 eligibility sitting between them.
+  // The swing is +/-5 rather than seasonOVR's +/-3 on purpose: defRating is a
+  // single constant attribute, so a narrow band made this all-or-nothing (a
+  // Defense-77 build got zero forever, a Defense-87 build made it ~85% of
+  // seasons). A wider band grades the middle instead of cliff-edging it — the
+  // same dead-zone trap All-NBA fell into twice.
+  const seasonDef = clamp(defRating + randInt(-5, 5), 25, 99);
+  let allDefensive = null;
+  if (seasonDef >= 93) allDefensive = "1st";
+  else if (seasonDef >= 85) allDefensive = "2nd";
+
+  return { wins, madePlayoffs, ring, finalsMVP, allStar, mvp, roty, dpoy, allDefensive, roundsWon };
 }
 
 // All-NBA selection AND 1st/2nd/3rd tier from a season's real quality, called
@@ -362,6 +378,7 @@ function simCareer(ovr, team, mods = {}) {
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
   let bestMVPOVR = 0; // OVR of the strongest MVP-winning season (0 if none)
   let roty = 0, dpoys = 0; // Rookie of the Year (0/1), Defensive Player of the Year (repeatable)
+  let allDefensives = 0;   // All-Defensive Team selections (1st or 2nd), repeatable
   const varianceRange = state.positionFit ? 4 : 8;
   const f = finalSkills();
   const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
@@ -382,6 +399,7 @@ function simCareer(ovr, team, mods = {}) {
     if (result.allStar) allStars++;
     if (result.roty) roty = 1;
     if (result.dpoy) dpoys++;
+    if (result.allDefensive) allDefensives++;
 
     const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.frame.rating, mods);
     // All-NBA needs the season's box score + hardware, so it's resolved here.
@@ -415,13 +433,14 @@ function simCareer(ovr, team, mods = {}) {
     allNBAs * 3 +
     allStars * 1 +
     dpoys * 3 +
+    allDefensives * 2 +
     roty * 2 +
     careerWins / 10
   );
 
   const avgFgPct = Math.round(fgSum / numSeasons * 10) / 10;
   const avgTptPct = Math.round(tptSum / numSeasons * 10) / 10;
-  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, roty, dpoys, careerWins, peakOVR, bestMVPOVR, goatScore, totals, avgFgPct, avgTptPct, bestSeason };
+  return { numSeasons, seasons, rings, mvps, finalsMVPs, allNBAs, allStars, roty, dpoys, allDefensives, careerWins, peakOVR, bestMVPOVR, goatScore, totals, avgFgPct, avgTptPct, bestSeason };
 }
 
 // ---- Tier ladder ----

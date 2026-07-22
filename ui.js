@@ -945,13 +945,13 @@ function renderVerdict() {
 
   wrap.appendChild(el("div", "seasons-line", `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"} &middot; Peak OVR ${career.peakOVR} &middot; GOAT Score ${career.goatScore}`));
 
-  const statsGrid = el("div", "stats-grid seven");
+  const statsGrid = el("div", "stats-grid eight");
   let allNbaBox = null;
   [
     // Rings + Finals MVP adjacent: the two awards tied directly to team success
     [career.rings, "RINGS"], [career.finalsMVPs, "FINALS MVP"], [career.mvps, "MVP"],
     [career.dpoys || 0, "DPOY"], [career.roty || 0, "ROTY"],
-    [career.allNBAs, "ALL-NBA"], [career.allStars, "ALL-STAR"],
+    [career.allNBAs, "ALL-NBA"], [career.allDefensives || 0, "ALL-DEF"], [career.allStars, "ALL-STAR"],
   ].forEach(([val, label]) => {
     const box = el("div", "stat-box", `<div class="stat-val" data-count="${val}" data-suffix="×">0×</div><div class="stat-label">${label}</div>`);
     if (label === "ALL-NBA") allNbaBox = box;
@@ -978,6 +978,7 @@ function renderVerdict() {
         s.mvp ? '<span class="sp-tag mvp">MVP</span>' : "",
         s.ring ? '<span class="sp-tag ring">CHAMPION</span>' : "",
         s.dpoy ? '<span class="sp-tag dpoy">DPOY</span>' : "",
+        s.allDefensive ? `<span class="sp-tag alldef">ALL-DEF ${s.allDefensive}</span>` : "",
       ].join("");
       panel.appendChild(el("div", "season-row",
         `<span class="sp-year">Year ${year}</span>
@@ -1005,6 +1006,40 @@ function renderVerdict() {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
     };
   }
+
+  // ---- Career Stats by Year ----
+  // Distinct from the All-NBA breakdown above: EVERY season, in order, with its
+  // full stat line and whatever honors it earned. Same expand/collapse pattern,
+  // toggled by class mutation so the count-up animations never replay.
+  const yearBtn = el("button", "season-toggle", `Career Stats by Year <span class="st-caret">▾</span>`);
+  yearBtn.setAttribute("aria-expanded", "false");
+  const yearPanel = el("div", "season-panel");
+  yearPanel.appendChild(el("div", "season-panel-head",
+    `All ${career.numSeasons} Seasons &nbsp;·&nbsp; ${state.team.name}`));
+  career.seasons.forEach((s, i) => {
+    const st = s.stats;
+    const honors = [
+      s.mvp ? '<span class="sp-tag mvp">MVP</span>' : "",
+      s.ring ? '<span class="sp-tag ring">CHAMPION</span>' : "",
+      s.roty ? '<span class="sp-tag roty">ROTY</span>' : "",
+      s.dpoy ? '<span class="sp-tag dpoy">DPOY</span>' : "",
+      s.allNBA ? `<span class="sp-tier tier-${s.allNBA.replace(/\D/g, "")}">All-NBA ${s.allNBA}</span>` : "",
+      s.allDefensive ? `<span class="sp-tag alldef">ALL-DEF ${s.allDefensive}</span>` : "",
+      s.allStar ? '<span class="sp-tag allstar">ALL-STAR</span>' : "",
+    ].join("");
+    yearPanel.appendChild(el("div", "season-row",
+      `<span class="sp-year">Year ${i + 1}</span>
+       <span class="sp-team">${state.team.abbr}</span>
+       ${honors}
+       <span class="sp-line">${st.ppg} PPG &middot; ${st.rpg} RPG &middot; ${st.apg} APG &middot; ${st.spg} SPG &middot; ${st.bpg} BPG &middot; ${st.tpg} 3PM &middot; ${st.fgPct} FG% &middot; ${st.tptPct} 3PT%</span>`));
+  });
+  yearBtn.onclick = () => {
+    const open = yearPanel.classList.toggle("open");
+    yearBtn.classList.toggle("open", open);
+    yearBtn.setAttribute("aria-expanded", String(open));
+  };
+  wrap.appendChild(yearBtn);
+  wrap.appendChild(yearPanel);
 
   wrap.appendChild(el("div", "career-wins", `${career.careerWins.toLocaleString()} career wins with the ${state.team.name}`));
 
