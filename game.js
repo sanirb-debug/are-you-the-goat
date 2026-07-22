@@ -301,8 +301,19 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   // season of a modest-OVR scorer to 3rd team regardless of how dominant it was.
   const allStar = ovr >= 70;
 
+  // MVP odds SCALE with how dominant the season was, rather than a flat roll at
+  // the qualifying line. A flat 35% meant a merely-eligible 80-OVR/50-win year
+  // and a historically unprecedented 99-OVR/70-win year were equally likely to
+  // win it — so a build posting an all-time statline every season still lost
+  // the award roughly two years in three. Now clearing the bar barely is a long
+  // shot (~8%), while a season that clears it by a wide margin on a winning
+  // team takes it the large majority of the time.
   let mvp = false;
-  if (ovr >= 80 && wins >= 50) mvp = rng() < 0.35;
+  if (ovr >= 80 && wins >= 50) {
+    const ovrEdge = Math.min(1, (ovr - 80) / 14);  // 80 -> 0.0, 94+ -> 1.0
+    const winEdge = Math.min(1, (wins - 50) / 18); // 50 -> 0.0, 68+ -> 1.0
+    mvp = rng() < 0.08 + 0.82 * (0.65 * ovrEdge + 0.35 * winEdge);
+  }
 
   let finalsMVP = ring && ovr >= 78;
 
@@ -505,41 +516,77 @@ const TIER_AWARD_FLOORS = {
 // floor. The old `if (!req || !career) return true` was fail-OPEN — any caller
 // that forgot to pass the career silently disabled all award floors, which is
 // how a 0-award build reached All-Star. Absent data can now only demote.
-// DPOY count that stands in as an alternate qualifying path for a tier — the
-// defensive equivalent of the MVP-season-OVR path. An all-time defensive
-// anchor (peak Russell, prime Mutombo-level) is unambiguously Legend-tier even
-// when weak offensive categories drag the tracked peak OVR below the floor and
-// the MVPs never came. Only Legend (2+) and GOAT (3+) offer it.
-const TIER_DPOY_ALT = { Legend: 2, GOAT: 3 };
-function hasDpoyPath(tierName, career) {
-  const need = TIER_DPOY_ALT[tierName];
-  return !!need && ((career && career.dpoys) || 0) >= need;
+// ALTERNATE QUALIFYING PATHS to a tier's peak-OVR floor.
+//
+// The peak-OVR floor is an AND-gate, and for a long time it was an absolute
+// one: the ONLY way past it was a high tracked peakOVR. That is the root cause
+// behind a bug reported and re-patched at least four times — a career that
+// maxed out its award record (e.g. 20x All-NBA / 20x All-Star) but peaked at
+// OVR 73 failed Superstar/Legend/GOAT on the OVR gate alone and fell to
+// All-Star, the one floor tier with no OVR requirement. Each past fix bolted on
+// one narrow escape hatch (MVP-season OVR, then DPOY count) instead of naming
+// the general rule, so the next shape of dominant-but-modest-OVR career fell
+// straight back through.
+//
+// The general rule: OVR is a PROXY for greatness, so overwhelming direct
+// evidence of greatness must be able to stand in for it. Three routes qualify:
+//   dpoys    — defensive dominance (peak Russell / prime Mutombo)
+//   allNBAs  — sustained award dominance, well above the tier's own award floor
+//   volume   — elite career totals: points AND longevity AND winning, together
+// Any ONE route clears the peak-OVR floor and waives that tier's MVP
+// requirement. The All-Star / All-NBA / hardware floors always still apply, so
+// this is a route to the tier, never a blanket bypass.
+//
+// Regression coverage for all of this lives in test-tiers.js — run it after
+// touching anything here.
+// `waivesMvp` is deliberately false for GOAT. MVPs ARE the defining credential
+// of the top tier, and All-NBA is cheap to accumulate here (any season at OVR
+// 71+ qualifies), so letting an All-NBA count waive GOAT's 4-MVP floor promoted
+// the plain budget-optimal build from Superstar straight to GOAT ~18% of runs.
+// At Legend the floor is a single MVP, which a defensive or volume-scoring
+// great can legitimately never win — so the waiver belongs there and only there.
+const TIER_ALT_PATHS = {
+  Legend: { dpoys: 2, allNBAs: 15, points: 32000, seasons: 17, wins: 850,  waivesMvp: true },
+  GOAT:   { dpoys: 3, allNBAs: 20, points: 40000, seasons: 19, wins: 1000, waivesMvp: false },
+};
+function hasAltPath(tierName, career) {
+  const alt = TIER_ALT_PATHS[tierName];
+  if (!alt || !career) return false;
+  if ((career.dpoys || 0) >= alt.dpoys) return true;
+  if ((career.allNBAs || 0) >= alt.allNBAs) return true;
+  const pts = (career.totals && career.totals.pts) || 0;
+  return pts >= alt.points
+    && (career.numSeasons || 0) >= alt.seasons
+    && (career.careerWins || 0) >= alt.wins;
+}
+// Whether an alt path at this tier may also stand in for the MVP award floor.
+function altPathWaivesMvp(tierName, career) {
+  const alt = TIER_ALT_PATHS[tierName];
+  return !!(alt && alt.waivesMvp) && hasAltPath(tierName, career);
 }
 
-// `dpoyPath` (elite repeated DPOY dominance) substitutes ONLY for the MVP
-// requirement here — All-Star / All-NBA / hardware floors still stand, so this
-// is a defensive route to the tier, not a blanket bypass.
-function meetsAwardFloor(tierName, career, dpoyPath = false) {
+// `altPath` substitutes ONLY for the MVP requirement here — All-Star / All-NBA
+// / hardware floors still stand, so this is a route to the tier, not a bypass.
+function meetsAwardFloor(tierName, career, altPath = false) {
   const req = TIER_AWARD_FLOORS[tierName];
   if (!req) return true; // Starter and below carry no award requirement
   const c = career || {};
   if ((c.allStars || 0) < (req.allStars || 0)) return false;
   if ((c.allNBAs || 0) < (req.allNBAs || 0)) return false;
-  if (!dpoyPath && (c.mvps || 0) < (req.mvps || 0)) return false;
+  if (!altPath && (c.mvps || 0) < (req.mvps || 0)) return false;
   if (req.hardware && ((c.rings || 0) + (c.finalsMVPs || 0)) < req.hardware) return false;
   return true;
 }
 
 // One gate for a tier: BOTH the peak-OVR floor and the award floor must pass.
 // Every tier assignment routes through this — there is no path that sets a
-// tier without running both checks. Elite DPOY dominance is a second alternate
-// path (alongside the MVP-season OVR already folded into effectivePeak): it can
-// clear the peak-OVR floor AND waive the MVP award requirement.
+// tier without running both checks. TIER_ALT_PATHS above supplies the alternate
+// routes (alongside the MVP-season OVR already folded into effectivePeak): any
+// one clears the peak-OVR floor AND waives the MVP award requirement.
 function meetsTierFloors(tierName, effectivePeak, career) {
-  const dpoyPath = hasDpoyPath(tierName, career);
   const ovrFloor = TIER_OVR_FLOORS[tierName];
-  if (ovrFloor && effectivePeak < ovrFloor && !dpoyPath) return false;
-  return meetsAwardFloor(tierName, career, dpoyPath);
+  if (ovrFloor && effectivePeak < ovrFloor && !hasAltPath(tierName, career)) return false;
+  return meetsAwardFloor(tierName, career, altPathWaivesMvp(tierName, career));
 }
 
 // A tier's OVR floor is satisfied by EITHER the tracked career peak OR the
@@ -1244,7 +1291,7 @@ if (typeof module !== "undefined") {
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
-    TIER_AWARD_FLOORS, meetsAwardFloor, meetsTierFloors, isHallOfFame,
+    TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, isHallOfFame,
     PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
   };
 }

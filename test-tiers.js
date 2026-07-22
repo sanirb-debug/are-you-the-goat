@@ -1,0 +1,201 @@
+#!/usr/bin/env node
+/*
+ * PERMANENT REGRESSION TESTS — tier assignment, alternate floor paths, award rates.
+ *
+ *     node test-tiers.js
+ *
+ * RE-RUN THIS WHENEVER YOU TOUCH: tierForCareer / meetsTierFloors /
+ * meetsAwardFloor / TIER_OVR_FLOORS / TIER_AWARD_FLOORS / TIER_ALT_PATHS /
+ * goatScore weights / the MVP, All-NBA or All-Star thresholds in simSeason.
+ *
+ * WHY THIS FILE EXISTS: the "maxed-out award record still lands at All-Star"
+ * bug has been reported and patched at least four separate times. Each patch
+ * added one narrow alternate path and moved on, so the next build that cleared
+ * the award floors but not the peak-OVR floor fell straight back to All-Star.
+ * These cases pin that behaviour down permanently. If you are reading this
+ * because a tier looks wrong again: add the failing scenario here FIRST, watch
+ * it fail, then fix the logic.
+ *
+ * The browser build has no module system (plain <script> tags sharing globals),
+ * so this concatenates data.js + game.js and evaluates them in one vm context,
+ * exactly like the browser does.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+
+function loadGame() {
+  const dir = __dirname;
+  // Both files end with `if (typeof module !== "undefined") { module.exports = ... }`.
+  // Concatenating them into ONE script keeps game.js's references to data.js's
+  // top-level consts resolvable (top-level const is a lexical binding, not a
+  // property of the context, so it can only be reached from the same script).
+  // We let each export block run and snapshot it before the next overwrites it.
+  const src =
+    fs.readFileSync(path.join(dir, "data.js"), "utf8") +
+    '\n;globalThis.__DATA__ = module.exports; module.exports = {};\n' +
+    fs.readFileSync(path.join(dir, "game.js"), "utf8") +
+    '\n;globalThis.__GAME__ = module.exports;\n';
+  const store = {};
+  const ctx = {
+    console,
+    module: { exports: {} },
+    localStorage: {
+      getItem: k => (k in store ? store[k] : null),
+      setItem: (k, v) => { store[k] = String(v); },
+      removeItem: k => { delete store[k]; },
+    },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+  return Object.assign({}, ctx.__DATA__, ctx.__GAME__);
+}
+
+const G = loadGame();
+
+let passed = 0;
+const failures = [];
+function check(name, actual, expected, detail) {
+  const ok = typeof expected === "function" ? expected(actual) : actual === expected;
+  if (ok) { passed++; console.log(`  PASS  ${name}  →  ${actual}`); }
+  else {
+    failures.push(name);
+    console.log(`  FAIL  ${name}`);
+    console.log(`        expected ${typeof expected === "function" ? expected.toString() : expected}, got ${actual}`);
+    if (detail) console.log(`        ${detail}`);
+  }
+}
+
+// A blank-but-valid career object. Individual tests override only what matters,
+// which keeps each case readable and makes the intent of the scenario obvious.
+function career(o) {
+  return Object.assign({
+    goatScore: 0, peakOVR: 0, bestMVPOVR: 0, numSeasons: 18, careerWins: 800,
+    rings: 0, mvps: 0, finalsMVPs: 0, allNBAs: 0, allStars: 0,
+    dpoys: 0, roty: 0, allDefensives: 0, seasons: [],
+    totals: { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 },
+    avgFgPct: 50, avgTptPct: 35,
+    bestSeason: { year: 1, peakScore: 0, ppg: 0, apg: 0, rpg: 0, spg: 0, bpg: 0, tpg: 0, fgPct: 50, tptPct: 35 },
+  }, o);
+}
+const tierOf = c => G.tierForCareer(c).name;
+const rank = name => G.TIERS.findIndex(t => t.name === name);
+const atLeast = floor => actual => rank(actual) >= rank(floor);
+const atMost = ceil => actual => rank(actual) <= rank(ceil);
+
+console.log("\n=== TIER FLOORS: alternate qualifying paths ===");
+
+// The headline regression. A career that maxed BOTH award categories over 20
+// seasons is unambiguously Legend-tier, even though its peak OVR (73) sits
+// under Superstar's 76 floor — every prior version dropped this to All-Star
+// because the peak-OVR gate had no award-based alternate.
+check("20x All-NBA / 20x All-Star (peak OVR 73)",
+  tierOf(career({ allNBAs: 20, allStars: 20, numSeasons: 20, peakOVR: 73, goatScore: 430 })),
+  atLeast("Legend"),
+  "peak-OVR floor must not veto a maxed-out award record");
+
+// Same shape, but with the MVPs/rings a GOAT resume needs.
+check("20x All-NBA / 20x All-Star + 5 MVP + 5 rings",
+  tierOf(career({ allNBAs: 20, allStars: 20, numSeasons: 20, peakOVR: 75,
+                  mvps: 5, rings: 5, finalsMVPs: 3, goatScore: 700 })),
+  atLeast("Legend"));
+
+// Career longevity / volume path: ~43k points over a long, winning career is
+// top-10-all-time scoring volume and should reach Legend on its own.
+check("43k career points, 20 seasons, 1000 wins (peak OVR 74)",
+  tierOf(career({ totals: { pts: 43000, ast: 8000, reb: 9000, stl: 1500, blk: 900, threes: 1800 },
+                  numSeasons: 20, careerWins: 1000, peakOVR: 74,
+                  allStars: 15, allNBAs: 13, goatScore: 480 })),
+  atLeast("Legend"));
+
+// Defensive path must still work (added in an earlier session).
+check("2 DPOY / 0 MVP, sub-floor peak OVR",
+  tierOf(career({ dpoys: 2, allStars: 14, allNBAs: 12, peakOVR: 76, rings: 2, goatScore: 400 })),
+  "Legend");
+
+console.log("\n=== TIER FLOORS: guards that must NOT loosen ===");
+
+// The alternate paths must not become a blanket bypass. A thin resume stays low
+// no matter how the floors are relaxed above.
+check("empty career (zero of everything)",
+  tierOf(career({})), atMost("Starter"));
+
+check("weak build: 3x All-Star, no All-NBA, peak OVR 71",
+  tierOf(career({ allStars: 3, allNBAs: 0, peakOVR: 71, goatScore: 200 })),
+  atMost("Starter"),
+  "3 All-Stars is under the All-Star tier's 6-selection floor");
+
+check("volume path needs ALL of points+seasons+wins (28k pts, short career)",
+  tierOf(career({ totals: { pts: 28000, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 },
+                  numSeasons: 12, careerWins: 500, peakOVR: 70,
+                  allStars: 7, allNBAs: 2, goatScore: 300 })),
+  atMost("All-Star"));
+
+// Historical regressions that have each shipped broken at least once.
+check("7x All-Star / 2x All-NBA (was capped at Starter)",
+  tierOf(career({ allStars: 7, allNBAs: 2, peakOVR: 73, goatScore: 370 })),
+  "All-Star");
+
+check("15x All-Star / 8x All-NBA (was capped at All-Star)",
+  tierOf(career({ allStars: 15, allNBAs: 8, peakOVR: 78, goatScore: 430 })),
+  atLeast("Superstar"));
+
+check("tierForCareer(undefined) fails safe, never promotes",
+  tierOf(undefined), atMost("Starter"));
+
+// Caught by the greedy-optimal sim, not by the cases above: All-NBA is cheap to
+// accumulate (any OVR 71+ season qualifies), so an All-NBA-count alternate path
+// must NOT waive GOAT's 4-MVP floor. When it did, the ordinary budget-optimal
+// build was promoted Superstar -> GOAT in ~18% of runs.
+check("18x All-NBA + 18x All-Star + 4 hardware but only 1 MVP is NOT GOAT",
+  tierOf(career({ allNBAs: 18, allStars: 18, numSeasons: 19, mvps: 1,
+                  rings: 3, finalsMVPs: 2, peakOVR: 81, goatScore: 600 })),
+  atMost("Legend"),
+  "GOAT must still require real MVP hardware");
+
+console.log("\n=== MVP RATE SCALES WITH DOMINANCE ===");
+
+// Build a dominant player and run real careers. A historically great season
+// should convert to MVP most years, not lose a flat 65% coin flip every time.
+function simN(skill, def, runs) {
+  const T = G.TEAMS.reduce((a, t) => (t.scr > a.scr ? t : a));
+  G.state.shadowTarget = "Michael Jordan";
+  G.state.name = "T"; G.state.position = "SF"; G.state.positionFit = true;
+  G.state.team = T; G.state.teamNeedMet = true;
+  G.state.height = { rating: 74, label: "H", name: "H", cost: 0, team: T };
+  G.state.frame = { rating: 76, label: "F", name: "F", cost: 0, team: T };
+  G.state.skills = {};
+  for (const s of G.SKILL_ORDER) G.state.skills[s] = { rating: skill, name: s, cost: 0, era: "-", team: T };
+  if (def != null) G.state.skills.Defense = { rating: def, name: "D", cost: 0, era: "-", team: T };
+  G.state.activeBadges = [];
+  const ovr = G.computeOVR();
+  let mvpSum = 0, anSum = 0, tiers = {};
+  for (let i = 0; i < runs; i++) {
+    G.seedRng(4242 + i);
+    const c = G.simCareer(ovr, T, G.activeBadgeMods());
+    mvpSum += c.mvps; anSum += c.allNBAs;
+    const t = G.tierForCareer(c).name; tiers[t] = (tiers[t] || 0) + 1;
+  }
+  return { ovr, mvps: mvpSum / runs, allNBAs: anSum / runs, tiers };
+}
+
+const dominant = simN(99, 99, 400);
+console.log(`  (all-99 build: OVR ${dominant.ovr}, mean All-NBA ${dominant.allNBAs.toFixed(1)}, tiers ${JSON.stringify(dominant.tiers)})`);
+check("all-99 dominant build wins MVP most seasons",
+  Number(dominant.mvps.toFixed(1)), v => v >= 9,
+  "a historically dominant career should clear ~9+ MVPs, not a flat ~35% roll");
+
+const average = simN(70, 70, 400);
+console.log(`  (all-70 build: OVR ${average.ovr}, mean All-NBA ${average.allNBAs.toFixed(1)})`);
+check("average build stays near zero MVPs",
+  Number(average.mvps.toFixed(2)), v => v <= 1.0,
+  "scaling the MVP roll must not hand MVPs to ordinary builds");
+
+console.log("\n" + "=".repeat(52));
+if (failures.length) {
+  console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);
+  failures.forEach(f => console.log(`   - ${f}`));
+  process.exit(1);
+}
+console.log(`PASSED  all ${passed} checks`);
