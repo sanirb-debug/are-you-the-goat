@@ -133,12 +133,14 @@ check("volume path needs ALL of points+seasons+wins (28k pts, short career)",
   atMost("All-Star"));
 
 // Historical regressions that have each shipped broken at least once.
+// raw 73 -> scaled 86 (fixture predates the 25-99 rescale; scenario unchanged)
 check("7x All-Star / 2x All-NBA (was capped at Starter)",
-  tierOf(career({ allStars: 7, allNBAs: 2, peakOVR: 73, goatScore: 370 })),
+  tierOf(career({ allStars: 7, allNBAs: 2, peakOVR: 86, goatScore: 370 })),
   "All-Star");
 
+// raw 78 -> scaled 93
 check("15x All-Star / 8x All-NBA (was capped at All-Star)",
-  tierOf(career({ allStars: 15, allNBAs: 8, peakOVR: 78, goatScore: 430 })),
+  tierOf(career({ allStars: 15, allNBAs: 8, peakOVR: 93, goatScore: 430 })),
   atLeast("Superstar"));
 
 check("tierForCareer(undefined) fails safe, never promotes",
@@ -153,6 +155,42 @@ check("18x All-NBA + 18x All-Star + 4 hardware but only 1 MVP is NOT GOAT",
                   rings: 3, finalsMVPs: 2, peakOVR: 81, goatScore: 600 })),
   atMost("Legend"),
   "GOAT must still require real MVP hardware");
+
+console.log("\n=== PEAK-OVR BANDS ON THE 25-99 SCALE ===");
+
+// Peak OVR is stored on a rescaled 25-99 display scale (scaleOVR in game.js), so
+// the tier floors read as the published ladder: Bust <60, Bench 60, Starter 70,
+// All-Star 80, Superstar 85, Legend 90, GOAT 95. These cases pin each floor.
+check("GOAT floor is reachable at scaled peak 95+",
+  tierOf(career({ peakOVR: 96, allNBAs: 18, allStars: 19, numSeasons: 20, mvps: 5,
+                  rings: 4, finalsMVPs: 3, goatScore: 900 })),
+  "GOAT",
+  "a maxed resume at peak 96 must reach GOAT, not stall below it");
+
+check("just under the GOAT floor (peak 94) does not reach GOAT",
+  tierOf(career({ peakOVR: 94, allNBAs: 18, allStars: 19, numSeasons: 20, mvps: 5,
+                  rings: 4, finalsMVPs: 3, goatScore: 900 })),
+  atMost("Legend"));
+
+check("Superstar is reachable and not skipped (peak 87)",
+  tierOf(career({ peakOVR: 87, allStars: 13, allNBAs: 9, numSeasons: 16, goatScore: 520 })),
+  "Superstar",
+  "Superstar must not be harder to reach than Legend");
+
+check("All-Star floor at scaled peak 80",
+  tierOf(career({ peakOVR: 82, allStars: 7, allNBAs: 2, numSeasons: 15, goatScore: 430 })),
+  "All-Star");
+
+check("Draft Bust is reachable for a genuinely bad career",
+  tierOf(career({ peakOVR: 48, allStars: 0, allNBAs: 0, numSeasons: 5,
+                  careerWins: 120, goatScore: 210 })),
+  "Draft Bust",
+  "Draft Bust and Bench Piece were unreachable before the bucket rebalance");
+
+check("Bench Piece is reachable between the Bust and Starter buckets",
+  tierOf(career({ peakOVR: 64, allStars: 0, allNBAs: 0, numSeasons: 9,
+                  careerWins: 300, goatScore: 330 })),
+  "Bench Piece");
 
 console.log("\n=== MVP RATE SCALES WITH DOMINANCE ===");
 

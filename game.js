@@ -395,6 +395,19 @@ function allNbaSelection(seasonOVR, stats, mvp, dpoy) {
 
 const GAMES_PER_SEASON = 82;
 
+// Peak OVR is reported on a full 25-99 scale, while the SIMULATION keeps running
+// on its own raw scale. Those are deliberately different things. Under the $100M
+// cap the best possible allocation tops out at a raw peak of 83 (solved exactly:
+// concave-hull optimisation over every height/athleticism pair, cross-checked by
+// randomized local search), so a raw peak is compressed into 25..83 and the top
+// of the published ladder would be unreachable. This maps that achievable band
+// onto the full 25..99 the player sees, so the tier floors read as the published
+// numbers (Bust <60 ... GOAT 95+) without touching the economy, the award gates
+// or generateSeasonStats — all of which stay on the raw scale.
+function scaleOVR(raw) {
+  return clamp(Math.round((raw - 25) * (74 / 58) + 25), 25, 99);
+}
+
 function simCareer(ovr, team, mods = {}) {
   // Career length scales with quality: a genuinely bad player gets cut, he does
   // not log 15+ seasons. A flat randInt(15,20) kept Draft-Bust builds in the
@@ -410,7 +423,7 @@ function simCareer(ovr, team, mods = {}) {
   const lenT = clamp((ovr - 45) / 33, 0, 1);  // 45 -> 0.0, 78+ -> 1.0
   const numSeasons = randInt(Math.round(3 + lenT * 12), Math.round(7 + lenT * 13));
   const seasons = [];
-  let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
+  let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = scaleOVR(ovr);
   let bestMVPOVR = 0; // OVR of the strongest MVP-winning season (0 if none)
   let roty = 0, dpoys = 0; // Rookie of the Year (0/1), Defensive Player of the Year (repeatable)
   let allDefensives = 0;   // All-Defensive Team selections (1st or 2nd), repeatable
@@ -422,14 +435,14 @@ function simCareer(ovr, team, mods = {}) {
 
   for (let i = 0; i < numSeasons; i++) {
     const seasonOVR = clamp(ovr + randInt(-3, 3), 25, 99);
-    peakOVR = Math.max(peakOVR, seasonOVR);
+    peakOVR = Math.max(peakOVR, scaleOVR(seasonOVR)); // seasonOVR itself stays raw for the award gates
     // Filling the team's positional need lifts the supporting cast a touch.
     const teamScr = team.scr + (state.teamNeedMet ? 5 : 0);
     const scrThisYear = clamp(teamScr + randInt(-5, 5), 15, 99);
     const result = simSeason(seasonOVR, scrThisYear, varianceRange, i === 0, f.Defense);
     careerWins += result.wins;
     if (result.ring) rings++;
-    if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, seasonOVR); }
+    if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, scaleOVR(seasonOVR)); }
     if (result.finalsMVP) finalsMVPs++;
     if (result.allStar) allStars++;
     if (result.roty) roty = 1;
@@ -485,14 +498,22 @@ function simCareer(ovr, team, mods = {}) {
 // (base-80) build (~3-5% GOAT for perfect play; re-anchored from 690 when
 // the escalating MVP bonus lifted the top tail), Legend 600 = ~p50 of that
 // build, Superstar 465 = ~p50 of a strong maxed-out (base-73) build.
+// GOAT Score buckets, rebalanced onto the scaled-peak distribution (peakOVR * 4
+// is a term in goatScore, so rescaling peak moved every score up). Only the
+// bottom three are load-bearing: tiers All-Star and up are decided by the floors
+// in tierForCareer, and anything failing those is capped below All-Star. The old
+// Bench 100 / Starter 150 sat BELOW the entire population that reaches them
+// (which scores 175+), so Draft Bust and Bench Piece were literally unreachable —
+// every failing build landed Starter. The upper mins are kept consistent with
+// observed scores at those tiers so tierForScore stays coherent.
 const TIERS = [
   { name: "Draft Bust", min: -Infinity },
-  { name: "Bench Piece", min: 100 },
-  { name: "Starter", min: 150 },
-  { name: "All-Star", min: 250 },
-  { name: "Superstar", min: 465 },
-  { name: "Legend", min: 600 },
-  { name: "GOAT", min: 755 },
+  { name: "Bench Piece", min: 280 },
+  { name: "Starter", min: 360 },
+  { name: "All-Star", min: 450 },
+  { name: "Superstar", min: 560 },
+  { name: "Legend", min: 680 },
+  { name: "GOAT", min: 820 },
 ];
 
 function tierForScore(score) {
@@ -514,7 +535,13 @@ function tierForScore(score) {
 // max peak ~83 with the +3 season roll. GOAT at 82 needs a near-perfect
 // build (base 79+) plus a hot season; at 84+ GOAT would be mathematically
 // unreachable — the trap to avoid when retuning.
-const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
+// The published ladder, on the 25-99 scaled peak axis (see scaleOVR):
+//   Draft Bust <60 | Bench 60-70 | Starter 70-80 | All-Star 80-85
+//   Superstar 85-90 | Legend 90-95 | GOAT 95-99
+const TIER_OVR_FLOORS = {
+  "Bench Piece": 60, "Starter": 70, "All-Star": 80,
+  "Superstar": 85, "Legend": 90, "GOAT": 95,
+};
 
 // Award-count floors per tier — the same AND-gate pattern as TIER_OVR_FLOORS:
 // a career must clear EVERY requirement of a tier (score, OVR floor, and all
@@ -530,9 +557,13 @@ const TIER_OVR_FLOORS = { GOAT: 82, Legend: 80, Superstar: 76 };
 // All-NBA career at *Starter* — no tier sits between them, so failing the
 // All-NBA sub-gate dropped it two tiers. Being a repeat All-Star IS the
 // All-Star tier; All-NBA requirements start at Superstar.
+// Superstar sits at 11/7 rather than 9/6 to space the ladder: All-Star seasons
+// need OVR 70 and All-NBA 71, so the two counts move together (mean gap 1.7) and
+// a 9-All-Star floor left only a 6-8 window mapping to the All-Star tier — 77% of
+// qualifying careers jumped straight to Superstar. 6 -> 11 -> 14 -> 18 spreads it.
 const TIER_AWARD_FLOORS = {
   "All-Star":  { allStars: 6 },
-  "Superstar": { allStars: 9,  allNBAs: 6 },
+  "Superstar": { allStars: 11, allNBAs: 7 },
   "Legend":    { allStars: 14, allNBAs: 12, mvps: 1 },
   "GOAT":      { allStars: 18, allNBAs: 15, mvps: 4, hardware: 4 },
 };
@@ -569,9 +600,15 @@ const TIER_AWARD_FLOORS = {
 // the plain budget-optimal build from Superstar straight to GOAT ~18% of runs.
 // At Legend the floor is a single MVP, which a defensive or volume-scoring
 // great can legitimately never win — so the waiver belongs there and only there.
+// Superstar was missing an entry, which made it HARDER than Legend: Legend could
+// clear its OVR floor via an alternate path while Superstar could not, so a build
+// with 15 All-NBA and a sub-floor peak skipped straight past Superstar. The three
+// tiers now step Superstar - Legend - GOAT so the ladder is monotonic.
 const TIER_ALT_PATHS = {
-  Legend: { dpoys: 2, allNBAs: 15, points: 32000, seasons: 17, wins: 850,  waivesMvp: true },
-  GOAT:   { dpoys: 3, allNBAs: 20, points: 40000, seasons: 19, wins: 1000, waivesMvp: false },
+  "All-Star": { dpoys: 1, allNBAs: 5,  points: 16000, seasons: 10, wins: 500,  waivesMvp: true },
+  Superstar: { dpoys: 1, allNBAs: 10, points: 24000, seasons: 14, wins: 700,  waivesMvp: true },
+  Legend:    { dpoys: 2, allNBAs: 15, points: 32000, seasons: 17, wins: 850,  waivesMvp: true },
+  GOAT:      { dpoys: 3, allNBAs: 20, points: 40000, seasons: 19, wins: 1000, waivesMvp: false },
 };
 function hasAltPath(tierName, career) {
   const alt = TIER_ALT_PATHS[tierName];
@@ -651,10 +688,18 @@ function tierForCareer(career, ...legacy) {
   for (let i = TIERS.length - 1; i >= firstFloorTier; i--) {
     if (meetsTierFloors(TIERS[i].name, effectivePeak, c)) return TIERS[i];
   }
-  // No floor tier earned — fall back to the score bucket, capped below All-Star.
-  let idx = TIERS.indexOf(tierForScore(score));
-  if (idx >= firstFloorTier) idx = firstFloorTier - 1;
-  return TIERS[Math.max(0, idx)];
+  // No floor tier earned. Below All-Star there are no award floors, so rank by
+  // BOTH the published peak-OVR band and the GOAT Score bucket and take the
+  // LOWER of the two — that way the score bucket and the OVR floor agree with
+  // each other instead of one silently overriding the other.
+  let byOvr = 0;
+  for (let i = firstFloorTier - 1; i >= 0; i--) {
+    const f = TIER_OVR_FLOORS[TIERS[i].name];
+    if (!f || effectivePeak >= f) { byOvr = i; break; }
+  }
+  let byScore = TIERS.indexOf(tierForScore(score));
+  if (byScore >= firstFloorTier) byScore = firstFloorTier - 1;
+  return TIERS[Math.max(0, Math.min(byOvr, byScore))];
 }
 
 // Hall of Fame: a top-tier career (Superstar+) — OR the very-good/long-career
