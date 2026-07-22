@@ -13,6 +13,7 @@ const state = {
   athleticism: null,   // { name, label, rating, cost }
   skills: {},          // { Shooting: {name, rating, cost}, ... }
   budgetSpent: 0,
+  sandbox: false,      // Sandbox Mode: no cap, all badges active, excluded from all persistent progress
   position: null,
   positionFit: null,   // true/false — does the finished build fit the chosen position
   teamNeedMet: false,  // true if the chosen position fills the career team's positional need
@@ -67,6 +68,11 @@ function fmtSalary(hundredths) {
 }
 
 function budgetRemaining() {
+  // Sandbox lifts the cap entirely. Returning Infinity is deliberately the ONLY
+  // budget change needed: getRosterOptions gates purely on `cost <= remaining`,
+  // so every roster player becomes affordable and the budget-bin fallback (which
+  // only exists to prevent a soft-lock when nothing is affordable) never fires.
+  if (state.sandbox) return Infinity;
   return BUDGET_CAP - state.budgetSpent;
 }
 
@@ -124,6 +130,15 @@ function lockSkill(skillName, result) {
 function lockPhysical(key, result) {
   state[key] = result;
   state.budgetSpent += result.cost;
+}
+
+// Every team's options for a category, flattened — powers the Sandbox roster
+// search. Reuses getRosterOptions per team so affordability, labels and the
+// budget-bin fallback behave identically to a normal scouted list.
+function getAllRosterOptions(category) {
+  return Object.values(TEAMS)
+    .flatMap(t => getRosterOptions(category, t))
+    .sort((a, b) => b.rating - a.rating);
 }
 
 // ---- Modifiers ----
@@ -812,7 +827,7 @@ function computeBadges(ovr, career) {
   if (h >= 85 && SH >= 85) add("Unicorn Build", 90 + (h - 85 + SH - 85) / 2);
   if (h <= 40 && RE >= 85) add("Small Ball Terror", 82 + (RE - 85));
   if (DE >= 88 && (SH >= 88 || FI >= 88)) add("Two-Way Monster", 88 + (DE - 88 + scoring - 88) / 2);
-  if (state.budgetSpent >= 9700) add("Full Send", 42);
+  if (!state.sandbox && state.budgetSpent >= 9700) add("Full Send", 42);
   if (!state.positionFit) add("Positional Anomaly", 56);
   if (career.goatScore < 100) add("Certified Bust", 45);
 
@@ -863,7 +878,7 @@ function computeBadges(ovr, career) {
   // ---- build strategy / budget ----
   if (spread <= 20) add("Balanced Build", 48);
   if (eliteCount >= 2 && weakCount >= 2) add("All In", 62);
-  if (ovr >= 80 && state.budgetSpent <= 8000) add("Bargain Hunter", 80 + (ovr - 80));
+  if (!state.sandbox && ovr >= 80 && state.budgetSpent <= 8000) add("Bargain Hunter", 80 + (ovr - 80));
   if (state.teamNeedMet) add("Need Filler", 52);
 
   return badges.sort((a, b) => b.score - a.score);
@@ -1237,7 +1252,10 @@ function acquiredBadges() {
 // auto-active; 2+ means the player chose exactly 2 on the chooseBadges step.
 function activeBadgeMods() {
   const acquired = acquiredBadges();
-  const activeKeys = acquired.length <= 1
+  // Sandbox stacks EVERY collected trait — no 2-cap, no chooseBadges selection.
+  const activeKeys = state.sandbox
+    ? acquired.map(b => b.key)
+    : acquired.length <= 1
     ? acquired.map(b => b.key)
     : state.activeBadges.filter(k => acquired.some(b => b.key === k));
   const mods = {};
@@ -1252,7 +1270,7 @@ function activeBadgeMods() {
 // the same <=1 auto-active rule.
 function activeBadgeList() {
   const acquired = acquiredBadges();
-  if (acquired.length <= 1) return acquired;
+  if (state.sandbox || acquired.length <= 1) return acquired;
   return acquired.filter(b => state.activeBadges.includes(b.key));
 }
 
@@ -1355,7 +1373,7 @@ function recordCareerRun(run) {
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    seedRng, currentPick, replacePick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    seedRng, currentPick, replacePick, getAllRosterOptions, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,

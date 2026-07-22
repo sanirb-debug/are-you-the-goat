@@ -1769,3 +1769,58 @@ body.modal-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .season-toggle, .season-toggle .st-caret { transition: none; }
 }
+
+/* ---- Sandbox Mode ---- */
+.home-link.sandbox { border-color: var(--line-gold); color: var(--gold-bright); }
+.home-link.sandbox:hover { background: rgba(242, 201, 76, 0.10); }
+
+/* Verdict banner — same shape as .shared-banner so the two read as siblings. */
+.sandbox-banner {
+  background: linear-gradient(90deg, rgba(242,201,76,0.16), rgba(242,201,76,0.04));
+  border: 1px solid var(--line-gold);
+  border-radius: 5px;
+  padding: 9px 14px;
+  margin-bottom: 14px;
+  font-family: var(--font-cond);
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  text-align: center;
+}
+
+/* Team dropdown + league-wide player search, replacing the spin button. */
+.sandbox-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.sandbox-team, .sandbox-search {
+  flex: 1 1 180px;
+  min-width: 0;
+  background: var(--navy);
+  border: 1px solid var(--card-border);
+  border-bottom: 2px solid var(--gold);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-family: var(--font-cond);
+  font-size: 13.5px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+.sandbox-team { cursor: pointer; }
+.sandbox-search::placeholder { color: var(--text-dim); }
+.sandbox-team:focus, .sandbox-search:focus {
+  outline: none;
+  border-bottom-color: var(--gold-bright);
+}
+/* Team abbr shown per row while searching across all 30 teams. */
+.era-tag.team-tag { color: var(--gold-bright); border-color: var(--line-gold); }
+
+.roster-empty {
+  padding: 18px 16px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}

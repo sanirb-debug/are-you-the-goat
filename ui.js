@@ -5,6 +5,7 @@ let career = null;
 let picksDrawerOpen = false; // mobile drawer toggle, persists across renders
 let simRunToken = 0; // invalidates sim-screen timers from earlier runs
 let runUnlocks = []; // achievements earned during THIS playthrough (for the verdict toast)
+let sandboxQuery = ""; // Sandbox roster search text, persists across re-renders within a pick
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -112,7 +113,7 @@ function renderTopBar() {
   bar.appendChild(el("div", "brand", "🏀 ARE YOU THE GOAT?"));
 
   const right = el("div", "topbar-side right");
-  if (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step)) {
+  if (!state.sandbox && (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step))) {
     right.appendChild(el("div", "budget-pill", budgetPillHTML()));
   }
   const help = el("button", "nav-btn", "How to Play");
@@ -312,7 +313,7 @@ function renderEditStep(category) {
   const wrap = el("div", "card");
   wrap.appendChild(el("h1", "step-title center", `Edit: ${categoryLabel(category)}`));
   wrap.appendChild(el("p", "step-sub center",
-    `${team.name} legends &nbsp;·&nbsp; current: ${pick.name} (${fmtSalary(pick.cost)} refunded on swap) &nbsp;·&nbsp; Cap space: ${fmtSalary(budgetRemaining())}`));
+    `${team.name} legends &nbsp;·&nbsp; current: ${pick.name}${state.sandbox ? "" : ` (${fmtSalary(pick.cost)} refunded on swap)`} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no cap" : "Cap space: " + fmtSalary(budgetRemaining())}`));
 
   const list = el("div", "roster-list");
   getRosterOptions(category, team, pick.cost).forEach(opt => {
@@ -414,6 +415,14 @@ function renderHome() {
   cta.onclick = () => { state.currentStep++; render(); };
   modes.appendChild(cta);
   wrap.appendChild(modes);
+
+  // Sandbox Mode — a fun side mode, so secondary weight below the main CTA.
+  const sandboxRow = el("div", "home-secondary");
+  const sandboxBtn = el("button", "home-link sandbox", "\u26A1 Sandbox Mode");
+  sandboxBtn.title = "No budget cap, every trait active - just for fun (not tracked)";
+  sandboxBtn.onclick = () => { state.sandbox = true; state.currentStep++; render(); };
+  sandboxRow.appendChild(sandboxBtn);
+  wrap.appendChild(sandboxRow);
 
   // Two secondary entry points into the Trophy Case (one modal, two tabs).
   const sub = el("div", "home-secondary");
@@ -531,11 +540,55 @@ function renderNameStep() {
   input.focus();
 }
 
+// ---- Sandbox roster browser ----
+// Sandbox only. Normal mode keeps the random spin + 3 rerolls, because that
+// scouting constraint is what makes a real build mean something — a
+// browse-anything control would delete it. Sandbox has no constraints, so any
+// team is fair game.
+function renderSandboxBrowser(category) {
+  const bar = el("div", "sandbox-controls");
+
+  const sel = el("select", "sandbox-team");
+  sel.title = "Browse any team's roster";
+  TEAMS.forEach(t => {
+    const o = document.createElement("option");
+    o.value = t.abbr;
+    o.textContent = t.name;
+    if (state.scoutTeam && t.abbr === state.scoutTeam.abbr) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => {
+    state.scoutTeam = TEAMS.find(t => t.abbr === sel.value) || state.scoutTeam;
+    sandboxQuery = ""; // a team choice replaces an active league-wide search
+    render();
+  };
+
+  const search = el("input", "sandbox-search");
+  search.type = "search";
+  search.placeholder = "Search any player in the league\u2026";
+  search.value = sandboxQuery;
+  // Re-render on input, then restore focus + caret so typing stays continuous.
+  search.oninput = () => {
+    sandboxQuery = search.value;
+    const pos = search.selectionStart;
+    render();
+    const next = document.querySelector(".sandbox-search");
+    if (next) { next.focus(); try { next.setSelectionRange(pos, pos); } catch (e) {} }
+  };
+
+  bar.appendChild(sel);
+  bar.appendChild(search);
+  return bar;
+}
+
 // ---- Shared roster picker (Height, Athleticism, and all 5 skills) ----
 // Each pick gets its own independent team spin. Spinning reveals the team's
 // FULL roster for the category right away — sorted best to worst, clickable
 // to lock in. "Spin Again" (3 shared rerolls per build) sits above the list.
 function renderRosterStep(category, title, sub, onLock) {
+  // Sandbox browses freely, so there is nothing to spin for: seed a team on
+  // entry so a roster is visible straight away and let the dropdown drive.
+  if (state.sandbox && !state.scoutTeam) state.scoutTeam = pickRandom(TEAMS);
   const team = state.scoutTeam;
   const rerollsLeft = TEAM_REROLLS - state.teamRerollsUsed;
 
@@ -545,7 +598,7 @@ function renderRosterStep(category, title, sub, onLock) {
     ? `<span class="scout-team-name">${team.name}</span> legends`
     : "Spin for the franchise you're scouting this pick from.";
   wrap.appendChild(el("p", "step-sub center",
-    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; Cap space: ${fmtSalary(budgetRemaining())}`));
+    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no cap" : "Cap space: " + fmtSalary(budgetRemaining())}`));
 
   const spinBtn = el("button", "btn-primary",
     !team ? "🎡 Spin for a Team"
@@ -560,7 +613,9 @@ function renderRosterStep(category, title, sub, onLock) {
     state.scoutTeam = pickRandom(TEAMS);
     render();
   };
-  wrap.appendChild(spinBtn);
+  // Sandbox replaces the spin with a browse: team dropdown + league-wide search.
+  if (state.sandbox) wrap.appendChild(renderSandboxBrowser(category));
+  else wrap.appendChild(spinBtn);
 
   if (!team) {
     wrap.appendChild(el("div", "spin-result", "?"));
@@ -573,17 +628,24 @@ function renderRosterStep(category, title, sub, onLock) {
          <div class="scout-scr">Supporting Cast Rating ${team.scr}</div>
        </div>`));
     const list = el("div", "roster-list");
-    getRosterOptions(category).forEach(opt => {
+    // In sandbox an active search pulls from every team; otherwise the scouted one.
+    const q = state.sandbox ? sandboxQuery.trim().toLowerCase() : "";
+    const source = q
+      ? getAllRosterOptions(category).filter(o => o.name.toLowerCase().includes(q)).slice(0, 50)
+      : getRosterOptions(category);
+    if (q && !source.length) list.appendChild(el("div", "roster-empty", `No player matches \u201C${sandboxQuery.trim()}\u201D`));
+    source.forEach(opt => {
       // Height/Athleticism show their real-world label plus the individual rating;
       // skills show the rating alone.
       const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
       const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
-        `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${traitPillHTML(opt.name, category)}</span>
+        `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${q ? ` <span class="era-tag team-tag">${opt.team.abbr}</span>` : ""}${traitPillHTML(opt.name, category)}</span>
          <span class="roster-rating">${display}</span>
          <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
       row.disabled = !opt.affordable;
       row.onclick = () => {
-        onLock(opt);
+        onLock(opt); // opt carries its own .team, so cross-team picks are self-describing
+        sandboxQuery = "";
         state.scoutTeam = null; // next pick spins its own team
         state.currentStep++;
         render();
@@ -621,6 +683,14 @@ function renderPositionStep() {
 // ---- New step: activate 2 Signature Traits (only shown when 2+ acquired) ----
 function renderChooseBadges() {
   const acquired = acquiredBadges();
+  // Sandbox stacks every trait, so there is nothing to choose — activate all and
+  // skip the step entirely (same shape as the 0-or-1 case below).
+  if (state.sandbox) {
+    state.activeBadges = acquired.map(b => b.key);
+    state.currentStep++;
+    render();
+    return;
+  }
   // 0 or 1 collected: nothing to choose — auto-activate whatever's there, skip on.
   if (acquired.length <= 1) {
     state.activeBadges = acquired.map(b => b.key);
@@ -669,7 +739,7 @@ function renderConfirmStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Ready to Simulate This Career?"));
   wrap.appendChild(el("p", "step-sub",
-    `All ${CATEGORIES.length} picks locked &nbsp;·&nbsp; Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)} &nbsp;·&nbsp; click any pick to change it`));
+    `All ${CATEGORIES.length} picks locked &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`} &nbsp;·&nbsp; click any pick to change it`));
 
   const list = el("div", "roster-list");
   CATEGORIES.forEach(cat => {
@@ -700,7 +770,9 @@ function renderConfirmStep() {
     // Fold this finished career into lifetime progress exactly once, here at the
     // moment of completion — not in renderVerdict, which can re-run. Capture any
     // fresh unlocks for the verdict toast.
-    runUnlocks = recordCareerRun(buildCareerRun(career)).newlyUnlocked;
+    // Sandbox runs never touch lifetime stats, achievements or personal best —
+    // an uncapped build trivially hits GOAT and would make every one meaningless.
+    runUnlocks = state.sandbox ? [] : recordCareerRun(buildCareerRun(career)).newlyUnlocked;
     state.currentStep++;
     render();
   };
@@ -875,10 +947,15 @@ function renderVerdict() {
   const bestKey = "aytg_best_score";
   const prevBest = parseInt(localStorage.getItem(bestKey) || "0", 10);
   // Don't let viewing someone else's shared build touch the local best.
-  const isNewBest = !state.sharedView && career.goatScore > prevBest;
+  // Sandbox is excluded from persistent progress alongside shared views.
+  const isNewBest = !state.sharedView && !state.sandbox && career.goatScore > prevBest;
   if (isNewBest) localStorage.setItem(bestKey, String(career.goatScore));
 
   const wrap = el("div", "card verdict");
+  if (state.sandbox) {
+    wrap.appendChild(el("div", "sandbox-banner",
+      "\u26A1 <strong>SANDBOX MODE</strong> \u00B7 no salary cap, every trait active \u2014 not counted toward stats or achievements"));
+  }
   if (state.sharedView) {
     wrap.appendChild(el("div", "shared-banner",
       `● Viewing <strong>${state.name}</strong>'s build`));
@@ -1123,7 +1200,7 @@ function renderVerdict() {
 
   const needNote = state.teamNeedMet ? ` &nbsp;·&nbsp; Filled ${state.team.name}'s need ✓` : "";
   wrap.appendChild(el("div", "meta-line",
-    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`));
+    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`}`));
 
   if (state.sharedView) {
     const build = el("button", "btn-primary", "Build Your Own →");
@@ -1175,7 +1252,7 @@ function encodeBuild() {
     // the remaining budget) — encode by bin index + the clamped cost.
     return ["*", BUDGET_BIN.findIndex(x => x.name === p.name), p.cost];
   };
-  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, ab: state.activeBadges, k: CATEGORIES.map(ref) };
+  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, ab: state.activeBadges, sb: state.sandbox ? 1 : 0, k: CATEGORIES.map(ref) };
   return b64urlEncode(JSON.stringify(data));
 }
 
@@ -1215,6 +1292,7 @@ function decodeBuild(str) {
   state.name = String(data.n || "The Mystery Player").slice(0, 24);
   // Shadow target from the link (older links omit it — the verdict guards for null).
   state.shadowTarget = SHADOW_TARGETS[data.sh] ? data.sh : null;
+  state.sandbox = !!data.sb; // a shared sandbox build keeps its banner rather than posing as a real run
   // Active Signature Traits (older links omit; activeBadgeMods filters to acquired).
   state.activeBadges = Array.isArray(data.ab) ? data.ab.slice(0, 2) : [];
   state.position = data.p;
@@ -1361,6 +1439,8 @@ function resetGame() {
   state.editingCategory = null;
   state.seed = null;
   state.sharedView = false;
+  state.sandbox = false; // never leak sandbox rules into a real playthrough
+  sandboxQuery = "";
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;
