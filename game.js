@@ -317,11 +317,17 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
 
   let finalsMVP = ring && ovr >= 78;
 
-  // Rookie of the Year: first simulated season only — an All-Star-caliber
-  // debut (OVR 72+) has a real but not guaranteed shot (same probabilistic
-  // pattern as the MVP roll above).
+  // Rookie of the Year: first simulated season only. ROTY is contested by one
+  // draft class, not the whole league, so a debut of any real quality wins it
+  // most years — the old "OVR 72+, then a 50/50 roll" made it an All-Star-only
+  // lottery that a perfectly respectable Starter-tier rookie could never win
+  // (an OVR-67 build peaks at 70 and was locked out entirely). Odds now ramp
+  // from ~3% at bust level to ~88% once the season clears a modest bar.
   let roty = false;
-  if (isRookie && ovr >= 72) roty = rng() < 0.5;
+  if (isRookie) {
+    const edge = clamp((ovr - 50) / 12, 0, 1); // 50 -> 0.0, 62+ -> 1.0
+    roty = rng() < 0.03 + 0.85 * edge;
+  }
 
   // Defensive Player of the Year: gated on the build's post-modifier DEFENSE
   // rating specifically, not overall OVR — a defensive specialist with a
@@ -384,7 +390,19 @@ function allNbaSelection(seasonOVR, stats, mvp, dpoy) {
 const GAMES_PER_SEASON = 82;
 
 function simCareer(ovr, team, mods = {}) {
-  const numSeasons = randInt(15, 20); // full career, always runs to completion
+  // Career length scales with quality: a genuinely bad player gets cut, he does
+  // not log 15+ seasons. A flat randInt(15,20) kept Draft-Bust builds in the
+  // league two decades. Anchors: OVR 45 and below -> ~3-7 seasons (out by year
+  // 5-6), the middle scales through, and OVR 78+ still gets the full 15-20 —
+  // so strong builds (the greedy-optimal build sits at exactly 78) are
+  // unchanged and the tier distribution stays put.
+  // Interpolating the RANGE ENDS (rather than a midpoint +/- jitter) matters:
+  // at OVR 78+ this resolves to exactly randInt(15, 20), so the old behaviour
+  // for strong builds is reproduced bit for bit and their tier distribution is
+  // untouched. A midpoint-plus-jitter version clamped at 20 quietly truncated
+  // the upper tail and pushed the perfect build's GOAT rate up ~7 points.
+  const lenT = clamp((ovr - 45) / 33, 0, 1);  // 45 -> 0.0, 78+ -> 1.0
+  const numSeasons = randInt(Math.round(3 + lenT * 12), Math.round(7 + lenT * 13));
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = ovr;
   let bestMVPOVR = 0; // OVR of the strongest MVP-winning season (0 if none)

@@ -170,14 +170,18 @@ function simN(skill, def, runs) {
   if (def != null) G.state.skills.Defense = { rating: def, name: "D", cost: 0, era: "-", team: T };
   G.state.activeBadges = [];
   const ovr = G.computeOVR();
-  let mvpSum = 0, anSum = 0, tiers = {};
+  let mvpSum = 0, anSum = 0, seasonSum = 0, rotySum = 0, maxSeasons = 0, minSeasons = 99, tiers = {};
   for (let i = 0; i < runs; i++) {
     G.seedRng(4242 + i);
     const c = G.simCareer(ovr, T, G.activeBadgeMods());
     mvpSum += c.mvps; anSum += c.allNBAs;
+    seasonSum += c.numSeasons; rotySum += c.roty;
+    maxSeasons = Math.max(maxSeasons, c.numSeasons);
+    minSeasons = Math.min(minSeasons, c.numSeasons);
     const t = G.tierForCareer(c).name; tiers[t] = (tiers[t] || 0) + 1;
   }
-  return { ovr, mvps: mvpSum / runs, allNBAs: anSum / runs, tiers };
+  return { ovr, mvps: mvpSum / runs, allNBAs: anSum / runs, tiers,
+           seasons: seasonSum / runs, minSeasons, maxSeasons, rotyRate: rotySum / runs };
 }
 
 const dominant = simN(99, 99, 400);
@@ -191,6 +195,45 @@ console.log(`  (all-70 build: OVR ${average.ovr}, mean All-NBA ${average.allNBAs
 check("average build stays near zero MVPs",
   Number(average.mvps.toFixed(2)), v => v <= 1.0,
   "scaling the MVP roll must not hand MVPs to ordinary builds");
+
+console.log("\n=== CAREER LENGTH SCALES WITH QUALITY ===");
+
+// A genuinely bad player gets cut; he does not log 15+ seasons. Career length
+// must fall out of build quality rather than being a flat randInt(15,20).
+const bust = simN(30, 30, 400);
+console.log(`  (bust build: OVR ${bust.ovr}, seasons ${bust.seasons.toFixed(1)} [${bust.minSeasons}-${bust.maxSeasons}], ROTY rate ${(100 * bust.rotyRate).toFixed(0)}%)`);
+check("Draft-Bust-quality build has a short career",
+  Number(bust.seasons.toFixed(1)), v => v < 10,
+  "a bust should be out of the league in single digits, not last 15+ years");
+check("Draft-Bust career never runs the full 15-20",
+  bust.maxSeasons, v => v <= 12);
+
+const mid = simN(62, 62, 400);
+console.log(`  (mid build: OVR ${mid.ovr}, seasons ${mid.seasons.toFixed(1)} [${mid.minSeasons}-${mid.maxSeasons}])`);
+check("mediocre build lands mid-length, between bust and great",
+  Number(mid.seasons.toFixed(1)), v => v > bust.seasons && v < 16);
+
+const great = simN(95, 95, 400);
+console.log(`  (great build: OVR ${great.ovr}, seasons ${great.seasons.toFixed(1)} [${great.minSeasons}-${great.maxSeasons}], ROTY rate ${(100 * great.rotyRate).toFixed(0)}%)`);
+check("strong build still gets the full-length career",
+  Number(great.seasons.toFixed(1)), v => v >= 15,
+  "great players must still go the distance (15-20)");
+check("strong build career length stays within 15-20",
+  `${great.minSeasons}-${great.maxSeasons}`, v => great.minSeasons >= 15 && great.maxSeasons <= 20);
+
+console.log("\n=== ROTY GOES TO ANY REAL ROOKIE SEASON ===");
+
+// A rookie season of real quality should win ROTY most of the time; only a
+// bust-level debut should be a long shot.
+check("solid rookie season wins ROTY most years",
+  Number(great.rotyRate.toFixed(2)), v => v >= 0.7,
+  "a quality rookie year should convert ~70-90% of the time");
+check("mid-quality rookie season still usually wins ROTY",
+  Number(mid.rotyRate.toFixed(2)), v => v >= 0.6,
+  "Starter-tier-or-better debuts are the realistic ROTY pool");
+check("bust-level rookie season rarely wins ROTY",
+  Number(bust.rotyRate.toFixed(2)), v => v <= 0.15,
+  "a genuinely bad debut should be near-zero, not a coin flip");
 
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
