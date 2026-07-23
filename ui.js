@@ -243,7 +243,10 @@ function showHowToPlay(trigger) {
     panel.innerHTML = HOWTO_STEPS[mode];
     MODE_KEYS.forEach(k => modeBtns[k].classList.toggle("active", k === mode));
   }
-  select("cap");
+  // Open on the mode you're actually playing (Classic when in the no-budget mode,
+  // Salary Cap otherwise — Sandbox has no tab, so it falls to Salary Cap). Both
+  // tabs stay, so the other mode is one click away.
+  select(state.autoPick ? "classic" : "cap");
 
   openModal("How to Play", body, null, trigger);
 }
