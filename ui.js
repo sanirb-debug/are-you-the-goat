@@ -106,8 +106,18 @@ function renderTopBar() {
   const step = STEPS[state.currentStep];
 
   const left = el("div", "topbar-side left");
-  const home = el("button", "nav-btn", "← Home");
-  home.title = "Back to the home screen";
+  // Back first, in the leftmost slot where a back control is expected, and
+  // carrying the arrow — Home gives up the arrow so the two don't read alike.
+  // The distinction matters: Back is the cheap one (step back a screen, keep
+  // everything), Home is the expensive one (leave the build, with a confirm).
+  if (backTargetStep() >= 0 || state.editingCategory) {
+    const back = el("button", "nav-btn nav-back", "← Back");
+    back.title = "Back one screen — your build is kept";
+    back.onclick = () => goBack();
+    left.appendChild(back);
+  }
+  const home = el("button", "nav-btn", "⌂ Home");
+  home.title = "Leave this build and return to the home screen";
   home.onclick = () => goHome(home);
   left.appendChild(home);
   bar.appendChild(left);
@@ -133,6 +143,39 @@ function hasBuildProgress() {
   if (state.sharedView) return false;
   return !!(state.height || state.athleticism || state.position || state.team ||
             Object.keys(state.skills).length || career);
+}
+
+// Step back exactly one screen, keeping the build intact. Distinct from goHome,
+// which abandons the run. Mode-independent: backTargetStep reads the one shared
+// STEPS flow, so Salary Cap, auto-assign and Sandbox all step back the same way.
+function goBack() {
+  // The edit sub-screen is a detour hanging off the current step, not a step of
+  // its own — Back cancels the edit and drops back onto the screen underneath.
+  if (state.editingCategory) { state.editingCategory = null; render(); return; }
+
+  const target = backTargetStep();
+  if (target < 0) return;
+  const step = STEPS[target];
+
+  if (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step)) {
+    // Landing on an attribute screen means that pick is being re-made, so
+    // un-make it: unlockPick refunds the cost so the replacement is charged
+    // once, not stacked on the old one. Restoring the team it was scouted from
+    // means the player re-picks from the SAME roster — going back must not
+    // hand out a free extra spin on top of the 3 rerolls a build gets.
+    const removed = unlockPick(step);
+    if (removed) {
+      state.scoutTeam = removed.team;
+      // Auto-assign has no roster list to return to, so re-show the spin result
+      // it had landed on: the player can re-lock it or spend a reroll respinning.
+      autoAssigned = state.autoPick ? removed : null;
+    }
+  } else {
+    autoAssigned = null;
+  }
+  sandboxQuery = "";
+  state.currentStep = target;
+  render();
 }
 
 function goHome(trigger) {
@@ -746,9 +789,10 @@ function renderPositionStep() {
 // ---- New step: activate 2 Signature Traits (only shown when 2+ acquired) ----
 function renderChooseBadges() {
   const acquired = acquiredBadges();
-  // Sandbox stacks every trait, so there is nothing to choose — activate all and
-  // skip the step entirely (same shape as the 0-or-1 case below).
-  if (state.sandbox) {
+  // Nothing to choose (sandbox stacks everything; every other mode auto-fills at
+  // or under its cap) — activate the lot and skip the step. badgeChoiceIsPending
+  // owns that rule so Back can skip this screen on exactly the same terms.
+  if (!badgeChoiceIsPending()) {
     state.activeBadges = acquired.map(b => b.key);
     state.currentStep++;
     render();
@@ -756,16 +800,6 @@ function renderChooseBadges() {
   }
   // Auto-assign mode allows up to 3 active traits; every other mode allows 2.
   const cap = state.autoPick ? 3 : 2;
-  // At or under the cap there is nothing to choose — auto-activate and skip on.
-  // Auto-assign skips whenever the whole haul already fits its cap (<=3, per
-  // spec). The capped game keeps its original rule untouched: skip at 0 or 1.
-  const autoActivateAt = state.autoPick ? cap : 1;
-  if (acquired.length <= autoActivateAt) {
-    state.activeBadges = acquired.map(b => b.key);
-    state.currentStep++;
-    render();
-    return;
-  }
   // Drop any stale selections (e.g. after editing a pick), cap at 2.
   state.activeBadges = state.activeBadges.filter(k => acquired.some(b => b.key === k)).slice(0, cap);
 

@@ -29,6 +29,31 @@ const state = {
 
 const STEPS = ["home", "shadow", "name", "height", "athleticism", ...SKILL_ORDER, "chooseBadges", "position", "careerTeam", "confirm", "simulating", "verdict"];
 
+// Does the trait screen have a real choice to present? Below the cap there is
+// nothing to pick, so renderChooseBadges auto-activates and advances. Back has
+// to know the same rule, or stepping back onto that screen would bounce the
+// player straight forward again.
+function badgeChoiceIsPending() {
+  if (state.sandbox) return false;          // sandbox stacks every trait
+  const cap = state.autoPick ? 3 : 2;
+  const autoActivateAt = state.autoPick ? cap : 1;
+  return acquiredBadges().length > autoActivateAt;
+}
+
+// Which STEPS index Back should land on from `fromIdx`, or -1 when Back should
+// not be offered at all. Mode-independent: STEPS is one shared flow and the
+// only branch in it is the self-skipping trait screen.
+function backTargetStep(fromIdx = state.currentStep) {
+  const step = STEPS[fromIdx];
+  // The career is already rolling or already recorded — there is no un-simming it.
+  if (step === "simulating" || step === "verdict") return -1;
+  let i = fromIdx - 1;
+  while (i > 0 && STEPS[i] === "chooseBadges" && !badgeChoiceIsPending()) i--;
+  // Index 0 is Home. Leaving the run entirely is the Home button's job (it
+  // confirms first), so Back simply doesn't render on the first in-flow screen.
+  return i <= 0 ? -1 : i;
+}
+
 // Seedable PRNG (mulberry32). All sim randomness flows through rng(), so
 // seeding with the same value before simCareer reproduces an identical
 // career — that's what lets a short share link recreate the exact verdict.
@@ -121,6 +146,26 @@ function replacePick(category, newPick) {
   state.budgetSpent += newPick.cost - old.cost;
   if (category === "height" || category === "athleticism") state[category] = newPick;
   else state.skills[category] = newPick;
+}
+
+// Un-make a pick: refund its cost and empty the slot. This is what stepping
+// BACK into an attribute screen does, and it is what keeps the budget honest —
+// lockSkill/lockPhysical always ADD a cost, so re-picking a slot that still
+// held its old pick would charge both. Returns the removed pick, or null if the
+// slot was already empty (Back pressed twice, a mode that never filled it).
+function unlockPick(category) {
+  const old = currentPick(category);
+  if (!old) return null;
+  state.budgetSpent -= old.cost;
+  if (category === "height" || category === "athleticism") state[category] = null;
+  else delete state.skills[category];
+  // Dropping the pick drops any trait it carried, so an activation referring to
+  // it is now dead. activeBadgeMods() already ignores unacquired keys and
+  // chooseBadges re-filters on the way forward, so nothing downstream breaks —
+  // but leaving a dangling key in state is a trap, and the pick going away is
+  // exactly the moment it stops being valid.
+  state.activeBadges = state.activeBadges.filter(k => k !== old.name + "|" + category);
+  return old;
 }
 
 function lockSkill(skillName, result) {
@@ -1451,6 +1496,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, getAllRosterOptions, autoAssignPick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,

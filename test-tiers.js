@@ -327,6 +327,102 @@ check("bust-level rookie season rarely wins ROTY",
   Number(bust.rotyRate.toFixed(2)), v => v <= 0.15,
   "a genuinely bad debut should be near-zero, not a coin flip");
 
+// ---------------------------------------------------------------------------
+console.log("\n=== BACK NAVIGATION (step back one screen) ===");
+// Back steps to the previous screen without resetting the build. The screen it
+// lands on must be re-pickable, which for an attribute pick means the old pick
+// is refunded and cleared — otherwise lockSkill/lockPhysical would charge the
+// new pick ON TOP of the old one.
+
+const S = G.state;
+const resetState = () => {
+  S.height = null; S.athleticism = null; S.skills = {};
+  S.budgetSpent = 0; S.activeBadges = []; S.scoutTeam = null;
+  S.sandbox = false; S.autoPick = false;
+};
+const opt = (name, cost, rating) => ({ name, era: "modern", label: null, rating, cost, team: G.TEAMS[0] });
+
+resetState();
+G.lockPhysical("height", opt("Tall Guy", 12, 80));
+G.lockSkill("shooting", opt("Shooter", 20, 85));
+check("budget accumulates over two picks", S.budgetSpent, 32);
+
+const removed = G.unlockPick("shooting");
+check("unlockPick returns the pick it removed", removed && removed.name, "Shooter");
+check("unlockPick refunds that pick's cost only", S.budgetSpent, 12);
+check("unlockPick clears the skill slot", G.currentPick("shooting"), undefined);
+check("unlockPick leaves other picks alone", G.currentPick("height").name, "Tall Guy");
+
+// The whole point: re-picking after a back must not stack on the old cost.
+G.lockSkill("shooting", opt("Cheaper Shooter", 5, 70));
+check("re-pick after back charges only the new cost", S.budgetSpent, 17,
+  "12 (height) + 5 (new shooting), NOT 12 + 20 + 5");
+
+// Physical slots use state[key], not state.skills — same contract.
+G.unlockPick("height");
+check("unlockPick refunds a physical pick", S.budgetSpent, 5);
+check("unlockPick clears the physical slot", G.currentPick("height"), null);
+
+// Backing out of a slot that was never filled must be a no-op, not a negative
+// refund (reachable if Back is pressed twice quickly).
+const before = S.budgetSpent;
+check("unlockPick on an empty slot is a no-op", G.unlockPick("finishing"), null);
+check("no-op unlock does not move the budget", S.budgetSpent, before);
+
+// Backing past a trait pick drops that trait's activation with it.
+resetState();
+const traitKey = Object.keys(G.TRAIT_BADGES)[0];
+const [tName, tCat] = traitKey.split("|");
+G.lockSkill(tCat, opt(tName, 10, 88));
+S.activeBadges = [traitKey, "Someone Else|Handles"];
+check("the trait pick really carries a badge", G.acquiredBadges().length, 1);
+G.unlockPick(tCat);
+check("unlockPick drops the removed pick's badge activation",
+  S.activeBadges.join(","), "Someone Else|Handles",
+  "an activation pointing at a pick that no longer exists is dead state");
+resetState();
+
+// --- which step Back lands on ---
+const idx = name => G.STEPS.indexOf(name);
+resetState();
+check("Back is hidden on the first screen of a run", G.backTargetStep(idx("shadow")), -1,
+  "shadow is the first in-flow screen; its 'previous' is Home, which is the Home button's job");
+check("Back is hidden once the career is simulating", G.backTargetStep(idx("simulating")), -1);
+check("Back is hidden on the verdict", G.backTargetStep(idx("verdict")), -1);
+check("Back from Name returns to shadow-target select",
+  G.STEPS[G.backTargetStep(idx("name"))], "shadow");
+check("Back from the first attribute returns to Name",
+  G.STEPS[G.backTargetStep(idx("height"))], "name");
+check("Back from Position skips the auto-skipped badge screen",
+  G.STEPS[G.backTargetStep(idx("position"))], G.SKILL_ORDER[G.SKILL_ORDER.length - 1],
+  "chooseBadges self-advances with <2 traits, so landing on it would bounce straight forward again");
+check("Back from Confirm returns to Career Team",
+  G.STEPS[G.backTargetStep(idx("confirm"))], "careerTeam");
+
+// With enough traits to force a real choice, the badge screen IS a real screen
+// and Back must land on it rather than skipping past.
+resetState();
+// One badge per category — badges sharing a category would occupy one slot
+// and acquire just one trait.
+const traitKeys = [];
+const seenCats = new Set();
+for (const k of Object.keys(G.TRAIT_BADGES)) {
+  const cat = k.split("|")[1];
+  if (seenCats.has(cat)) continue;
+  seenCats.add(cat);
+  traitKeys.push(k);
+  if (traitKeys.length === 3) break;
+}
+traitKeys.forEach(k => {
+  const [name, cat] = k.split("|");
+  G.lockSkill(cat, opt(name, 0, 80));
+});
+check("test setup really acquired 3 traits", G.acquiredBadges().length, 3);
+check("Back from Position stops at the badge screen when a choice is pending",
+  G.STEPS[G.backTargetStep(idx("position"))], "chooseBadges",
+  `${traitKeys.length} traits acquired vs a cap of 2 means the screen actually renders`);
+resetState();
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);

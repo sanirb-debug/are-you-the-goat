@@ -1443,6 +1443,15 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 }
 .nav-btn:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
 
+/* Back is the one a player wants when they just meant "redo that pick", so it
+   carries gold text against Home's muted grey. Same size and shape, so it reads
+   as a peer control rather than a primary action competing with the step CTA. */
+.nav-back {
+  color: var(--gold);
+  border-color: var(--line-gold);
+}
+.nav-back:hover { background: var(--panel-2); }
+
 /* Narrow screens: brand takes its own row above the controls. */
 @media (max-width: 560px) {
   .topbar .brand { order: -1; flex: 1 1 100%; font-size: 17px; }
