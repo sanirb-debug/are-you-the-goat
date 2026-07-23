@@ -200,6 +200,29 @@ function usedPickNames(exceptCategory = null) {
     .map(p => p.name);
 }
 
+// Team abbrs already locked into the build (each pick carries its .team), minus
+// the category being (re)picked. The no-budget wheel forbids landing on a team
+// twice, so it draws from the teams NOT in here. Derived, not stored: unlocking
+// a pick (Back) or resetting frees its team automatically. Only this mode calls
+// it — Salary Cap and Sandbox allow team repeats.
+function usedTeamAbbrs(exceptCategory = null) {
+  const set = new Set();
+  for (const c of CATEGORIES) {
+    if (c === exceptCategory) continue;
+    const p = currentPick(c);
+    if (p && p.team) set.add(p.team.abbr);
+  }
+  return [...set];
+}
+
+// The teams the no-budget wheel can still land on: all 30 minus those already
+// locked in other picks. 30 on pick 1, down to 23 by pick 8 (7 distinct teams
+// locked before it).
+function availableTeams(exceptCategory = null) {
+  const used = new Set(usedTeamAbbrs(exceptCategory));
+  return TEAMS.filter(t => !used.has(t.abbr));
+}
+
 // ---- Modifiers ----
 function applyModifiers(baseRating, statName) {
   const h = state.height.rating;
@@ -1475,7 +1498,7 @@ function recordCareerRun(run) {
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,

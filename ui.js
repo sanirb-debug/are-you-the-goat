@@ -7,6 +7,11 @@ let simRunToken = 0; // invalidates sim-screen timers from earlier runs
 let runUnlocks = []; // achievements earned during THIS playthrough (for the verdict toast)
 let sandboxQuery = ""; // Sandbox roster search text, persists across re-renders within a pick
 let prevBestAtSim = 0;   // personal best as it stood BEFORE this run (see the Simulate handler)
+// No-budget team wheel. Rotation accumulates so every spin turns forward; the
+// token invalidates an in-flight spin if the screen re-renders under it (e.g. Back).
+let wheelRotation = 0;
+let wheelSpinning = false;
+let wheelSpinToken = 0;
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -651,6 +656,129 @@ function renderSandboxBrowser(category) {
   return bar;
 }
 
+// ---- No-budget mode: the team wheel ----
+// A wheel-of-fortune spinner over the teams still available (no team repeats
+// across the 8 picks, so the wheel visibly loses a segment each pick). Pure CSS
+// transform rotation — the disc spins, eases to a stop with a fixed pointer at
+// top landing on one team, then the flow continues to that team's roster exactly
+// as before. Only this mode calls it; Salary Cap and Sandbox are untouched.
+const SPINS_PER_TURN = 5;      // full turns before the disc settles, for feel
+// The angle (deg) the disc must sit at for `available[idx]` to be under the top
+// pointer. Segment i spans [i·seg, (i+1)·seg) clockwise from top; its centre is
+// at i·seg + seg/2, and the disc must rotate by the negative of that to bring it up.
+function wheelAngleFor(idx, n) {
+  const seg = 360 / n;
+  const centre = idx * seg + seg / 2;
+  return ((-centre) % 360 + 360) % 360;
+}
+
+function renderTeamWheel(category, team, rerollsLeft, wrap) {
+  wheelSpinToken++;            // invalidate any spin still animating from a prior render
+  wheelSpinning = false;
+  const available = availableTeams(category);
+  const n = available.length;
+  const seg = 360 / n;
+
+  // Sit the disc at the landed team's angle (static, no animation) so a re-render
+  // after a spin — or a Back that restores a team — shows the right segment on top.
+  // Idle (no team yet) rests at 0. Either way spins accumulate forward from here.
+  if (team) {
+    const idx = available.findIndex(t => t.abbr === team.abbr);
+    wheelRotation = idx >= 0 ? wheelAngleFor(idx, n) : 0;
+  } else {
+    wheelRotation = 0;
+  }
+
+  const stage = el("div", "team-wheel-stage");
+  stage.appendChild(el("div", "tw-pointer"));
+
+  // Alternating navy tones per segment give the slices their edges; a gold-tinted
+  // slice marks whichever team is currently under the pointer.
+  const landedIdx = team ? available.findIndex(t => t.abbr === team.abbr) : -1;
+  const stops = available.map((t, i) => {
+    const c = i === landedIdx ? "#3a2f12" : (i % 2 ? "#132540" : "#0d1a30");
+    return `${c} ${(i * seg).toFixed(3)}deg ${((i + 1) * seg).toFixed(3)}deg`;
+  }).join(", ");
+  const disc = el("div", "team-wheel");
+  disc.style.background = `conic-gradient(from 0deg, ${stops})`;
+  disc.style.transform = `rotate(${wheelRotation}deg)`;
+
+  available.forEach((t, i) => {
+    const label = el("span", "tw-label", t.abbr);
+    label.style.transform = `translate(-50%, -50%) rotate(${(i * seg + seg / 2).toFixed(3)}deg) translateY(-108px)`;
+    if (i === landedIdx) label.classList.add("on");
+    disc.appendChild(label);
+  });
+  stage.appendChild(disc);
+  stage.appendChild(el("div", "tw-hub", n + ""));
+  wrap.appendChild(stage);
+
+  wrap.appendChild(el("p", "tw-count",
+    `${n} team${n === 1 ? "" : "s"} still on the wheel`));
+
+  const canReroll = rerollsLeft > 0;
+  const btn = el("button", "btn-primary",
+    !team ? "🎡 Spin the Wheel"
+      : canReroll ? `Spin Again (${rerollsLeft} left)`
+      : "No Rerolls Left");
+  btn.disabled = !!team && !canReroll;
+  btn.onclick = () => {
+    if (wheelSpinning) return;
+    if (team) {
+      if (!canReroll) return;
+      state.teamRerollsUsed++; // first spin of a pick is free, respins cost a reroll
+    }
+    // Reroll lands on a DIFFERENT team so paying always visibly moves the wheel.
+    const pool = team ? available.filter(t => t.abbr !== team.abbr) : available;
+    const target = pickRandom(pool);
+    const idx = available.findIndex(t => t.abbr === target.abbr);
+
+    const targetMod = wheelAngleFor(idx, n);
+    const cur = ((wheelRotation % 360) + 360) % 360;
+    const delta = ((targetMod - cur) % 360 + 360) % 360;
+    wheelRotation += SPINS_PER_TURN * 360 + delta;
+
+    wheelSpinning = true;
+    btn.disabled = true;
+    const tok = wheelSpinToken;
+    // Respect reduced-motion: a quick settle instead of the long spin.
+    const reduceMotion = window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const durMs = reduceMotion ? 350 : 3000;
+
+    // Landing is driven by a timer, NOT by transitionend alone — under
+    // reduced-motion (or any missed event) transitionend never fires, and the
+    // spin must still resolve or the wheel would hang forever.
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      disc.removeEventListener("transitionend", done);
+      if (tok !== wheelSpinToken) return; // a re-render (e.g. Back) superseded this spin
+      wheelSpinning = false;
+      state.scoutTeam = target;
+      render();
+    };
+
+    if (reduceMotion) {
+      disc.style.transition = "none";
+      disc.style.transform = `rotate(${wheelRotation}deg)`;
+    } else {
+      // Double-rAF is the reliable way to start a transform transition: commit the
+      // transition property on one frame, then change the transform on the next so
+      // the browser has a baseline to animate FROM (a plain reflow read proved
+      // flaky here). transitionend finishes early; the timer below guarantees it.
+      disc.style.transition = `transform ${durMs}ms cubic-bezier(0.16, 0.62, 0.13, 1)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        disc.style.transform = `rotate(${wheelRotation}deg)`;
+      }));
+      disc.addEventListener("transitionend", done);
+    }
+    setTimeout(done, durMs + 120); // guaranteed resolution even if transitionend never fires
+  };
+  wrap.appendChild(btn);
+}
+
 // ---- Shared roster picker (Height, Athleticism, and all 5 skills) ----
 // Each pick gets its own independent team spin. Spinning reveals the team's
 // FULL roster for the category right away — sorted best to worst, clickable
@@ -674,25 +802,34 @@ function renderRosterStep(category, title, sub, onLock) {
     : "Cap space: " + fmtSalary(budgetRemaining());
   wrap.appendChild(el("p", "step-sub center", `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${capNote}`));
 
-  const spinBtn = el("button", "btn-primary",
-    !team ? "🎡 Spin for a Team"
-      : rerollsLeft > 0 ? `Spin Again (${rerollsLeft} left)`
-      : "No Rerolls Left");
-  spinBtn.disabled = !!team && rerollsLeft <= 0;
-  spinBtn.onclick = () => {
-    if (team) {
-      if (rerollsLeft <= 0) return;
-      state.teamRerollsUsed++; // first spin of each pick is free, respins are not
-    }
-    state.scoutTeam = pickRandom(TEAMS);
-    render();
-  };
-  // Sandbox replaces the spin with a browse: team dropdown + league-wide search.
-  if (state.sandbox) wrap.appendChild(renderSandboxBrowser(category));
-  else wrap.appendChild(spinBtn);
+  // Team selection, per mode:
+  //  - Sandbox: browse controls (dropdown + search), team already seeded above.
+  //  - No-budget: a real spinning wheel of the teams still available (no repeats).
+  //  - Salary Cap: the classic instant-reveal spin button.
+  if (state.sandbox) {
+    wrap.appendChild(renderSandboxBrowser(category));
+  } else if (state.autoPick) {
+    renderTeamWheel(category, team, rerollsLeft, wrap);
+  } else {
+    const spinBtn = el("button", "btn-primary",
+      !team ? "🎡 Spin for a Team"
+        : rerollsLeft > 0 ? `Spin Again (${rerollsLeft} left)`
+        : "No Rerolls Left");
+    spinBtn.disabled = !!team && rerollsLeft <= 0;
+    spinBtn.onclick = () => {
+      if (team) {
+        if (rerollsLeft <= 0) return;
+        state.teamRerollsUsed++; // first spin of each pick is free, respins are not
+      }
+      state.scoutTeam = pickRandom(TEAMS);
+      render();
+    };
+    wrap.appendChild(spinBtn);
+  }
 
   if (!team) {
-    wrap.appendChild(el("div", "spin-result", "?"));
+    // The no-budget wheel is its own pre-spin visual — no "?" placeholder there.
+    if (!state.autoPick) wrap.appendChild(el("div", "spin-result", "?"));
   } else {
     wrap.appendChild(el("div", "scout-header",
       `<div class="scout-badge">${team.abbr}</div>
@@ -1529,6 +1666,8 @@ function resetGame() {
   state.sandbox = false; // never leak sandbox rules into a real playthrough
   state.autoPick = false;
   sandboxQuery = "";
+  wheelRotation = 0;
+  wheelSpinning = false;
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;

@@ -478,6 +478,64 @@ check("smallest roster outnumbers the max prior picks", minRoster > 7, true,
 
 S2.autoPick = false; S2.scoutTeam = null; // leave global state clean for later sections
 
+// ---------------------------------------------------------------------------
+console.log("\n=== NO-BUDGET MODE: no-repeat teams (the wheel) ===");
+// The team wheel draws from availableTeams — all 30 minus teams already locked
+// in other picks — so it visibly shrinks 30 -> 23 across the 8 picks and never
+// lands on a team twice. Derived from the picks, so Back frees a team for free.
+
+const S3 = G.state;
+const resetTeams = () => {
+  S3.height = null; S3.athleticism = null; S3.skills = {};
+  S3.budgetSpent = 0; S3.sandbox = false; S3.autoPick = true; S3.scoutTeam = null;
+};
+const onTeam = (name, abbr) => ({ name, era: "modern", label: null, rating: 80, cost: 0,
+  team: G.TEAMS.find(t => t.abbr === abbr) });
+
+resetTeams();
+check("wheel starts with all 30 teams", G.availableTeams().length, 30);
+check("no teams used on a fresh build", G.usedTeamAbbrs().length, 0);
+
+// Lock 7 picks, each from a DISTINCT team, and watch the pool shrink.
+const abbrs = G.TEAMS.slice(0, 7).map(t => t.abbr);
+G.lockPhysical("height", onTeam("A", abbrs[0]));
+G.lockPhysical("athleticism", onTeam("B", abbrs[1]));
+G.lockSkill("Shooting", onTeam("C", abbrs[2]));
+G.lockSkill("Finishing", onTeam("D", abbrs[3]));
+G.lockSkill("Playmaking", onTeam("E", abbrs[4]));
+G.lockSkill("Handles", onTeam("F", abbrs[5]));
+G.lockSkill("Defense", onTeam("G", abbrs[6]));
+check("7 distinct teams are now used", G.usedTeamAbbrs().length, 7);
+check("wheel for pick 8 is down to 23 teams", G.availableTeams("Rebounding").length, 23);
+check("a used team is not on the wheel",
+  G.availableTeams("Rebounding").some(t => t.abbr === abbrs[0]), false);
+
+// exceptCategory: the slot being re-picked must keep its own team on the wheel,
+// or Back-then-respin could never re-land the team it just left.
+check("the re-picked category's own team stays available",
+  G.availableTeams("Shooting").some(t => t.abbr === abbrs[2]), true);
+check("but it is still excluded for a DIFFERENT category",
+  G.availableTeams("Rebounding").some(t => t.abbr === abbrs[2]), false);
+
+// Back frees a team: unlockPick removes the pick, so its team returns to the pool.
+G.unlockPick("Defense");
+check("unlocking a pick frees its team back onto the wheel",
+  G.availableTeams("Rebounding").some(t => t.abbr === abbrs[6]), true);
+check("used-team count drops after unlock", G.usedTeamAbbrs().length, 6);
+
+// A team appearing in no pick is always available; picks with no .team (shouldn't
+// happen in this mode, but be defensive) don't poison the set.
+resetTeams();
+check("availableTeams ignores picks that carry no team", (() => {
+  S3.skills["Shooting"] = { name: "X", rating: 80, cost: 0 }; // no .team
+  const ok = G.availableTeams().length === 30;
+  S3.skills = {};
+  return ok;
+})(), true);
+
+resetTeams();
+S3.autoPick = false; // leave global state clean for later sections
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);
