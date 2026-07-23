@@ -193,20 +193,58 @@ function goHome(trigger) {
   ], trigger);
 }
 
-function showHowToPlay(trigger) {
-  const body = el("div", "howto", `
-    <p class="modal-text">Build a player from scratch, run their career, and see where they land.</p>
+// How to Play: the two tracked modes each get their own steps behind a sub-tab
+// (same split as the Trophy Case). Sandbox is a fun untracked side mode, so it
+// is left out here too. The tier ladder is shared — it works the same in both.
+const HOWTO_STEPS = {
+  cap: `
     <ol class="howto-list">
       <li><b>Pick your shadow.</b> Choose an all-time great to measure yourself against. The <b>Chasing the Shadow</b> tracker compares your final stats to theirs, category by category.</li>
       <li><b>Name your player.</b></li>
-      <li><b>Make 8 attribute picks</b> — Height, Athleticism, and the five skills. Each pick spins up a scouted team, and you buy from that team's roster. Every player costs cap space against one shared <b>$100M budget</b>, so a max-rated pick early means bargain-bin picks later.</li>
-      <li><b>Claim trait badges.</b> Some legends carry a signature trait (★). Land one and you choose two to activate for stat bonuses.</li>
-      <li><b>Pick a position and a career team.</b> Fitting your position and filling the team's need both help.</li>
+      <li><b>Make 8 attribute picks</b> — Height, Athleticism, and the five skills, in order. Each pick spins up a scouted team and you buy from that team's <b>full roster</b>. Every player costs cap space against one shared <b>$100M budget</b>, so a max-rated pick early means bargain-bin picks later. Click any locked pick in the sidebar to swap it while you build.</li>
+      <li><b>Claim trait badges.</b> Some legends carry a signature trait (★). Collect 2 or more and you choose <b>two</b> to activate for stat bonuses.</li>
+      <li><b>Pick a position and a career team.</b> Fitting your position and filling the team's positional need both help.</li>
       <li><b>Simulate.</b> Watch the career play out season by season, then read the verdict.</li>
-    </ol>
-    <p class="modal-text">Your career earns a spot on the ladder — awards and rings matter as much as ratings:</p>
-    <div class="howto-ladder">${TIERS.map(t => `<span>${t.name}</span>`).join("")}</div>
-  `);
+    </ol>`,
+  classic: `
+    <ol class="howto-list">
+      <li><b>Pick your shadow.</b> Same all-time great to measure yourself against, category by category.</li>
+      <li><b>Name your player.</b></li>
+      <li><b>Fill 8 attribute slots — no budget, no fixed order.</b> Each round, <b>spin the wheel</b> for a team (no team repeats across your build, so the wheel shrinks as you go), then <b>spin for a player</b> on that team (no player repeats). You see that player's <b>full 8-stat card</b> and take <b>any one</b> rating whose slot is still open — it fills that slot. Fill the eight in whatever order you like; a stat whose slot is already taken is greyed out.</li>
+      <li><b>Claim trait badges.</b> Same signature traits (★) — here you can activate up to <b>three</b>.</li>
+      <li><b>No do-overs.</b> Once a rating is locked into a slot it's final — the sidebar isn't click-to-swap here. Use <b>Back</b> to step back a whole round.</li>
+      <li><b>Pick a position and a career team, then simulate.</b> Just like Salary Cap — position fit and team need matter — then read the verdict.</li>
+    </ol>`,
+};
+
+function showHowToPlay(trigger) {
+  const body = el("div", "howto");
+  body.appendChild(el("p", "modal-text", "Build a player from scratch, run their career, and see where they land. Two tracked modes, one ladder:"));
+
+  // Mode sub-tabs — same pattern as the Trophy Case split.
+  const modeBar = el("div", "trophy-modes");
+  const modeBtns = {};
+  MODE_KEYS.forEach(k => {
+    const b = el("button", "trophy-mode", MODE_LABELS[k]);
+    b.onclick = () => select(k);
+    modeBtns[k] = b;
+    modeBar.appendChild(b);
+  });
+  body.appendChild(modeBar);
+
+  const panel = el("div", "howto-steps");
+  body.appendChild(panel);
+
+  // Shared tier ladder — shown once, since tiers work the same in both modes.
+  body.appendChild(el("p", "modal-text", "Your career earns a spot on the ladder — awards and rings matter as much as ratings:"));
+  body.appendChild(el("div", "howto-ladder", TIERS.map(t => `<span>${t.name}</span>`).join("")));
+
+  function select(mode) {
+    panel.innerHTML = HOWTO_STEPS[mode];
+    MODE_KEYS.forEach(k => modeBtns[k].classList.toggle("active", k === mode));
+  }
+  select("cap");
+
   openModal("How to Play", body, null, trigger);
 }
 
