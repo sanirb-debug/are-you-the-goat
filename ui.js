@@ -167,15 +167,13 @@ function goBack() {
   const step = STEPS[target];
 
   if (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step)) {
-    // Landing on an attribute screen means that pick is being re-made, so
-    // un-make it: unlockPick refunds the cost so the replacement is charged
-    // once, not stacked on the old one. Restoring the team it was scouted from
-    // means the player re-picks from the SAME roster — going back must not
-    // hand out a free extra spin on top of the 3 rerolls a build gets.
-    const removed = unlockPick(step);
-    // Restore the team it was scouted from so the SAME roster list reappears
-    // (all three modes step back into a list now). Clearing its slot also frees
-    // that player to be re-picked, and re-admits them to the no-repeat lists.
+    // Landing on an attribute screen means that pick is being re-made, so un-make
+    // it. In no-budget mode slots fill out of order, so the slot to re-open is the
+    // one filled LAST (tracked in pickOrder), not this step's category. Sequential
+    // modes still un-make the step's own category. Restoring the scouted team means
+    // the re-pick draws from the SAME roster — Back must not hand out a free spin.
+    const cat = state.autoPick ? state.pickOrder.pop() : step;
+    const removed = cat ? unlockPick(cat) : null;
     if (removed) state.scoutTeam = removed.team;
   }
   sandboxQuery = "";
@@ -817,41 +815,53 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
     return;
   }
 
-  // ---- Landed: the full 8-stat card, free choice, lock ----
+  // ---- Landed: the full 8-stat card, free-for-all slot fill ----
+  // Clicking a stat fills THAT stat's slot (on-category). Stats whose slot is
+  // already filled are disabled — you can only fill still-open slots.
   statChoiceKey = null;
   const p = state.spunPlayer;
   wrap.appendChild(el("div", "player-reel landed",
-    `${p.name} <span class="era-tag">${p.era}</span>${traitPillHTML(p.name, category)}`));
+    `${p.name} <span class="era-tag">${p.era}</span>`));
   wrap.appendChild(el("p", "stat-card-hint center",
-    `Take <strong>any one</strong> of ${p.name.split(" ").slice(-1)[0]}'s ratings to fill <strong>${categoryLabel(category)}</strong> — it doesn't have to match.`));
+    `Click any <strong>open</strong> stat to lock ${p.name.split(" ").slice(-1)[0]}'s rating into that slot. Filled slots are greyed out.`));
 
   const card = el("div", "stat-card");
   CATEGORIES.forEach(cat => {
     const rating = categoryRating(p, cat);
     const bandLabel = cat === "height" ? p.height.label : cat === "athleticism" ? p.athleticism.label : null;
-    const cell = el("button", "stat-cell" + (cat === category ? " slot-match" : ""),
-      `<span class="sc-cat">${categoryLabel(cat)}${cat === category ? " <span class=\"sc-slot\">this slot</span>" : ""}</span>
+    const filled = !!currentPick(cat);
+    const hasBadge = SKILL_ORDER.includes(cat) && !!TRAIT_BADGES[p.name + "|" + cat];
+    const cell = el("button", "stat-cell" + (filled ? " filled" : ""),
+      `<span class="sc-cat">${categoryLabel(cat)}${filled ? ` <span class="sc-taken">filled</span>` : hasBadge ? ` <span class="sc-star">★</span>` : ""}</span>
        <span class="sc-val">${bandLabel ? `${bandLabel} <span class="sc-sub">${rating}</span>` : rating}</span>`);
+    cell.disabled = filled;
     cell.onclick = () => {
+      if (filled) return;
       statChoiceKey = cat;
       [...card.querySelectorAll(".stat-cell")].forEach(c => c.classList.remove("selected"));
       cell.classList.add("selected");
       lockBtn.disabled = false;
-      lockBtn.textContent = `Lock ${categoryLabel(category)}: ${categoryLabel(cat)} ${rating} →`;
+      lockBtn.textContent = `Lock ${categoryLabel(cat)}: ${rating} →`;
     };
     card.appendChild(cell);
   });
   wrap.appendChild(card);
 
-  const lockBtn = el("button", "btn-primary", `Choose a rating above`);
+  const lockBtn = el("button", "btn-primary", `Choose an open stat above`);
   lockBtn.disabled = true;
   lockBtn.style.marginTop = "12px";
   lockBtn.onclick = () => {
-    if (!statChoiceKey) return;
-    onLock(buildStatPick(p, team, category, statChoiceKey));
+    const cat = statChoiceKey;
+    if (!cat || currentPick(cat)) return;
+    // The chosen stat fills its OWN slot; the pick carries the scouted team so
+    // no-repeat teams keeps working. cost 0 — this mode tracks no budget.
+    const pick = buildStatPick(p, team, cat, cat);
+    if (cat === "height" || cat === "athleticism") lockPhysical(cat, pick);
+    else lockSkill(cat, pick);
+    state.pickOrder.push(cat); // so Back re-opens the slot actually filled this round
     state.spunPlayer = null;
     state.playerRerollsUsed = 0;
-    state.scoutTeam = null; // next pick spins its own team
+    state.scoutTeam = null; // next round spins its own team
     state.currentStep++;
     render();
   };
@@ -921,16 +931,23 @@ function renderRosterStep(category, title, sub, onLock) {
   const rerollsLeft = TEAM_REROLLS - state.teamRerollsUsed;
 
   const wrap = el("div", "card");
-  wrap.appendChild(el("h1", "step-title center", `Pick: ${title}`));
+  // No-budget mode is a free-for-all loop \u2014 no fixed slot per screen, so the
+  // title and prompt are generic (the chosen stat decides which slot fills).
+  const openLeft = state.autoPick ? CATEGORIES.filter(c => !currentPick(c)).length : 0;
+  wrap.appendChild(el("h1", "step-title center",
+    state.autoPick ? "Spin & Choose" : `Pick: ${title}`));
   const teamNote = team
     ? `<span class="scout-team-name">${team.name}</span> legends`
     : "Spin for the franchise you're scouting this pick from.";
   // Cap space, or the reason there isn't one. The no-budget team-spin mode lets
   // you pick freely from the spun team, minus anyone already on your roster.
   const capNote = state.sandbox ? "Sandbox \u2014 no cap"
-    : state.autoPick ? "No salary cap \u2014 pick any player, no repeats"
+    : state.autoPick ? `${openLeft} slot${openLeft === 1 ? "" : "s"} left to fill \u2014 no repeats`
     : "Cap space: " + fmtSalary(budgetRemaining());
-  wrap.appendChild(el("p", "step-sub center", `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${capNote}`));
+  const subLine = state.autoPick
+    ? "Spin a team, spin a player, then take one of their ratings into any open slot."
+    : sub;
+  wrap.appendChild(el("p", "step-sub center", `${subLine} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${capNote}`));
 
   // Team selection, per mode:
   //  - Sandbox: browse controls (dropdown + search), team already seeded above.
@@ -1789,6 +1806,7 @@ function resetGame() {
   state.teamRerollsUsed = 0;
   state.spunPlayer = null;
   state.playerRerollsUsed = 0;
+  state.pickOrder = [];
   state.editingCategory = null;
   state.seed = null;
   state.sharedView = false;

@@ -595,6 +595,56 @@ check("excluding the current slot keeps its own player spinnable",
 resetSpin();
 S4.autoPick = false; // leave global state clean for later sections
 
+// ---------------------------------------------------------------------------
+console.log("\n=== NO-BUDGET MODE: free-for-all fill order ===");
+// The 8 attribute picks become an order-free loop: any spin can fill any OPEN
+// slot. state.pickOrder records the fill order so Back re-opens the slot that
+// was actually filled last, not the round's step category. Already-filled slots
+// drive the card's disable rule via currentPick(cat).
+
+const S5 = G.state;
+const resetFF = () => {
+  S5.height = null; S5.athleticism = null; S5.skills = {};
+  S5.budgetSpent = 0; S5.sandbox = false; S5.autoPick = true; S5.scoutTeam = null;
+  S5.pickOrder = [];
+};
+const team0FF = G.TEAMS[0];
+const pk = (cat) => {
+  const p = G.TEAM_ROSTERS[team0FF.abbr].find(x => !G.usedPickNames().includes(x.name));
+  const pick = G.buildStatPick(p, team0FF, cat, cat);
+  if (cat === "height" || cat === "athleticism") G.lockPhysical(cat, pick); else G.lockSkill(cat, pick);
+  S5.pickOrder.push(cat);
+  return pick;
+};
+
+resetFF();
+// Fill slots OUT of the fixed step order: Playmaking, then Height, then Defense.
+pk("Playmaking"); pk("height"); pk("Defense");
+check("pickOrder records fills in the order they happened",
+  S5.pickOrder.join(","), "Playmaking,height,Defense");
+check("filled slots are detectable regardless of order (Playmaking)", !!G.currentPick("Playmaking"), true);
+check("filled slots are detectable regardless of order (height)", !!G.currentPick("height"), true);
+check("an untouched slot reads open", !!G.currentPick("Shooting"), false);
+
+// Back = pop the LAST-filled slot and free it (NOT the step's category).
+const last = S5.pickOrder.pop();
+G.unlockPick(last);
+check("Back frees the last-filled slot", last, "Defense");
+check("the freed slot is open again", !!G.currentPick("Defense"), false);
+check("earlier out-of-order fills are untouched by Back", !!G.currentPick("Playmaking"), true);
+check("pickOrder shrinks by one on Back", S5.pickOrder.join(","), "Playmaking,height");
+
+// A physical slot filled on-category takes that player's real band + rating.
+resetFF();
+const someHt = G.TEAM_ROSTERS[team0FF.abbr][0];
+const hpick = G.buildStatPick(someHt, team0FF, "height", "height");
+check("on-category height fill takes the player's height rating", hpick.rating, someHt.height.rating);
+check("on-category height fill's band matches the player's height",
+  hpick.label, G.physicalBandLabel("height", someHt.height.rating));
+
+resetFF();
+S5.autoPick = false; S5.pickOrder = []; // leave global state clean for later sections
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);

@@ -281,8 +281,24 @@ body {
   text-align: left;
   transition: border-color 0.14s ease, background 0.14s ease;
 }
-.stat-cell:hover { background: #16233c; border-left-color: var(--gold); }
+.stat-cell:hover:not(:disabled) { background: #16233c; border-left-color: var(--gold); }
 .stat-cell.slot-match { border-color: var(--line-gold); }
+/* An already-filled slot: greyed and unclickable on later cards. */
+.stat-cell.filled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: saturate(0.4);
+}
+.sc-taken {
+  color: var(--navy);
+  background: var(--text-dim);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-left: 4px;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.sc-star { color: var(--gold-bright); margin-left: 4px; font-size: 11px; }
 .stat-cell.selected {
   background: rgba(212, 167, 44, 0.12);
   border-color: var(--gold-bright);
