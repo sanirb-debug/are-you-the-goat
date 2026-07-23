@@ -14,6 +14,7 @@ const state = {
   skills: {},          // { Shooting: {name, rating, cost}, ... }
   budgetSpent: 0,
   sandbox: false,      // Sandbox Mode: no cap, all badges active, excluded from all persistent progress
+  autoPick: false,     // Auto-assign mode: no cap, player is randomly assigned per spin, up to 3 badges
   position: null,
   positionFit: null,   // true/false — does the finished build fit the chosen position
   teamNeedMet: false,  // true if the chosen position fills the career team's positional need
@@ -72,7 +73,7 @@ function budgetRemaining() {
   // budget change needed: getRosterOptions gates purely on `cost <= remaining`,
   // so every roster player becomes affordable and the budget-bin fallback (which
   // only exists to prevent a soft-lock when nothing is affordable) never fires.
-  if (state.sandbox) return Infinity;
+  if (state.sandbox || state.autoPick) return Infinity;
   return BUDGET_CAP - state.budgetSpent;
 }
 
@@ -139,6 +140,39 @@ function getAllRosterOptions(category) {
   return Object.values(TEAMS)
     .flatMap(t => getRosterOptions(category, t))
     .sort((a, b) => b.rating - a.rating);
+}
+
+// Auto-assign mode: spin a team, then take whoever that spin lands on for this
+// category — no roster list, no shopping. A player already used earlier in the
+// build is never assigned twice; if the spun team has nobody left, we respin the
+// team rather than hand back a duplicate. `attempts` is bounded so a pathological
+// state can never spin forever.
+// Returns { name, era, label, rating, cost, team } — the same shape
+// getRosterOptions produces, so lockSkill/lockPhysical need no special-casing.
+function autoAssignPick(category, usedNames = []) {
+  const used = new Set(usedNames);
+  const build = (p, team) => ({
+    name: p.name, era: p.era,
+    label: category === "height" ? p.height.label
+      : category === "athleticism" ? p.athleticism.label
+      : null,
+    rating: categoryRating(p, category),
+    cost: 0, // this mode tracks no spending at all
+    team,
+  });
+  // first try the team already on screen
+  let team = state.scoutTeam;
+  if (team) {
+    const pool = (TEAM_ROSTERS[team.abbr] || []).filter(p => !used.has(p.name));
+    if (pool.length) return build(pickRandom(pool), team);
+  }
+  // that team is exhausted for this build — respin until one has a free player
+  for (let attempts = 0; attempts < 60; attempts++) {
+    team = pickRandom(TEAMS);
+    const pool = (TEAM_ROSTERS[team.abbr] || []).filter(p => !used.has(p.name));
+    if (pool.length) { state.scoutTeam = team; return build(pickRandom(pool), team); }
+  }
+  return null; // unreachable with 30 teams x ~17 players and only 8 picks
 }
 
 // ---- Modifiers ----
@@ -1373,7 +1407,7 @@ function recordCareerRun(run) {
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    seedRng, currentPick, replacePick, getAllRosterOptions, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    seedRng, currentPick, replacePick, getAllRosterOptions, autoAssignPick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,

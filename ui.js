@@ -6,6 +6,8 @@ let picksDrawerOpen = false; // mobile drawer toggle, persists across renders
 let simRunToken = 0; // invalidates sim-screen timers from earlier runs
 let runUnlocks = []; // achievements earned during THIS playthrough (for the verdict toast)
 let sandboxQuery = ""; // Sandbox roster search text, persists across re-renders within a pick
+let autoAssigned = null; // Auto-assign mode: the player this spin landed on, awaiting Lock It In
+let prevBestAtSim = 0;   // personal best as it stood BEFORE this run (see the Simulate handler)
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -113,7 +115,7 @@ function renderTopBar() {
   bar.appendChild(el("div", "brand", "🏀 ARE YOU THE GOAT?"));
 
   const right = el("div", "topbar-side right");
-  if (!state.sandbox && (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step))) {
+  if (!state.sandbox && !state.autoPick && (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step))) {
     right.appendChild(el("div", "budget-pill", budgetPillHTML()));
   }
   const help = el("button", "nav-btn", "How to Play");
@@ -285,12 +287,14 @@ function renderPicksPanel() {
     if (pick) {
       const b = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[pick.name + "|" + cat] : null;
       const badgeLine = b ? `<span class="picks-badge" title="${b.name} — ${b.effect}">★ ${b.name}</span>` : "";
-      const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : ""),
+      const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : "") + (state.autoPick ? " locked-in" : ""),
         `<span class="picks-cat">${categoryLabel(cat)}</span>
          <span class="picks-player">${pick.name}</span>
          <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${fmtSalary(pick.cost)}</span>
          ${badgeLine}`);
+      row.disabled = state.autoPick; // the spin decides; no re-picking from a list
       row.onclick = () => {
+        if (state.autoPick) return;
         state.editingCategory = cat;
         render();
       };
@@ -307,6 +311,8 @@ function renderPicksPanel() {
 // ---- Edit a locked pick ----
 // Re-opens the same team's roster the pick was scouted from — no new spin.
 function renderEditStep(category) {
+  // Auto-assign never exposes a manual roster list — bail back to the flow.
+  if (state.autoPick) { state.editingCategory = null; render(); return; }
   const pick = currentPick(category);
   const team = pick.team;
 
@@ -411,9 +417,14 @@ function renderHome() {
   wrap.appendChild(el("p", "home-tagline", "Build a legend. Chase the shadow. Find out."));
 
   const modes = el("div", "home-modes");
+  // New primary: spin-and-be-assigned, no budget.
   const cta = el("button", "home-cta", "ARE YOU THE GOAT?");
-  cta.onclick = () => { state.currentStep++; render(); };
+  cta.onclick = () => { state.autoPick = true; state.currentStep++; render(); };
   modes.appendChild(cta);
+  // The original constrained game, now explicitly labelled.
+  const capCta = el("button", "home-cta cap-edition", "ARE YOU THE GOAT? <span>(SALARY CAP EDITION)</span>");
+  capCta.onclick = () => { state.currentStep++; render(); };
+  modes.appendChild(capCta);
   wrap.appendChild(modes);
 
   // Sandbox Mode — a fun side mode, so secondary weight below the main CTA.
@@ -598,7 +609,7 @@ function renderRosterStep(category, title, sub, onLock) {
     ? `<span class="scout-team-name">${team.name}</span> legends`
     : "Spin for the franchise you're scouting this pick from.";
   wrap.appendChild(el("p", "step-sub center",
-    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no cap" : "Cap space: " + fmtSalary(budgetRemaining())}`));
+    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no cap" : state.autoPick ? "No salary cap \u2014 the spin decides" : "Cap space: " + fmtSalary(budgetRemaining())}`));
 
   const spinBtn = el("button", "btn-primary",
     !team ? "🎡 Spin for a Team"
@@ -611,11 +622,42 @@ function renderRosterStep(category, title, sub, onLock) {
       state.teamRerollsUsed++; // first spin of each pick is free, respins are not
     }
     state.scoutTeam = pickRandom(TEAMS);
+    if (state.autoPick) {
+      // the spin IS the pick: assign immediately, skipping any already-used player
+      const used = CATEGORIES.map(c => currentPick(c)).filter(Boolean).map(p => p.name);
+      autoAssigned = autoAssignPick(category, used);
+    }
     render();
   };
   // Sandbox replaces the spin with a browse: team dropdown + league-wide search.
   if (state.sandbox) wrap.appendChild(renderSandboxBrowser(category));
   else wrap.appendChild(spinBtn);
+
+  // ---- Auto-assign mode: the spin picks the player, there is no list ----
+  if (state.autoPick) {
+    if (!autoAssigned) {
+      wrap.appendChild(el("div", "spin-result", team ? "\u2014" : "?"));
+    } else {
+      const a = autoAssigned;
+      const ratingLine = a.label ? `${a.label} <span class="sub-rating">${a.rating}</span>` : a.rating;
+      wrap.appendChild(el("div", "auto-pick-card",
+        `<div class="ap-team">${a.team.abbr} &middot; ${a.team.name}</div>
+         <div class="ap-name">${a.name}</div>
+         <div class="ap-meta"><span class="era-tag">${a.era}</span> ${traitPillHTML(a.name, category)}</div>
+         <div class="ap-rating">${ratingLine}</div>`));
+      const lockBtn = el("button", "btn-primary", "Lock It In \u2192");
+      lockBtn.onclick = () => {
+        onLock(a);            // a.cost is 0 and carries its own .team
+        autoAssigned = null;
+        state.scoutTeam = null; // next pick spins its own team
+        state.currentStep++;
+        render();
+      };
+      wrap.appendChild(lockBtn);
+    }
+    app.appendChild(wrap);
+    return;
+  }
 
   if (!team) {
     wrap.appendChild(el("div", "spin-result", "?"));
@@ -691,21 +733,26 @@ function renderChooseBadges() {
     render();
     return;
   }
-  // 0 or 1 collected: nothing to choose — auto-activate whatever's there, skip on.
-  if (acquired.length <= 1) {
+  // Auto-assign mode allows up to 3 active traits; every other mode allows 2.
+  const cap = state.autoPick ? 3 : 2;
+  // At or under the cap there is nothing to choose — auto-activate and skip on.
+  // Auto-assign skips whenever the whole haul already fits its cap (<=3, per
+  // spec). The capped game keeps its original rule untouched: skip at 0 or 1.
+  const autoActivateAt = state.autoPick ? cap : 1;
+  if (acquired.length <= autoActivateAt) {
     state.activeBadges = acquired.map(b => b.key);
     state.currentStep++;
     render();
     return;
   }
   // Drop any stale selections (e.g. after editing a pick), cap at 2.
-  state.activeBadges = state.activeBadges.filter(k => acquired.some(b => b.key === k)).slice(0, 2);
+  state.activeBadges = state.activeBadges.filter(k => acquired.some(b => b.key === k)).slice(0, cap);
 
   const wrap = el("div", "card");
   wrap.appendChild(el("div", "verdict-label center", "SIGNATURE TRAITS"));
-  wrap.appendChild(el("h1", "step-title center", "Activate 2 Traits"));
+  wrap.appendChild(el("h1", "step-title center", `Activate ${cap} Traits`));
   wrap.appendChild(el("p", "step-sub center",
-    `Your build collected <strong>${acquired.length}</strong> signature traits — pick exactly 2 to power the career. The rest stay collected on your verdict but don't affect the sim.`));
+    `Your build collected <strong>${acquired.length}</strong> signature traits — pick exactly ${cap} to power the career. The rest stay collected on your verdict but don't affect the sim.`));
 
   const list = el("div", "badge-choose-list");
   acquired.forEach(b => {
@@ -720,15 +767,15 @@ function renderChooseBadges() {
        </span>`);
     card.onclick = () => {
       if (on) state.activeBadges = state.activeBadges.filter(k => k !== b.key);
-      else if (state.activeBadges.length < 2) state.activeBadges.push(b.key);
+      else if (state.activeBadges.length < cap) state.activeBadges.push(b.key);
       render();
     };
     list.appendChild(card);
   });
   wrap.appendChild(list);
 
-  const btn = el("button", "btn-primary", `Activate ${state.activeBadges.length}/2 →`);
-  btn.disabled = state.activeBadges.length !== 2;
+  const btn = el("button", "btn-primary", `Activate ${state.activeBadges.length}/${cap} →`);
+  btn.disabled = state.activeBadges.length !== cap;
   btn.style.marginTop = "12px";
   btn.onclick = () => { state.currentStep++; render(); };
   wrap.appendChild(btn);
@@ -739,7 +786,7 @@ function renderConfirmStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Ready to Simulate This Career?"));
   wrap.appendChild(el("p", "step-sub",
-    `All ${CATEGORIES.length} picks locked &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`} &nbsp;·&nbsp; click any pick to change it`));
+    `All ${CATEGORIES.length} picks locked &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : state.autoPick ? "No salary cap" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`} &nbsp;·&nbsp; click any pick to change it`));
 
   const list = el("div", "roster-list");
   CATEGORIES.forEach(cat => {
@@ -770,6 +817,10 @@ function renderConfirmStep() {
     // Fold this finished career into lifetime progress exactly once, here at the
     // moment of completion — not in renderVerdict, which can re-run. Capture any
     // fresh unlocks for the verdict toast.
+    // Snapshot the previous best FIRST: recordCareerRun immediately syncs the
+    // legacy best-score key, so reading it later in renderVerdict would always
+    // come back already-updated and the "new personal best" test could never pass.
+    prevBestAtSim = parseInt(localStorage.getItem("aytg_best_score") || "0", 10);
     // Sandbox runs never touch lifetime stats, achievements or personal best —
     // an uncapped build trivially hits GOAT and would make every one meaningless.
     runUnlocks = state.sandbox ? [] : recordCareerRun(buildCareerRun(career)).newlyUnlocked;
@@ -945,7 +996,8 @@ function renderVerdict() {
   const badges = computeBadges(ovr, career);
   const headline = generateHeadline(career, tier);
   const bestKey = "aytg_best_score";
-  const prevBest = parseInt(localStorage.getItem(bestKey) || "0", 10);
+  // Compare against the pre-run snapshot, not the live key (already synced above).
+  const prevBest = prevBestAtSim;
   // Don't let viewing someone else's shared build touch the local best.
   // Sandbox is excluded from persistent progress alongside shared views.
   const isNewBest = !state.sharedView && !state.sandbox && career.goatScore > prevBest;
@@ -1200,7 +1252,7 @@ function renderVerdict() {
 
   const needNote = state.teamNeedMet ? ` &nbsp;·&nbsp; Filled ${state.team.name}'s need ✓` : "";
   wrap.appendChild(el("div", "meta-line",
-    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`}`));
+    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : state.autoPick ? "No salary cap \u2014 players auto-assigned" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`}`));
 
   if (state.sharedView) {
     const build = el("button", "btn-primary", "Build Your Own →");
@@ -1252,7 +1304,7 @@ function encodeBuild() {
     // the remaining budget) — encode by bin index + the clamped cost.
     return ["*", BUDGET_BIN.findIndex(x => x.name === p.name), p.cost];
   };
-  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, ab: state.activeBadges, sb: state.sandbox ? 1 : 0, k: CATEGORIES.map(ref) };
+  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, ab: state.activeBadges, sb: state.sandbox ? 1 : 0, ap: state.autoPick ? 1 : 0, k: CATEGORIES.map(ref) };
   return b64urlEncode(JSON.stringify(data));
 }
 
@@ -1293,6 +1345,7 @@ function decodeBuild(str) {
   // Shadow target from the link (older links omit it — the verdict guards for null).
   state.shadowTarget = SHADOW_TARGETS[data.sh] ? data.sh : null;
   state.sandbox = !!data.sb; // a shared sandbox build keeps its banner rather than posing as a real run
+  state.autoPick = !!data.ap;
   // Active Signature Traits (older links omit; activeBadgeMods filters to acquired).
   state.activeBadges = Array.isArray(data.ab) ? data.ab.slice(0, 2) : [];
   state.position = data.p;
@@ -1440,7 +1493,9 @@ function resetGame() {
   state.seed = null;
   state.sharedView = false;
   state.sandbox = false; // never leak sandbox rules into a real playthrough
+  state.autoPick = false;
   sandboxQuery = "";
+  autoAssigned = null;
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;
