@@ -453,10 +453,9 @@ function renderHome() {
 // ---- Trophy Case: one modal, two tabs (Lifetime Stats + Achievements) ----
 // Reads straight from persisted progress so it always reflects localStorage.
 function showTrophyCase(initialTab, trigger) {
-  const p = loadProgress();
   const body = el("div", "trophy");
 
-  // Tab bar
+  // Tab bar: what you're looking at
   const tabs = el("div", "trophy-tabs");
   const statsTab = el("button", "trophy-tab", "Lifetime Stats");
   const achTab = el("button", "trophy-tab", "Achievements");
@@ -464,21 +463,43 @@ function showTrophyCase(initialTab, trigger) {
   tabs.appendChild(achTab);
   body.appendChild(tabs);
 
-  const statsPanel = buildLifetimePanel(p);
-  const achPanel = buildAchievementsPanel(p);
-  body.appendChild(statsPanel);
-  body.appendChild(achPanel);
+  // Sub-tabs: WHICH MODE's history you're looking at. Stats and achievements are
+  // tracked per mode, so both panels are rebuilt when this changes. Sandbox has
+  // no pool and so no sub-tab.
+  const modeBar = el("div", "trophy-modes");
+  const modeBtns = {};
+  MODE_KEYS.forEach(k => {
+    const b = el("button", "trophy-mode", MODE_LABELS[k]);
+    b.onclick = () => selectMode(k);
+    modeBtns[k] = b;
+    modeBar.appendChild(b);
+  });
+  body.appendChild(modeBar);
 
-  const select = which => {
-    const onStats = which === "stats";
+  const panelHost = el("div", "trophy-panels");
+  body.appendChild(panelHost);
+
+  let view = initialTab === "achievements" ? "achievements" : "stats";
+  let mode = loadAllProgress().lastMode; // open on the mode most recently played
+
+  function draw() {
+    const p = loadProgress(mode);
+    panelHost.innerHTML = "";
+    const statsPanel = buildLifetimePanel(p);
+    const achPanel = buildAchievementsPanel(p);
+    panelHost.appendChild(statsPanel);
+    panelHost.appendChild(achPanel);
+    const onStats = view === "stats";
     statsTab.classList.toggle("active", onStats);
     achTab.classList.toggle("active", !onStats);
     statsPanel.style.display = onStats ? "" : "none";
     achPanel.style.display = onStats ? "none" : "";
-  };
-  statsTab.onclick = () => select("stats");
-  achTab.onclick = () => select("achievements");
-  select(initialTab === "achievements" ? "achievements" : "stats");
+    MODE_KEYS.forEach(k => modeBtns[k].classList.toggle("active", k === mode));
+  }
+  const selectMode = m => { mode = m; draw(); };
+  statsTab.onclick = () => { view = "stats"; draw(); };
+  achTab.onclick = () => { view = "achievements"; draw(); };
+  draw();
 
   openModal("Trophy Case", body, null, trigger);
 }
@@ -820,7 +841,7 @@ function renderConfirmStep() {
     // Snapshot the previous best FIRST: recordCareerRun immediately syncs the
     // legacy best-score key, so reading it later in renderVerdict would always
     // come back already-updated and the "new personal best" test could never pass.
-    prevBestAtSim = parseInt(localStorage.getItem("aytg_best_score") || "0", 10);
+    prevBestAtSim = loadProgress(state.autoPick ? "classic" : "cap").bestScore;
     // Sandbox runs never touch lifetime stats, achievements or personal best —
     // an uncapped build trivially hits GOAT and would make every one meaningless.
     runUnlocks = state.sandbox ? [] : recordCareerRun(buildCareerRun(career)).newlyUnlocked;
@@ -849,6 +870,8 @@ function buildCareerRun(car) {
   const fullStack = active.length >= 2 && Object.values(byPlayer).some(n => n >= 2);
   const sh = compareToShadow(car);
   return {
+    // Which pool this run credits. Sandbox never reaches recordCareerRun.
+    mode: state.autoPick ? "classic" : "cap",
     goatScore: car.goatScore,
     tierIdx: TIERS.findIndex(t => t.name === tier.name),
     tierName: tier.name,
@@ -995,13 +1018,12 @@ function renderVerdict() {
   const pct = percentileForScore(career.goatScore).toFixed(1);
   const badges = computeBadges(ovr, career);
   const headline = generateHeadline(career, tier);
-  const bestKey = "aytg_best_score";
-  // Compare against the pre-run snapshot, not the live key (already synced above).
+  // Compare against this mode's pre-run best (recordCareerRun owns the write).
   const prevBest = prevBestAtSim;
   // Don't let viewing someone else's shared build touch the local best.
   // Sandbox is excluded from persistent progress alongside shared views.
   const isNewBest = !state.sharedView && !state.sandbox && career.goatScore > prevBest;
-  if (isNewBest) localStorage.setItem(bestKey, String(career.goatScore));
+
 
   const wrap = el("div", "card verdict");
   if (state.sandbox) {

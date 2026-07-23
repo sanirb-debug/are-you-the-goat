@@ -1314,9 +1314,18 @@ function activeBadgeList() {
 const PROGRESS_KEY = "aytg_progress";
 const LEGACY_BEST_KEY = "aytg_best_score"; // the one thing that already persisted
 
+// The two TRACKED modes. Sandbox is excluded from progress entirely and so has
+// no pool. Definitions (ACHIEVEMENTS) stay one shared list — only unlock STATE
+// and the accumulators below are split per mode.
+const MODE_KEYS = ["cap", "classic"];
+const MODE_LABELS = { cap: "Salary Cap Edition", classic: "Classic" };
+const DEFAULT_MODE = "cap";
+const normMode = m => (MODE_KEYS.includes(m) ? m : DEFAULT_MODE);
+
+// One mode's accumulator. Shape is unchanged from the pre-split version — only
+// where it lives changed, so every field and every consumer still reads the same.
 function blankProgress() {
   return {
-    version: 1,
     careersPlayed: 0,
     bestScore: 0,
     bestTierIdx: -1,       // index into TIERS; -1 = no career yet
@@ -1327,20 +1336,50 @@ function blankProgress() {
   };
 }
 
-// Fill in any keys a newer version added, and fold the legacy best-score key in
-// on first run so an existing player doesn't lose their personal best.
-function loadProgress() {
-  let p;
-  try { p = JSON.parse(localStorage.getItem(PROGRESS_KEY)); } catch (e) { p = null; }
-  const base = blankProgress();
-  p = (p && typeof p === "object") ? Object.assign(base, p) : base;
-  const legacy = parseInt(localStorage.getItem(LEGACY_BEST_KEY) || "0", 10);
-  if (legacy > p.bestScore) p.bestScore = legacy;
-  return p;
+function blankAllProgress() {
+  return { version: 2, lastMode: DEFAULT_MODE,
+           modes: { cap: blankProgress(), classic: blankProgress() } };
 }
 
-function saveProgress(p) {
-  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* storage full/blocked — non-fatal */ }
+// Reads the whole envelope, migrating v1 on the way.
+//
+// MIGRATION: a stored object with no `.modes` is flat pre-split data. All of it
+// belongs to Salary Cap Edition — that is the mode that existed first and
+// generated the history — so it moves wholesale into modes.cap and Classic
+// starts at zero.
+//
+// The legacy best-score key is folded in ONLY during that migration. Once a v2
+// envelope exists the key is never read again: it is kept written (as the max
+// across modes) purely so an older reader sees a sane value, and reading it back
+// would leak one mode's best into another's.
+function loadAllProgress() {
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem(PROGRESS_KEY)); } catch (e) { raw = null; }
+  const all = blankAllProgress();
+  if (raw && typeof raw === "object" && raw.modes) {
+    for (const k of MODE_KEYS) all.modes[k] = Object.assign(blankProgress(), raw.modes[k] || {});
+    if (MODE_KEYS.includes(raw.lastMode)) all.lastMode = raw.lastMode;
+    return all;
+  }
+  if (raw && typeof raw === "object") all.modes.cap = Object.assign(blankProgress(), raw);
+  const legacy = parseInt(localStorage.getItem(LEGACY_BEST_KEY) || "0", 10);
+  if (legacy > all.modes.cap.bestScore) all.modes.cap.bestScore = legacy;
+  return all;
+}
+
+function saveAllProgress(all) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(all)); } catch (e) { /* storage full/blocked — non-fatal */ }
+}
+
+// One mode's accumulator.
+function loadProgress(mode = DEFAULT_MODE) {
+  return loadAllProgress().modes[normMode(mode)];
+}
+
+function saveProgress(mode, p) {
+  const all = loadAllProgress();
+  all.modes[normMode(mode)] = p;
+  saveAllProgress(all);
 }
 
 // The 18 achievements. Each check() sees the just-finished run and the lifetime
@@ -1377,7 +1416,9 @@ const ACHIEVEMENTS = [
 // so this is unit-testable). Returns { progress, newlyUnlocked: [achievement] }.
 // Call EXACTLY once per real career (not on shared views, not on re-render).
 function recordCareerRun(run) {
-  const p = loadProgress();
+  const mode = normMode(run.mode);
+  const all = loadAllProgress();
+  const p = all.modes[mode];
   p.careersPlayed += 1;
   p.bestScore = Math.max(p.bestScore, run.goatScore);
   p.bestTierIdx = Math.max(p.bestTierIdx, run.tierIdx);
@@ -1398,10 +1439,12 @@ function recordCareerRun(run) {
     if (a.check(run, p)) { p.unlocked[a.id] = true; newlyUnlocked.push(a); }
   }
 
-  saveProgress(p);
-  // Keep the legacy key in sync so the existing "personal best" path agrees.
-  try { localStorage.setItem(LEGACY_BEST_KEY, String(p.bestScore)); } catch (e) { /* non-fatal */ }
-  return { progress: p, newlyUnlocked };
+  all.lastMode = mode; // so the Trophy Case opens on the mode just played
+  saveAllProgress(all);
+  // Legacy key: written for backward compat only, never read once v2 exists.
+  const overallBest = Math.max(...MODE_KEYS.map(k => all.modes[k].bestScore));
+  try { localStorage.setItem(LEGACY_BEST_KEY, String(overallBest)); } catch (e) { /* non-fatal */ }
+  return { progress: p, mode, newlyUnlocked };
 }
 
 if (typeof module !== "undefined") {
@@ -1414,5 +1457,6 @@ if (typeof module !== "undefined") {
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
     TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, isHallOfFame,
     PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
+    MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,
   };
 }
