@@ -12,6 +12,11 @@ let prevBestAtSim = 0;   // personal best as it stood BEFORE this run (see the S
 let wheelRotation = 0;
 let wheelSpinning = false;
 let wheelSpinToken = 0;
+// No-budget player spinner. The token guards the slot-machine shuffle the same way
+// the wheel's does; PLAYER_REROLLS re-spins are allowed per pick (free first spin).
+const PLAYER_REROLLS = 3;
+let playerSpinToken = 0;
+let playerSpinning = false;
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -174,6 +179,9 @@ function goBack() {
     if (removed) state.scoutTeam = removed.team;
   }
   sandboxQuery = "";
+  // No-budget spinner: re-spin the player for the pick we stepped back into.
+  state.spunPlayer = null;
+  state.playerRerollsUsed = 0;
   state.currentStep = target;
   render();
 }
@@ -757,6 +765,9 @@ function renderTeamWheel(category, team, rerollsLeft, wrap) {
       if (tok !== wheelSpinToken) return; // a re-render (e.g. Back) superseded this spin
       wheelSpinning = false;
       state.scoutTeam = target;
+      // A newly landed team means a fresh player selection for this pick.
+      state.spunPlayer = null;
+      state.playerRerollsUsed = 0;
       render();
     };
 
@@ -777,6 +788,125 @@ function renderTeamWheel(category, team, rerollsLeft, wrap) {
     setTimeout(done, durMs + 120); // guaranteed resolution even if transitionend never fires
   };
   wrap.appendChild(btn);
+}
+
+// ---- No-budget mode: the player spinner + free stat choice ----
+// After the team wheel lands, spin a slot-machine reel of that team's roster
+// names to ONE random player, then let the player take ANY of that player's 8
+// ratings into the CURRENT slot (off-category allowed — the whole point of the
+// mode). Only this mode calls it; the team wheel above stays untouched.
+let statChoiceKey = null;      // the stat cell currently selected on the 8-stat card
+let pendingPlayerSpin = false; // set by "Spin Player Again" so the re-render auto-spins
+
+function renderPlayerSpinner(category, team, onLock, wrap) {
+  playerSpinToken++;   // invalidate any shuffle still running from a prior render
+  playerSpinning = false;
+  const rerollsLeft = PLAYER_REROLLS - state.playerRerollsUsed;
+
+  // ---- Not yet spun: the reel + a spin button ----
+  if (!state.spunPlayer) {
+    const reel = el("div", "player-reel", "—");
+    wrap.appendChild(reel);
+    const btn = el("button", "btn-primary",
+      state.playerRerollsUsed > 0 ? "🎰 Spin for Player Again" : "🎰 Spin for Player");
+    btn.onclick = () => runPlayerShuffle(category, team, reel, btn);
+    wrap.appendChild(btn);
+    // A re-spin (from the card) drops back here and spins straight away, so the
+    // "Spin Player Again" button is one click, not two.
+    if (pendingPlayerSpin) { pendingPlayerSpin = false; runPlayerShuffle(category, team, reel, btn); }
+    return;
+  }
+
+  // ---- Landed: the full 8-stat card, free choice, lock ----
+  statChoiceKey = null;
+  const p = state.spunPlayer;
+  wrap.appendChild(el("div", "player-reel landed",
+    `${p.name} <span class="era-tag">${p.era}</span>${traitPillHTML(p.name, category)}`));
+  wrap.appendChild(el("p", "stat-card-hint center",
+    `Take <strong>any one</strong> of ${p.name.split(" ").slice(-1)[0]}'s ratings to fill <strong>${categoryLabel(category)}</strong> — it doesn't have to match.`));
+
+  const card = el("div", "stat-card");
+  CATEGORIES.forEach(cat => {
+    const rating = categoryRating(p, cat);
+    const bandLabel = cat === "height" ? p.height.label : cat === "athleticism" ? p.athleticism.label : null;
+    const cell = el("button", "stat-cell" + (cat === category ? " slot-match" : ""),
+      `<span class="sc-cat">${categoryLabel(cat)}${cat === category ? " <span class=\"sc-slot\">this slot</span>" : ""}</span>
+       <span class="sc-val">${bandLabel ? `${bandLabel} <span class="sc-sub">${rating}</span>` : rating}</span>`);
+    cell.onclick = () => {
+      statChoiceKey = cat;
+      [...card.querySelectorAll(".stat-cell")].forEach(c => c.classList.remove("selected"));
+      cell.classList.add("selected");
+      lockBtn.disabled = false;
+      lockBtn.textContent = `Lock ${categoryLabel(category)}: ${categoryLabel(cat)} ${rating} →`;
+    };
+    card.appendChild(cell);
+  });
+  wrap.appendChild(card);
+
+  const lockBtn = el("button", "btn-primary", `Choose a rating above`);
+  lockBtn.disabled = true;
+  lockBtn.style.marginTop = "12px";
+  lockBtn.onclick = () => {
+    if (!statChoiceKey) return;
+    onLock(buildStatPick(p, team, category, statChoiceKey));
+    state.spunPlayer = null;
+    state.playerRerollsUsed = 0;
+    state.scoutTeam = null; // next pick spins its own team
+    state.currentStep++;
+    render();
+  };
+  wrap.appendChild(lockBtn);
+
+  // Re-spin the player (a different one), bounded per pick.
+  const respin = el("button", "btn-secondary",
+    rerollsLeft > 0 ? `Spin Player Again (${rerollsLeft} left)` : "No Player Re-spins Left");
+  respin.disabled = rerollsLeft <= 0;
+  respin.style.marginTop = "8px";
+  respin.onclick = () => {
+    if (rerollsLeft <= 0) return;
+    state.playerRerollsUsed++;
+    state.spunPlayer = null;
+    pendingPlayerSpin = true; // re-render lands on the idle branch and spins immediately
+    render();
+  };
+  wrap.appendChild(respin);
+}
+
+// The slot-machine shuffle: flash roster names in `reel`, decelerating, and land
+// on one eligible player. Landing is driven by a guaranteed timer, never by an
+// animation event alone (same lesson as the team wheel).
+function runPlayerShuffle(category, team, reel, btn) {
+  if (playerSpinning) return;
+  const eligible = spinnablePlayers(team, category);
+  if (!eligible.length) return; // unreachable: teams never repeat, roster is fresh
+  const target = pickRandom(eligible);
+  const names = eligible.map(p => p.name);
+  playerSpinning = true;
+  btn.disabled = true;
+  const tok = ++playerSpinToken;
+
+  let settled = false;
+  const land = () => {
+    if (settled) return;
+    settled = true;
+    if (tok !== playerSpinToken) return; // superseded by a re-render (Back, team respin)
+    playerSpinning = false;
+    state.spunPlayer = target;
+    render();
+  };
+
+  const total = 1900;
+  let elapsed = 0, delay = 55;
+  const tick = () => {
+    if (tok !== playerSpinToken) return; // stop flashing if superseded
+    reel.textContent = names[Math.floor(Math.random() * names.length)];
+    elapsed += delay;
+    if (elapsed >= total) { reel.textContent = target.name; land(); return; }
+    delay = 55 + Math.pow(elapsed / total, 2) * 240; // ramp the gap -> visibly slow down
+    setTimeout(tick, delay);
+  };
+  tick();
+  setTimeout(land, total + 900); // guaranteed landing even if the flash chain stalls
 }
 
 // ---- Shared roster picker (Height, Athleticism, and all 5 skills) ----
@@ -838,34 +968,31 @@ function renderRosterStep(category, title, sub, onLock) {
          <div class="scout-teamname">${team.name}</div>
          <div class="scout-scr">Supporting Cast Rating ${team.scr}</div>
        </div>`));
+    // No-budget mode: a player spinner + free stat choice instead of the list.
+    if (state.autoPick) {
+      renderPlayerSpinner(category, team, onLock, wrap);
+      app.appendChild(wrap);
+      return;
+    }
+
     const list = el("div", "roster-list");
     // In sandbox an active search pulls from every team; otherwise the scouted one.
     const q = state.sandbox ? sandboxQuery.trim().toLowerCase() : "";
-    let source = q
+    const source = q
       ? getAllRosterOptions(category).filter(o => o.name.toLowerCase().includes(q)).slice(0, 50)
       : getRosterOptions(category);
-    // No-budget mode: same list, but a player already taken in another category
-    // is off the board (no repeats across the 8 picks).
-    if (state.autoPick) {
-      const used = new Set(usedPickNames(category));
-      source = source.filter(o => !used.has(o.name));
-    }
-    // No-budget mode drops the cost column entirely — nothing is priced.
-    const showCost = !state.autoPick;
     if (q && !source.length) list.appendChild(el("div", "roster-empty", `No player matches \u201C${sandboxQuery.trim()}\u201D`));
     source.forEach(opt => {
       // Height/Athleticism show their real-world label plus the individual rating;
       // skills show the rating alone.
       const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
-      const row = el("button", "roster-row" + (showCost ? "" : " no-cost") + (showCost && !opt.affordable ? " locked" : ""),
+      const row = el("button", "roster-row" + (!opt.affordable ? " locked" : ""),
         `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${q ? ` <span class="era-tag team-tag">${opt.team.abbr}</span>` : ""}${traitPillHTML(opt.name, category)}</span>
          <span class="roster-rating">${display}</span>
-         ${showCost ? `<span class="roster-cost">${fmtSalary(opt.cost)}</span>` : ""}`);
-      row.disabled = showCost && !opt.affordable;
+         <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
+      row.disabled = !opt.affordable;
       row.onclick = () => {
-        // opt carries its own .team, so cross-team picks are self-describing.
-        // No-budget picks are stored at cost 0 so budgetSpent never moves.
-        onLock(showCost ? opt : { ...opt, cost: 0 });
+        onLock(opt); // opt carries its own .team, so cross-team picks are self-describing
         sandboxQuery = "";
         state.scoutTeam = null; // next pick spins its own team
         state.currentStep++;
@@ -1660,6 +1787,8 @@ function resetGame() {
   state.team = null;
   state.scoutTeam = null;
   state.teamRerollsUsed = 0;
+  state.spunPlayer = null;
+  state.playerRerollsUsed = 0;
   state.editingCategory = null;
   state.seed = null;
   state.sharedView = false;
@@ -1668,6 +1797,8 @@ function resetGame() {
   sandboxQuery = "";
   wheelRotation = 0;
   wheelSpinning = false;
+  playerSpinning = false;
+  pendingPlayerSpin = false;
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;

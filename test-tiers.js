@@ -536,6 +536,65 @@ check("availableTeams ignores picks that carry no team", (() => {
 resetTeams();
 S3.autoPick = false; // leave global state clean for later sections
 
+// ---------------------------------------------------------------------------
+console.log("\n=== NO-BUDGET MODE: player spinner free stat choice ===");
+// After the team wheel, the mode spins ONE player and lets you take ANY of that
+// player's 8 ratings into the current slot — off-category included. buildStatPick
+// builds the locked pick; physicalBandLabel keeps a physical slot's descriptor in
+// step with the number that fills it; spinnablePlayers enforces no player repeats.
+
+const S4 = G.state;
+const resetSpin = () => {
+  S4.height = null; S4.athleticism = null; S4.skills = {};
+  S4.budgetSpent = 0; S4.sandbox = false; S4.autoPick = true; S4.scoutTeam = null;
+};
+resetSpin();
+
+// A real player with a known spread of ratings to reason about.
+const team0 = G.TEAMS[0];
+const P = G.TEAM_ROSTERS[team0.abbr].reduce((a, b) => (b.skills.Playmaking > a.skills.Playmaking ? b : a));
+
+// physicalBandLabel: nearest band, and it agrees with the source data at exact ratings.
+check("physicalBandLabel snaps height 90 to a 7-foot band", G.physicalBandLabel("height", 90), "7'1\"");
+check("physicalBandLabel snaps athleticism 95 to Elite", G.physicalBandLabel("athleticism", 95), "Elite");
+check("physicalBandLabel picks the NEAREST band for an in-between rating",
+  ["6'0\"","6'1\""].includes(G.physicalBandLabel("height", 34)), true,
+  "34 sits between the 32->6'0\" and 36->6'1\" bands");
+
+// buildStatPick — the free, off-category choice. Take the player's PLAYMAKING
+// rating but drop it into the HEIGHT slot.
+const hp = G.buildStatPick(P, team0, "height", "Playmaking");
+check("off-category pick takes the CHOSEN stat's rating", hp.rating, P.skills.Playmaking);
+check("off-category pick records which stat was chosen", hp.chosenStat, "Playmaking");
+check("a physical slot synthesises a band from the chosen rating",
+  hp.label, G.physicalBandLabel("height", P.skills.Playmaking));
+check("no-budget spinner pick costs nothing", hp.cost, 0);
+check("the pick carries the scouted team", hp.team.abbr, team0.abbr);
+
+// Filling a SKILL slot carries no band label, exactly like a normal skill pick.
+const sp = G.buildStatPick(P, team0, "Shooting", "Defense");
+check("skill slot pick has no band label", sp.label, null);
+check("skill slot still takes the chosen (Defense) rating", sp.rating, P.skills.Defense);
+
+// On-category is just the normal case of the same call.
+const onCat = G.buildStatPick(P, team0, "athleticism", "athleticism");
+check("on-category pick takes the matching rating", onCat.rating, P.athleticism.rating);
+
+// spinnablePlayers — no player repeats across picks.
+resetSpin();
+check("a fresh team offers its whole roster", G.spinnablePlayers(team0).length,
+  G.TEAM_ROSTERS[team0.abbr].length);
+// Lock one of team0's players into a slot, then that name is off the spinner.
+const someone = G.TEAM_ROSTERS[team0.abbr][0].name;
+G.lockSkill("Shooting", { name: someone, era: "x", rating: 80, cost: 0, team: team0 });
+check("a used player drops out of later spins",
+  G.spinnablePlayers(team0, "Finishing").some(p => p.name === someone), false);
+check("excluding the current slot keeps its own player spinnable",
+  G.spinnablePlayers(team0, "Shooting").some(p => p.name === someone), true);
+
+resetSpin();
+S4.autoPick = false; // leave global state clean for later sections
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);

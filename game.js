@@ -21,6 +21,8 @@ const state = {
   team: null,          // career team — drives the season sim
   scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
   teamRerollsUsed: 0,  // scout-spin "Spin Again" uses, shared across the whole build
+  spunPlayer: null,    // no-budget mode: the player the current pick's spin landed on
+  playerRerollsUsed: 0, // no-budget mode: player-spin re-rolls used THIS pick (reset each pick)
   editingCategory: null, // set while revising an earlier pick from the sidebar
   seed: null,           // RNG seed for the career sim — encoded in share links
   sharedView: false,    // true when viewing someone else's build from a ?build= link
@@ -221,6 +223,51 @@ function usedTeamAbbrs(exceptCategory = null) {
 function availableTeams(exceptCategory = null) {
   const used = new Set(usedTeamAbbrs(exceptCategory));
   return TEAMS.filter(t => !used.has(t.abbr));
+}
+
+// ---- No-budget player spinner: free stat choice ----
+// The physical attributes are stored as {rating, label} bands on each player
+// (height 90 -> "7'1\"", athleticism 90 -> "Elite"). Derive the band tables ONCE
+// from the roster data so they can never drift from it, keyed by rating.
+function deriveBands(key) {
+  const m = new Map();
+  for (const abbr of Object.keys(TEAM_ROSTERS))
+    for (const p of TEAM_ROSTERS[abbr]) m.set(p[key].rating, p[key].label);
+  return [...m.entries()].map(([rating, label]) => ({ rating, label }))
+    .sort((a, b) => a.rating - b.rating);
+}
+const HEIGHT_BANDS = deriveBands("height");
+const ATHLETICISM_BANDS = deriveBands("athleticism");
+
+// The band label for a rating on a physical scale. Used when a freely-chosen
+// stat rating fills the Height or Athleticism slot, so the physical descriptor
+// on the verdict matches the NUMBER that actually went into the slot (e.g. a
+// playmaking 95 dropped into Height reads as a 7'2"-ish giant, not a mismatch).
+function physicalBandLabel(category, rating) {
+  const table = category === "athleticism" ? ATHLETICISM_BANDS : HEIGHT_BANDS;
+  let best = table[0];
+  for (const b of table) if (Math.abs(b.rating - rating) < Math.abs(best.rating - rating)) best = b;
+  return best.label;
+}
+
+// The players a fresh spin can land on: the team's roster minus anyone already
+// locked into another slot (no player repeats). Teams never repeat, so a
+// freshly-landed team is always all-fresh — this filter is belt-and-suspenders.
+function spinnablePlayers(team, exceptCategory = null) {
+  const used = new Set(usedPickNames(exceptCategory));
+  return (TEAM_ROSTERS[team.abbr] || []).filter(p => !used.has(p.name));
+}
+
+// Build the pick that a chosen stat fills the current slot with. THE mechanic:
+// `chosenStat` may differ from `slotCategory` (free, off-category choice), and
+// its rating becomes the slot's rating for all downstream math. Physical slots
+// synthesise a band label from that rating; skill slots carry none, exactly as a
+// normal skill pick. cost 0 so budgetSpent never moves (no-budget mode).
+function buildStatPick(player, team, slotCategory, chosenStat) {
+  const rating = categoryRating(player, chosenStat);
+  const label = (slotCategory === "height" || slotCategory === "athleticism")
+    ? physicalBandLabel(slotCategory, rating) : null;
+  return { name: player.name, era: player.era, team, cost: 0, rating, label, chosenStat };
 }
 
 // ---- Modifiers ----
@@ -1498,7 +1545,7 @@ function recordCareerRun(run) {
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
