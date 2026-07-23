@@ -423,6 +423,61 @@ check("Back from Position stops at the badge screen when a choice is pending",
   `${traitKeys.length} traits acquired vs a cap of 2 means the screen actually renders`);
 resetState();
 
+// ---------------------------------------------------------------------------
+console.log("\n=== NO-BUDGET MODE: full roster list + no repeats ===");
+// The team-spin no-budget mode now shows the same full roster list as Salary
+// Cap, minus the cost column, and forbids reusing a player across the 8 picks.
+// usedPickNames drives that exclusion; the list is getRosterOptions filtered by
+// it. (Salary Cap and Sandbox never filter — repeats are allowed there.)
+
+const S2 = G.state;
+const resetNB = () => {
+  S2.height = null; S2.athleticism = null; S2.skills = {};
+  S2.budgetSpent = 0; S2.sandbox = false; S2.autoPick = true;
+  S2.scoutTeam = G.TEAMS[0];
+};
+const opt2 = (name, cost) => ({ name, era: "modern", label: null, rating: 80, cost, team: G.TEAMS[0] });
+
+resetNB();
+check("usedPickNames is empty on a fresh build", G.usedPickNames().length, 0);
+
+G.lockSkill("Shooting", opt2("Ray Allen", 0));
+G.lockPhysical("height", opt2("Yao Ming", 0));
+check("usedPickNames lists every locked player", G.usedPickNames().sort().join(","), "Ray Allen,Yao Ming");
+check("usedPickNames can exclude the category being re-picked",
+  G.usedPickNames("Shooting").join(","), "Yao Ming",
+  "the slot you're picking must not exclude its own prior occupant from its own list");
+
+// The list a category shows = the scouted team's roster minus used names.
+// Fresh build so the only used name is the one guaranteed to be on this team
+// (the earlier picks used fabricated names that could coincide with a roster).
+resetNB();
+const team = G.TEAMS.find(t => (G.TEAM_ROSTERS[t.abbr] || []).length > 0);
+S2.scoutTeam = team;
+const full = G.getRosterOptions("Finishing", team);
+const someoneOnTeam = full[0].name;
+G.lockSkill("Playmaking", opt2(someoneOnTeam, 0)); // now used in another category
+const used = new Set(G.usedPickNames("Finishing"));
+const filtered = full.filter(o => !used.has(o.name));
+check("a player used elsewhere drops out of a later list",
+  filtered.some(o => o.name === someoneOnTeam), false);
+check("filtering removes exactly the used player, nothing else",
+  full.length - filtered.length, 1);
+
+// No-budget picks carry cost 0, so budgetSpent never moves in this mode.
+resetNB();
+G.lockSkill("Shooting", opt2("Free Pick", 0));
+G.lockPhysical("athleticism", opt2("Another", 0));
+check("no-budget picks leave budgetSpent at zero", S2.budgetSpent, 0);
+
+// Even the smallest roster can't be fully exhausted by 7 prior picks, so a
+// filtered list is always non-empty — the mode can never dead-end on a spin.
+const minRoster = Math.min(...Object.values(G.TEAM_ROSTERS).map(r => r.length));
+check("smallest roster outnumbers the max prior picks", minRoster > 7, true,
+  `smallest roster is ${minRoster}; at most 7 players are locked before the last pick`);
+
+S2.autoPick = false; S2.scoutTeam = null; // leave global state clean for later sections
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);

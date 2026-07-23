@@ -187,37 +187,17 @@ function getAllRosterOptions(category) {
     .sort((a, b) => b.rating - a.rating);
 }
 
-// Auto-assign mode: spin a team, then take whoever that spin lands on for this
-// category — no roster list, no shopping. A player already used earlier in the
-// build is never assigned twice; if the spun team has nobody left, we respin the
-// team rather than hand back a duplicate. `attempts` is bounded so a pathological
-// state can never spin forever.
-// Returns { name, era, label, rating, cost, team } — the same shape
-// getRosterOptions produces, so lockSkill/lockPhysical need no special-casing.
-function autoAssignPick(category, usedNames = []) {
-  const used = new Set(usedNames);
-  const build = (p, team) => ({
-    name: p.name, era: p.era,
-    label: category === "height" ? p.height.label
-      : category === "athleticism" ? p.athleticism.label
-      : null,
-    rating: categoryRating(p, category),
-    cost: 0, // this mode tracks no spending at all
-    team,
-  });
-  // first try the team already on screen
-  let team = state.scoutTeam;
-  if (team) {
-    const pool = (TEAM_ROSTERS[team.abbr] || []).filter(p => !used.has(p.name));
-    if (pool.length) return build(pickRandom(pool), team);
-  }
-  // that team is exhausted for this build — respin until one has a free player
-  for (let attempts = 0; attempts < 60; attempts++) {
-    team = pickRandom(TEAMS);
-    const pool = (TEAM_ROSTERS[team.abbr] || []).filter(p => !used.has(p.name));
-    if (pool.length) { state.scoutTeam = team; return build(pickRandom(pool), team); }
-  }
-  return null; // unreachable with 30 teams x ~17 players and only 8 picks
+// Names already locked into the build, across categories (optionally excluding
+// one — the category being (re)picked right now, whose own slot must not count
+// against itself). The no-budget team-spin mode forbids reusing a player, so
+// its roster list filters against this. Salary Cap and Sandbox allow repeats
+// and never call it.
+function usedPickNames(exceptCategory = null) {
+  return CATEGORIES
+    .filter(c => c !== exceptCategory)
+    .map(c => currentPick(c))
+    .filter(Boolean)
+    .map(p => p.name);
 }
 
 // ---- Modifiers ----
@@ -1495,7 +1475,7 @@ function recordCareerRun(run) {
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    seedRng, currentPick, replacePick, getAllRosterOptions, autoAssignPick, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,

@@ -1853,42 +1853,11 @@ body.modal-open { overflow: hidden; }
   margin-top: 3px;
 }
 
-/* ---- Auto-assign reveal card (replaces the roster list in that mode) ---- */
-.auto-pick-card {
-  background: linear-gradient(180deg, #0c1830, #0a1120);
-  border: 1px solid var(--card-border);
-  border-left: 3px solid var(--gold);
-  border-radius: 6px;
-  padding: 20px 18px;
-  margin-bottom: 14px;
-  text-align: center;
-  animation: reelLand 0.4s ease;
-}
-.ap-team {
-  font-family: var(--font-cond);
-  font-size: 11px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.ap-name {
-  font-family: var(--font-display);
-  font-size: clamp(26px, 6vw, 34px);
-  letter-spacing: 0.5px;
-  line-height: 1.05;
-  text-transform: uppercase;
-  color: var(--gold-bright);
-  margin: 6px 0 8px;
-}
-.ap-meta { display: flex; gap: 6px; justify-content: center; align-items: center; flex-wrap: wrap; }
-.ap-rating {
-  font-family: var(--font-display);
-  font-size: 30px;
-  color: #fff;
-  margin-top: 10px;
-}
-.ap-rating .sub-rating { font-size: 17px; color: var(--text-dim); }
-/* Auto-assign: picks are final, so the sidebar rows are not re-openable. */
+/* No-budget team-spin mode: the roster list has no cost column, so its rows
+   drop the 58px price track and let the name column take the freed width. */
+.roster-row.no-cost { grid-template-columns: 1fr 96px; }
+/* No-budget mode: picks are re-made via Back, not the sidebar, so its rows
+   stay locked (clicking would open an edit screen this mode doesn't use). */
 .picks-row.locked-in { cursor: default; }
 .picks-row.locked-in:hover { background: transparent; }
 

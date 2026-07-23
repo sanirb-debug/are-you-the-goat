@@ -6,7 +6,6 @@ let picksDrawerOpen = false; // mobile drawer toggle, persists across renders
 let simRunToken = 0; // invalidates sim-screen timers from earlier runs
 let runUnlocks = []; // achievements earned during THIS playthrough (for the verdict toast)
 let sandboxQuery = ""; // Sandbox roster search text, persists across re-renders within a pick
-let autoAssigned = null; // Auto-assign mode: the player this spin landed on, awaiting Lock It In
 let prevBestAtSim = 0;   // personal best as it stood BEFORE this run (see the Simulate handler)
 
 function el(tag, cls, html) {
@@ -164,14 +163,10 @@ function goBack() {
     // means the player re-picks from the SAME roster — going back must not
     // hand out a free extra spin on top of the 3 rerolls a build gets.
     const removed = unlockPick(step);
-    if (removed) {
-      state.scoutTeam = removed.team;
-      // Auto-assign has no roster list to return to, so re-show the spin result
-      // it had landed on: the player can re-lock it or spend a reroll respinning.
-      autoAssigned = state.autoPick ? removed : null;
-    }
-  } else {
-    autoAssigned = null;
+    // Restore the team it was scouted from so the SAME roster list reappears
+    // (all three modes step back into a list now). Clearing its slot also frees
+    // that player to be re-picked, and re-admits them to the no-repeat lists.
+    if (removed) state.scoutTeam = removed.team;
   }
   sandboxQuery = "";
   state.currentStep = target;
@@ -333,7 +328,7 @@ function renderPicksPanel() {
       const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : "") + (state.autoPick ? " locked-in" : ""),
         `<span class="picks-cat">${categoryLabel(cat)}</span>
          <span class="picks-player">${pick.name}</span>
-         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${fmtSalary(pick.cost)}</span>
+         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"}${state.autoPick ? "" : ` &nbsp;·&nbsp; ${fmtSalary(pick.cost)}`}</span>
          ${badgeLine}`);
       row.disabled = state.autoPick; // the spin decides; no re-picking from a list
       row.onclick = () => {
@@ -672,8 +667,12 @@ function renderRosterStep(category, title, sub, onLock) {
   const teamNote = team
     ? `<span class="scout-team-name">${team.name}</span> legends`
     : "Spin for the franchise you're scouting this pick from.";
-  wrap.appendChild(el("p", "step-sub center",
-    `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no cap" : state.autoPick ? "No salary cap \u2014 the spin decides" : "Cap space: " + fmtSalary(budgetRemaining())}`));
+  // Cap space, or the reason there isn't one. The no-budget team-spin mode lets
+  // you pick freely from the spun team, minus anyone already on your roster.
+  const capNote = state.sandbox ? "Sandbox \u2014 no cap"
+    : state.autoPick ? "No salary cap \u2014 pick any player, no repeats"
+    : "Cap space: " + fmtSalary(budgetRemaining());
+  wrap.appendChild(el("p", "step-sub center", `${sub} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${capNote}`));
 
   const spinBtn = el("button", "btn-primary",
     !team ? "🎡 Spin for a Team"
@@ -686,42 +685,11 @@ function renderRosterStep(category, title, sub, onLock) {
       state.teamRerollsUsed++; // first spin of each pick is free, respins are not
     }
     state.scoutTeam = pickRandom(TEAMS);
-    if (state.autoPick) {
-      // the spin IS the pick: assign immediately, skipping any already-used player
-      const used = CATEGORIES.map(c => currentPick(c)).filter(Boolean).map(p => p.name);
-      autoAssigned = autoAssignPick(category, used);
-    }
     render();
   };
   // Sandbox replaces the spin with a browse: team dropdown + league-wide search.
   if (state.sandbox) wrap.appendChild(renderSandboxBrowser(category));
   else wrap.appendChild(spinBtn);
-
-  // ---- Auto-assign mode: the spin picks the player, there is no list ----
-  if (state.autoPick) {
-    if (!autoAssigned) {
-      wrap.appendChild(el("div", "spin-result", team ? "\u2014" : "?"));
-    } else {
-      const a = autoAssigned;
-      const ratingLine = a.label ? `${a.label} <span class="sub-rating">${a.rating}</span>` : a.rating;
-      wrap.appendChild(el("div", "auto-pick-card",
-        `<div class="ap-team">${a.team.abbr} &middot; ${a.team.name}</div>
-         <div class="ap-name">${a.name}</div>
-         <div class="ap-meta"><span class="era-tag">${a.era}</span> ${traitPillHTML(a.name, category)}</div>
-         <div class="ap-rating">${ratingLine}</div>`));
-      const lockBtn = el("button", "btn-primary", "Lock It In \u2192");
-      lockBtn.onclick = () => {
-        onLock(a);            // a.cost is 0 and carries its own .team
-        autoAssigned = null;
-        state.scoutTeam = null; // next pick spins its own team
-        state.currentStep++;
-        render();
-      };
-      wrap.appendChild(lockBtn);
-    }
-    app.appendChild(wrap);
-    return;
-  }
 
   if (!team) {
     wrap.appendChild(el("div", "spin-result", "?"));
@@ -736,21 +704,31 @@ function renderRosterStep(category, title, sub, onLock) {
     const list = el("div", "roster-list");
     // In sandbox an active search pulls from every team; otherwise the scouted one.
     const q = state.sandbox ? sandboxQuery.trim().toLowerCase() : "";
-    const source = q
+    let source = q
       ? getAllRosterOptions(category).filter(o => o.name.toLowerCase().includes(q)).slice(0, 50)
       : getRosterOptions(category);
+    // No-budget mode: same list, but a player already taken in another category
+    // is off the board (no repeats across the 8 picks).
+    if (state.autoPick) {
+      const used = new Set(usedPickNames(category));
+      source = source.filter(o => !used.has(o.name));
+    }
+    // No-budget mode drops the cost column entirely — nothing is priced.
+    const showCost = !state.autoPick;
     if (q && !source.length) list.appendChild(el("div", "roster-empty", `No player matches \u201C${sandboxQuery.trim()}\u201D`));
     source.forEach(opt => {
       // Height/Athleticism show their real-world label plus the individual rating;
       // skills show the rating alone.
       const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
-      const row = el("button", "roster-row" + (opt.affordable ? "" : " locked"),
+      const row = el("button", "roster-row" + (showCost ? "" : " no-cost") + (showCost && !opt.affordable ? " locked" : ""),
         `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${q ? ` <span class="era-tag team-tag">${opt.team.abbr}</span>` : ""}${traitPillHTML(opt.name, category)}</span>
          <span class="roster-rating">${display}</span>
-         <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
-      row.disabled = !opt.affordable;
+         ${showCost ? `<span class="roster-cost">${fmtSalary(opt.cost)}</span>` : ""}`);
+      row.disabled = showCost && !opt.affordable;
       row.onclick = () => {
-        onLock(opt); // opt carries its own .team, so cross-team picks are self-describing
+        // opt carries its own .team, so cross-team picks are self-describing.
+        // No-budget picks are stored at cost 0 so budgetSpent never moves.
+        onLock(showCost ? opt : { ...opt, cost: 0 });
         sandboxQuery = "";
         state.scoutTeam = null; // next pick spins its own team
         state.currentStep++;
@@ -847,10 +825,10 @@ function renderConfirmStep() {
   CATEGORIES.forEach(cat => {
     const p = currentPick(cat);
     const display = p.label ? `${p.label} <span class="sub-rating">${p.rating}</span>` : p.rating;
-    const row = el("button", "roster-row",
+    const row = el("button", "roster-row" + (state.autoPick ? " no-cost" : ""),
       `<span class="roster-name">${categoryLabel(cat)}: ${p.name} <span class="era-tag">${p.team ? p.team.abbr : "—"}</span></span>
        <span class="roster-rating">${display}</span>
-       <span class="roster-cost">${fmtSalary(p.cost)}</span>`);
+       ${state.autoPick ? "" : `<span class="roster-cost">${fmtSalary(p.cost)}</span>`}`);
     row.onclick = () => {
       state.editingCategory = cat;
       render();
@@ -1308,7 +1286,7 @@ function renderVerdict() {
 
   const needNote = state.teamNeedMet ? ` &nbsp;·&nbsp; Filled ${state.team.name}'s need ✓` : "";
   wrap.appendChild(el("div", "meta-line",
-    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : state.autoPick ? "No salary cap \u2014 players auto-assigned" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`}`));
+    `Position: ${state.position} (${POSITIONS[state.position].label}) — ${state.positionFit ? "Fit ✓" : "Anomaly ⚡"}${needNote} &nbsp;·&nbsp; ${state.sandbox ? "Sandbox \u2014 no salary cap" : state.autoPick ? "No salary cap" : `Salary committed: ${fmtSalary(state.budgetSpent)} of ${fmtSalary(BUDGET_CAP)}`}`));
 
   if (state.sharedView) {
     const build = el("button", "btn-primary", "Build Your Own →");
@@ -1551,7 +1529,6 @@ function resetGame() {
   state.sandbox = false; // never leak sandbox rules into a real playthrough
   state.autoPick = false;
   sandboxQuery = "";
-  autoAssigned = null;
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;
