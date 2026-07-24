@@ -875,27 +875,31 @@ const POSITIONS = {
 // Order matches the select screen. `label` is the short first name shown in the
 // live tracker.
 // NOTE: LeBron James, Stephen Curry, Kevin Durant, Giannis Antetokounmpo and
-// Nikola Jokic were still active as of this build — their numbers are a
-// SNAPSHOT through the 2025-26 NBA season, deliberately frozen (this is a static
-// site). If revisited later, update these by hand — the counting stats
-// (All-NBA/All-Star especially) drift every season they keep playing.
+// Nikola Jokic were still active as of this build — their numbers (accolades
+// AND the career totals below) are a SNAPSHOT through the 2025-26 NBA season,
+// deliberately frozen (this is a static site). If revisited later, update these
+// by hand — both the counting stats (All-NBA/All-Star) and the career totals
+// (PTS/AST/REB/BLK/3PM/STL) drift every season they keep playing.
+// preTracking: true marks legends whose era predates official blocks/steals and
+// the 3-point line (Russell, Wilt) — their 0s there are historically accurate,
+// not missing data, and the tracker shows them as "not tracked" rather than a beat.
 const SHADOW_TARGETS = {
-  "Michael Jordan":      { label: "Jordan", rings: 6, mvps: 5, finalsMVPs: 6, allNBA: 10, allStar: 14, roty: 1, dpoys: 1, peakPPG: 37.1, peakAPG: 8.0, peakRPG: 8.0 },
-  "LeBron James":        { label: "LeBron", rings: 4, mvps: 4, finalsMVPs: 4, allNBA: 20, allStar: 20, roty: 1, dpoys: 0, peakPPG: 31.4, peakAPG: 10.2, peakRPG: 9.7 },
-  "Stephen Curry":       { label: "Curry", rings: 4, mvps: 2, finalsMVPs: 0, allNBA: 10, allStar: 10, roty: 0, dpoys: 0, peakPPG: 32.0, peakAPG: 9.3, peakRPG: 5.1 },
-  "Kevin Durant":        { label: "Durant", rings: 2, mvps: 1, finalsMVPs: 2, allNBA: 11, allStar: 14, roty: 1, dpoys: 0, peakPPG: 32.0, peakAPG: 5.5, peakRPG: 8.2 },
-  "Giannis Antetokounmpo": { label: "Giannis", rings: 1, mvps: 2, finalsMVPs: 1, allNBA: 9, allStar: 9, roty: 0, dpoys: 1, peakPPG: 31.1, peakAPG: 6.5, peakRPG: 13.6 },
-  "Nikola Jokic":        { label: "Jokic", rings: 1, mvps: 3, finalsMVPs: 1, allNBA: 7, allStar: 7, roty: 0, dpoys: 0, peakPPG: 29.6, peakAPG: 10.2, peakRPG: 12.7 },
-  "Kareem Abdul-Jabbar": { label: "Kareem", rings: 6, mvps: 6, finalsMVPs: 2, allNBA: 15, allStar: 19, roty: 1, dpoys: 0, peakPPG: 34.8, peakAPG: 5.4, peakRPG: 16.6 },
-  "Kobe Bryant":         { label: "Kobe", rings: 5, mvps: 1, finalsMVPs: 2, allNBA: 15, allStar: 18, roty: 0, dpoys: 0, peakPPG: 35.4, peakAPG: 6.0, peakRPG: 6.9 },
-  "Shaquille O'Neal":    { label: "Shaq", rings: 4, mvps: 1, finalsMVPs: 3, allNBA: 14, allStar: 15, roty: 1, dpoys: 0, peakPPG: 29.7, peakAPG: 3.8, peakRPG: 13.9 },
-  "Hakeem Olajuwon":     { label: "Hakeem", rings: 2, mvps: 1, finalsMVPs: 2, allNBA: 12, allStar: 12, roty: 0, dpoys: 2, peakPPG: 27.3, peakAPG: 3.4, peakRPG: 13.5 },
-  "Tim Duncan":          { label: "Duncan", rings: 5, mvps: 2, finalsMVPs: 3, allNBA: 15, allStar: 15, roty: 1, dpoys: 0, peakPPG: 25.5, peakAPG: 3.9, peakRPG: 12.9 },
-  "Bill Russell":        { label: "Russell", rings: 11, mvps: 5, finalsMVPs: 0, allNBA: 11, allStar: 12, roty: 0, dpoys: 0, peakPPG: 18.9, peakAPG: 4.9, peakRPG: 24.7 },
-  "Wilt Chamberlain":    { label: "Wilt", rings: 2, mvps: 4, finalsMVPs: 1, allNBA: 10, allStar: 13, roty: 1, dpoys: 0, peakPPG: 50.4, peakAPG: 8.6, peakRPG: 27.2 },
-  "Larry Bird":          { label: "Bird", rings: 3, mvps: 3, finalsMVPs: 2, allNBA: 10, allStar: 12, roty: 1, dpoys: 0, peakPPG: 29.9, peakAPG: 7.6, peakRPG: 11.2 },
-  "Magic Johnson":       { label: "Magic", rings: 5, mvps: 3, finalsMVPs: 3, allNBA: 10, allStar: 12, roty: 0, dpoys: 0, peakPPG: 23.9, peakAPG: 12.6, peakRPG: 8.6 },
-  "Dirk Nowitzki":       { label: "Dirk", rings: 1, mvps: 1, finalsMVPs: 1, allNBA: 12, allStar: 14, roty: 0, dpoys: 0, peakPPG: 26.6, peakAPG: 3.4, peakRPG: 9.9 },
+  "Michael Jordan":      { label: "Jordan", rings: 6, mvps: 5, finalsMVPs: 6, allNBA: 10, allStar: 14, roty: 1, dpoys: 1, peakPPG: 37.1, peakAPG: 8.0, peakRPG: 8.0, totalPTS: 32292, totalAST: 5633, totalREB: 6672, totalBLK: 893, total3PM: 581, totalSTL: 2514 },
+  "LeBron James":        { label: "LeBron", rings: 4, mvps: 4, finalsMVPs: 4, allNBA: 20, allStar: 20, roty: 1, dpoys: 0, peakPPG: 31.4, peakAPG: 10.2, peakRPG: 9.7, totalPTS: 44000, totalAST: 11000, totalREB: 11500, totalBLK: 1100, total3PM: 2600, totalSTL: 2200 },
+  "Stephen Curry":       { label: "Curry", rings: 4, mvps: 2, finalsMVPs: 0, allNBA: 10, allStar: 10, roty: 0, dpoys: 0, peakPPG: 32.0, peakAPG: 9.3, peakRPG: 5.1, totalPTS: 25500, totalAST: 6500, totalREB: 5200, totalBLK: 150, total3PM: 4300, totalSTL: 1700 },
+  "Kevin Durant":        { label: "Durant", rings: 2, mvps: 1, finalsMVPs: 2, allNBA: 11, allStar: 14, roty: 1, dpoys: 0, peakPPG: 32.0, peakAPG: 5.5, peakRPG: 8.2, totalPTS: 31500, totalAST: 5700, totalREB: 7600, totalBLK: 1150, total3PM: 2300, totalSTL: 1300 },
+  "Giannis Antetokounmpo": { label: "Giannis", rings: 1, mvps: 2, finalsMVPs: 1, allNBA: 9, allStar: 9, roty: 0, dpoys: 1, peakPPG: 31.1, peakAPG: 6.5, peakRPG: 13.6, totalPTS: 23500, totalAST: 4800, totalREB: 9800, totalBLK: 1000, total3PM: 400, totalSTL: 950 },
+  "Nikola Jokic":        { label: "Jokic", rings: 1, mvps: 3, finalsMVPs: 1, allNBA: 7, allStar: 7, roty: 0, dpoys: 0, peakPPG: 29.6, peakAPG: 10.2, peakRPG: 12.7, totalPTS: 17300, totalAST: 7200, totalREB: 8700, totalBLK: 700, total3PM: 700, totalSTL: 1000 },
+  "Kareem Abdul-Jabbar": { label: "Kareem", rings: 6, mvps: 6, finalsMVPs: 2, allNBA: 15, allStar: 19, roty: 1, dpoys: 0, peakPPG: 34.8, peakAPG: 5.4, peakRPG: 16.6, totalPTS: 38387, totalAST: 5660, totalREB: 17440, totalBLK: 3189, total3PM: 1, totalSTL: 1160 },
+  "Kobe Bryant":         { label: "Kobe", rings: 5, mvps: 1, finalsMVPs: 2, allNBA: 15, allStar: 18, roty: 0, dpoys: 0, peakPPG: 35.4, peakAPG: 6.0, peakRPG: 6.9, totalPTS: 33643, totalAST: 6306, totalREB: 7047, totalBLK: 640, total3PM: 1827, totalSTL: 1944 },
+  "Shaquille O'Neal":    { label: "Shaq", rings: 4, mvps: 1, finalsMVPs: 3, allNBA: 14, allStar: 15, roty: 1, dpoys: 0, peakPPG: 29.7, peakAPG: 3.8, peakRPG: 13.9, totalPTS: 28596, totalAST: 3026, totalREB: 13099, totalBLK: 2732, total3PM: 1, totalSTL: 739 },
+  "Hakeem Olajuwon":     { label: "Hakeem", rings: 2, mvps: 1, finalsMVPs: 2, allNBA: 12, allStar: 12, roty: 0, dpoys: 2, peakPPG: 27.3, peakAPG: 3.4, peakRPG: 13.5, totalPTS: 26946, totalAST: 3058, totalREB: 13748, totalBLK: 3830, total3PM: 20, totalSTL: 2162 },
+  "Tim Duncan":          { label: "Duncan", rings: 5, mvps: 2, finalsMVPs: 3, allNBA: 15, allStar: 15, roty: 1, dpoys: 0, peakPPG: 25.5, peakAPG: 3.9, peakRPG: 12.9, totalPTS: 26496, totalAST: 4225, totalREB: 15091, totalBLK: 3020, total3PM: 76, totalSTL: 1020 },
+  "Bill Russell":        { label: "Russell", rings: 11, mvps: 5, finalsMVPs: 0, allNBA: 11, allStar: 12, roty: 0, dpoys: 0, peakPPG: 18.9, peakAPG: 4.9, peakRPG: 24.7, totalPTS: 14522, totalAST: 4100, totalREB: 21620, totalBLK: 0, total3PM: 0, totalSTL: 0, preTracking: true },
+  "Wilt Chamberlain":    { label: "Wilt", rings: 2, mvps: 4, finalsMVPs: 1, allNBA: 10, allStar: 13, roty: 1, dpoys: 0, peakPPG: 50.4, peakAPG: 8.6, peakRPG: 27.2, totalPTS: 31419, totalAST: 4643, totalREB: 23924, totalBLK: 0, total3PM: 0, totalSTL: 0, preTracking: true },
+  "Larry Bird":          { label: "Bird", rings: 3, mvps: 3, finalsMVPs: 2, allNBA: 10, allStar: 12, roty: 1, dpoys: 0, peakPPG: 29.9, peakAPG: 7.6, peakRPG: 11.2, totalPTS: 21791, totalAST: 5695, totalREB: 8974, totalBLK: 755, total3PM: 649, totalSTL: 1556 },
+  "Magic Johnson":       { label: "Magic", rings: 5, mvps: 3, finalsMVPs: 3, allNBA: 10, allStar: 12, roty: 0, dpoys: 0, peakPPG: 23.9, peakAPG: 12.6, peakRPG: 8.6, totalPTS: 17707, totalAST: 10141, totalREB: 6559, totalBLK: 374, total3PM: 208, totalSTL: 1724 },
+  "Dirk Nowitzki":       { label: "Dirk", rings: 1, mvps: 1, finalsMVPs: 1, allNBA: 12, allStar: 14, roty: 0, dpoys: 0, peakPPG: 26.6, peakAPG: 3.4, peakRPG: 9.9, totalPTS: 31560, totalAST: 3651, totalREB: 11489, totalBLK: 1120, total3PM: 1982, totalSTL: 979 },
 };
 // Fixed display order for the select screen (object key order isn't guaranteed
 // to be honored everywhere, so pin it explicitly).

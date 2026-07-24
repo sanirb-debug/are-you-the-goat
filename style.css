@@ -1167,6 +1167,18 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 .shadow-cmp .scm { font-size: 12px; line-height: 1; }
 .shadow-cmp.beat .scm { color: var(--green); }
 .shadow-cmp.short .scm { color: var(--red); }
+/* Pre-tracking era (Russell/Wilt): neither a win nor a loss — a muted "n/t". */
+.shadow-cmp.untracked { border-color: var(--card-border); opacity: 0.72; }
+.shadow-cmp.untracked .scm {
+  font-family: var(--font-cond);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: help;
+}
+.shadow-track-row.untracked .stb { color: var(--text-dim); }
+.shadow-track-row.untracked .sts { font-style: italic; opacity: 0.85; }
 .shadow-narrative {
   margin: 12px 2px 0;
   font-size: 13.5px;

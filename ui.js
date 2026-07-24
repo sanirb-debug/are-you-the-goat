@@ -261,6 +261,12 @@ function inPickingPhase() {
   return step === "height" || step === "athleticism" || step === "confirm" || step === "chooseBadges" || SKILL_ORDER.includes(step);
 }
 
+// A shadow-metric value for display: career totals (`big`) get thousands
+// separators (44,000), everything else keeps its fixed decimals (4.0, 6).
+function fmtMetric(v, r) {
+  return r.big ? Math.round(v).toLocaleString() : v.toFixed(r.decimals);
+}
+
 const CATEGORY_LABELS = { height: "Height", athleticism: "Athleticism" };
 // Display labels for Signature-Trait stat modifiers.
 const STAT_LABEL = { ppg: "PPG", apg: "APG", rpg: "RPG", spg: "SPG", bpg: "BPG", tpg: "3PM", fgPct: "FG%", tptPct: "3PT%" };
@@ -1323,13 +1329,15 @@ function renderSimulating() {
     track.appendChild(el("div", "shadow-track-head", `Chasing <strong>${cmp.targetName}</strong>`));
     const grid = el("div", "shadow-track-grid");
     const spans = cmp.rows.map(r => {
-      const row = el("div", "shadow-track-row");
+      const row = el("div", "shadow-track-row" + (r.untracked ? " untracked" : ""));
       row.appendChild(el("span", "stl", r.label));
-      const build = el("span", "stb", r.decimals ? "0.0" : "0");
+      const build = el("span", "stb", r.big ? "0" : r.decimals ? "0.0" : "0");
       row.appendChild(build);
-      row.appendChild(el("span", "sts", `/ ${cmp.targetLabel} ${r.target.toFixed(r.decimals)}`));
+      row.appendChild(el("span", "sts", r.untracked
+        ? "not tracked in his era"
+        : `/ ${cmp.targetLabel} ${fmtMetric(r.target, r)}`));
       grid.appendChild(row);
-      return { el: build, row, final: r.build, decimals: r.decimals, beat: r.beat };
+      return { el: build, row, final: r.build, decimals: r.decimals, big: r.big, beat: r.beat, untracked: r.untracked };
     });
     track.appendChild(grid);
     wrap.appendChild(track);
@@ -1342,9 +1350,12 @@ function renderSimulating() {
     const timer = setInterval(() => {
       if (simRunToken !== token || STEPS[state.currentStep] !== "simulating") { clearInterval(timer); return; }
       const t = Math.min(1, (performance.now() - start) / dur);
-      spans.forEach(s => { s.el.textContent = (s.final * t).toFixed(s.decimals); });
+      spans.forEach(s => { s.el.textContent = s.big ? Math.round(s.final * t).toLocaleString() : (s.final * t).toFixed(s.decimals); });
       if (t >= 1) {
-        spans.forEach(s => { s.el.textContent = s.final.toFixed(s.decimals); s.row.classList.add(s.beat ? "beat" : "short"); });
+        spans.forEach(s => {
+          s.el.textContent = s.big ? Math.round(s.final).toLocaleString() : s.final.toFixed(s.decimals);
+          if (!s.untracked) s.row.classList.add(s.beat ? "beat" : "short");
+        });
         clearInterval(timer);
       }
     }, 40);
@@ -1456,10 +1467,21 @@ function renderVerdict() {
       `Chasing the Shadow · ${isDethroned(career) ? "Caught" : "Chased"} ${shadow.targetName} — ${shadow.beatCount}/${shadow.total}`));
     const grid = el("div", "shadow-cmp-grid");
     shadow.rows.forEach(r => {
+      if (r.untracked) {
+        // Pre-tracking era (Russell/Wilt blocks/steals/3PM): show the build's own
+        // number but tag it rather than a hollow ✓ for "beating" a zero.
+        const cell = el("div", "shadow-cmp untracked");
+        cell.innerHTML =
+          `<span class="scl">${r.label}</span>
+           <span class="scv">${fmtMetric(r.build, r)} <span class="scvs">/ —</span></span>
+           <span class="scm" title="Not an official stat in ${shadow.targetLabel}'s era">n/t</span>`;
+        grid.appendChild(cell);
+        return;
+      }
       const cell = el("div", "shadow-cmp" + (r.beat ? " beat" : " short"));
       cell.innerHTML =
         `<span class="scl">${r.label}</span>
-         <span class="scv">${r.build.toFixed(r.decimals)} <span class="scvs">/ ${r.target.toFixed(r.decimals)}</span></span>
+         <span class="scv">${fmtMetric(r.build, r)} <span class="scvs">/ ${fmtMetric(r.target, r)}</span></span>
          <span class="scm">${r.beat ? "✓" : "✕"}</span>`;
       grid.appendChild(cell);
     });

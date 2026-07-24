@@ -1235,6 +1235,11 @@ function generateHeadline(career, tier) {
 // the peak-stat categories, so piling up volume stats and minor hardware can
 // never add up to "beating" a legend the way matching their MVP/All-NBA
 // résumé does. Rings/MVPs/All-NBA are additionally a hard prestige gate below.
+// weight tiers: 3 = the résumé pillars (rings/MVPs/All-NBA), the hard-to-earn
+// prestige metrics; 1 = everything secondary (awards, peak seasons, and the
+// career VOLUME totals below). Career totals are deliberately weight 1 and
+// `big`/`volume` — easy to rack up over a long career, so they inform the grid
+// and the majority read but never outweigh the pillars in the outcome.
 const SHADOW_METRICS = [
   { key: "rings",  label: "Rings",     get: c => c.rings,           tgt: t => t.rings,   decimals: 0, weight: 3, phrase: "the rings" },
   { key: "mvps",   label: "MVPs",      get: c => c.mvps,            tgt: t => t.mvps,    decimals: 0, weight: 3, phrase: "the MVPs" },
@@ -1244,9 +1249,22 @@ const SHADOW_METRICS = [
   { key: "ppg",    label: "Peak PPG",  get: c => c.bestSeason.ppg,  tgt: t => t.peakPPG, decimals: 1, weight: 1, phrase: "peak scoring" },
   { key: "apg",    label: "Peak APG",  get: c => c.bestSeason.apg,  tgt: t => t.peakAPG, decimals: 1, weight: 1, phrase: "peak playmaking" },
   { key: "rpg",    label: "Peak RPG",  get: c => c.bestSeason.rpg,  tgt: t => t.peakRPG, decimals: 1, weight: 1, phrase: "peak rebounding" },
+  // Career totals — secondary volume metrics. `big` = format with thousands
+  // separators; `era` = zeroed for pre-tracking legends (see preTracking below).
+  { key: "pts",    label: "Points",    get: c => c.totals.pts,      tgt: t => t.totalPTS, decimals: 0, weight: 1, big: true, phrase: "the scoring volume" },
+  { key: "ast",    label: "Assists",   get: c => c.totals.ast,      tgt: t => t.totalAST, decimals: 0, weight: 1, big: true, phrase: "the assist total" },
+  { key: "reb",    label: "Rebounds",  get: c => c.totals.reb,      tgt: t => t.totalREB, decimals: 0, weight: 1, big: true, phrase: "the rebounding total" },
+  { key: "blk",    label: "Blocks",    get: c => c.totals.blk,      tgt: t => t.totalBLK, decimals: 0, weight: 1, big: true, era: true, phrase: "the block total" },
+  { key: "tpm",    label: "3PM",       get: c => c.totals.threes,   tgt: t => t.total3PM, decimals: 0, weight: 1, big: true, era: true, phrase: "the threes made" },
+  { key: "stl",    label: "Steals",    get: c => c.totals.stl,      tgt: t => t.totalSTL, decimals: 0, weight: 1, big: true, era: true, phrase: "the steal total" },
 ];
 // The résumé pillars that gate a true "dethroning": you must match ALL THREE.
 const SHADOW_PILLARS = ["rings", "mvps", "allNBA"];
+// Prose enumeration skips awards (they get their own aside) AND the career
+// volume totals — the narrative is about pillars + peak greatness, not who piled
+// up more counting stats; the totals still show in the grid and count toward
+// beatCount. `era`-flagged metrics are the ones blanked for pre-tracking legends.
+const SHADOW_PROSE_SKIP = new Set(["roty", "dpoy", "pts", "ast", "reb", "blk", "tpm", "stl"]);
 
 // { targetName, targetLabel, target, rows, beatCount, total, weightedBeat,
 //   weightedTotal, resumeCleared, majority }
@@ -1257,15 +1275,25 @@ function compareToShadow(career) {
   const rows = SHADOW_METRICS.map(m => {
     const build = m.get(career);
     const tv = m.tgt(target);
-    return { key: m.key, label: m.label, phrase: m.phrase, decimals: m.decimals, weight: m.weight, build, target: tv, beat: build >= tv };
+    // Russell/Wilt (preTracking) never had blocks/steals/3PM tracked — their 0
+    // there is historical, not a real mark. Such a row is "untracked": it does
+    // not count as a beat and is excluded from the scoring, and the UI tags it
+    // rather than showing a hollow ✓ for clearing a zero.
+    const untracked = !!target.preTracking && !!m.era && tv === 0;
+    return {
+      key: m.key, label: m.label, phrase: m.phrase, decimals: m.decimals,
+      weight: m.weight, big: !!m.big, build, target: tv,
+      beat: !untracked && build >= tv, untracked,
+    };
   });
-  const beatCount = rows.filter(r => r.beat).length;
-  const weightedBeat = rows.filter(r => r.beat).reduce((s, r) => s + r.weight, 0);
-  const weightedTotal = rows.reduce((s, r) => s + r.weight, 0);
+  const scored = rows.filter(r => !r.untracked); // untracked rows are out of the tally
+  const beatCount = scored.filter(r => r.beat).length;
+  const weightedBeat = scored.filter(r => r.beat).reduce((s, r) => s + r.weight, 0);
+  const weightedTotal = scored.reduce((s, r) => s + r.weight, 0);
   // The prestige gate: all three résumé pillars (rings, MVPs, All-NBA) beaten.
   const resumeCleared = SHADOW_PILLARS.every(k => rows.find(r => r.key === k).beat);
   return {
-    targetName, targetLabel: target.label, target, rows, beatCount, total: rows.length,
+    targetName, targetLabel: target.label, target, rows, beatCount, total: scored.length,
     weightedBeat, weightedTotal, resumeCleared,
     majority: weightedBeat * 2 >= weightedTotal, // weighted majority (informational)
   };
@@ -1293,7 +1321,7 @@ function generateShadowVerdict(career) {
   const name = state.name || "The Mystery Player";
   const T = cmp.targetLabel;
   const beat = cmp.rows.filter(r => r.beat);
-  const short = cmp.rows.filter(r => !r.beat);
+  const short = cmp.rows.filter(r => !r.beat && !r.untracked);
   const list = arr => {
     const p = arr.map(r => r.phrase);
     if (p.length === 0) return "";
@@ -1314,9 +1342,8 @@ function generateShadowVerdict(career) {
   // ROTY/DPOY get their own editorial aside below, so keep them out of the
   // generic prose enumeration — otherwise each award would be named twice in
   // the same paragraph. They still count toward beatCount and show in the grid.
-  const AWARD_KEYS = ["roty", "dpoy"];
-  const beatP = beat.filter(r => !AWARD_KEYS.includes(r.key));
-  const shortP = short.filter(r => !AWARD_KEYS.includes(r.key));
+  const beatP = beat.filter(r => !SHADOW_PROSE_SKIP.has(r.key));
+  const shortP = short.filter(r => !SHADOW_PROSE_SKIP.has(r.key));
 
   // A one-off aside when the two careers diverge on the hardware the base
   // Rings/MVP/stat metrics don't speak to — the DPOY and ROTY. Returns ""
