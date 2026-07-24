@@ -645,6 +645,38 @@ check("on-category height fill's band matches the player's height",
 resetFF();
 S5.autoPick = false; S5.pickOrder = []; // leave global state clean for later sections
 
+// ---------------------------------------------------------------------------
+console.log("\n=== NO-BUDGET MODE: no-repeat holds on every round ===");
+// REGRESSION: the free-for-all loop reuses the 8 attribute STEPS entries as
+// round counters, so a round's step category has NOTHING to do with which slot
+// gets filled. Passing it as availableTeams/spinnablePlayers' exceptCategory
+// therefore re-admitted whatever team+player was locked in the slot that step
+// happens to name, letting a team repeat and a player fill TWO slots (reachable
+// because 95 players sit on more than one team's roster). The Classic paths must
+// except nothing — Back clears a slot via unlockPick before re-rendering, so
+// there is never a slot needing to be excused from its own filter.
+
+const S6 = G.state;
+S6.height = null; S6.athleticism = null; S6.skills = {};
+S6.budgetSpent = 0; S6.pickOrder = []; S6.sandbox = false; S6.autoPick = true;
+
+const bosT = G.TEAMS.find(t => t.abbr === "BOS");
+const russell = G.TEAM_ROSTERS["BOS"].find(p => p.name === "Bill Russell");
+G.lockSkill("Playmaking", G.buildStatPick(russell, bosT, "Playmaking", "Playmaking"));
+S6.pickOrder.push("Playmaking");
+
+check("a locked team is off the wheel on EVERY round, including its own step's",
+  G.availableTeams().some(t => t.abbr === "BOS"), false);
+check("a locked player is unspinnable on EVERY round, including its own step's",
+  G.spinnablePlayers(bosT).some(p => p.name === "Bill Russell"), false);
+// The old buggy call shape, pinned so it can't quietly come back as the default.
+check("excepting the filled slot WOULD re-admit it (why Classic must not)",
+  G.availableTeams("Playmaking").some(t => t.abbr === "BOS"), true,
+  "exceptCategory is only correct for the sequential modes, where step == slot");
+
+S6.height = null; S6.athleticism = null; S6.skills = {};
+S6.pickOrder = []; S6.autoPick = false; // leave global state clean
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);

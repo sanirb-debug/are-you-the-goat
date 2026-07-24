@@ -380,7 +380,7 @@ function renderPicksPanel() {
       const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : "") + (state.autoPick ? " locked-in" : ""),
         `<span class="picks-cat">${categoryLabel(cat)}</span>
          <span class="picks-player">${pick.name}</span>
-         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"}${state.autoPick ? "" : ` &nbsp;·&nbsp; ${fmtSalary(pick.cost)}`}</span>
+         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${state.autoPick ? pick.rating : fmtSalary(pick.cost)}</span>
          ${badgeLine}`);
       row.disabled = state.autoPick; // the spin decides; no re-picking from a list
       row.onclick = () => {
@@ -760,7 +760,11 @@ function wheelAngleFor(idx, n) {
 function renderTeamWheel(category, team, rerollsLeft, wrap) {
   wheelSpinToken++;            // invalidate any spin still animating from a prior render
   wheelSpinning = false;
-  const available = availableTeams(category);
+  // No exceptCategory: in the free-for-all loop the round's STEPS entry is just a
+  // round counter, NOT the slot being filled, so excepting it would re-admit the
+  // team locked in that slot and let it repeat. Back already clears a slot via
+  // unlockPick before re-rendering, so nothing needs an exception here.
+  const available = availableTeams();
   const n = available.length;
   const seg = 360 / n;
 
@@ -966,7 +970,10 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
 // animation event alone (same lesson as the team wheel).
 function runPlayerShuffle(category, team, reel, btn) {
   if (playerSpinning) return;
-  const eligible = spinnablePlayers(team, category);
+  // Same reason as the wheel: except nothing, or the player locked in the slot
+  // this round's step happens to name becomes spinnable again and could fill a
+  // SECOND slot (95 players sit on multiple teams, so it is reachable).
+  const eligible = spinnablePlayers(team);
   if (!eligible.length) return; // unreachable: teams never repeat, roster is fresh
   const target = pickRandom(eligible);
   const names = eligible.map(p => p.name);
