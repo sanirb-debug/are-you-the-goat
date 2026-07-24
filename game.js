@@ -22,7 +22,7 @@ const state = {
   scoutTeam: null,     // per-pick scouting team — whose roster the current list shows
   teamRerollsUsed: 0,  // scout-spin "Spin Again" uses, shared across the whole build
   spunPlayer: null,    // no-budget mode: the player the current pick's spin landed on
-  playerRerollsUsed: 0, // no-budget mode: player-spin re-rolls used THIS pick (reset each pick)
+  playerRerollsUsed: 0, // no-budget mode: player-spin re-rolls used, shared across the whole build
   pickOrder: [],       // no-budget mode: slot categories in the order they were locked (Back pops this)
   editingCategory: null, // set while revising an earlier pick from the sidebar
   seed: null,           // RNG seed for the career sim — encoded in share links

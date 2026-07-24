@@ -13,7 +13,8 @@ let wheelRotation = 0;
 let wheelSpinning = false;
 let wheelSpinToken = 0;
 // No-budget player spinner. The token guards the slot-machine shuffle the same way
-// the wheel's does; PLAYER_REROLLS re-spins are allowed per pick (free first spin).
+// the wheel's does; PLAYER_REROLLS re-spins are a build-level pool shared across
+// all 8 rounds (each round's first player spin is free), mirroring TEAM_REROLLS.
 const PLAYER_REROLLS = 3;
 let playerSpinToken = 0;
 let playerSpinning = false;
@@ -178,8 +179,9 @@ function goBack() {
   }
   sandboxQuery = "";
   // No-budget spinner: re-spin the player for the pick we stepped back into.
+  // playerRerollsUsed is a build-level pool (like the team wheel's), so it is
+  // NOT refunded here — stepping back does not hand spent re-spins back.
   state.spunPlayer = null;
-  state.playerRerollsUsed = 0;
   state.currentStep = target;
   render();
 }
@@ -846,9 +848,10 @@ function renderTeamWheel(category, team, rerollsLeft, wrap) {
       if (tok !== wheelSpinToken) return; // a re-render (e.g. Back) superseded this spin
       wheelSpinning = false;
       state.scoutTeam = target;
-      // A newly landed team means a fresh player selection for this pick.
+      // A newly landed team means a fresh player selection for this pick — but
+      // player re-spins are a build-level pool, so spinning a new team does NOT
+      // refund them.
       state.spunPlayer = null;
-      state.playerRerollsUsed = 0;
       render();
     };
 
@@ -888,8 +891,9 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
   if (!state.spunPlayer) {
     const reel = el("div", "player-reel", "—");
     wrap.appendChild(reel);
-    const btn = el("button", "btn-primary",
-      state.playerRerollsUsed > 0 ? "🎰 Spin for Player Again" : "🎰 Spin for Player");
+    // Each round's first player spin is free (the "Again" nuance lives on the
+    // separate respin button below, which draws from the shared pool).
+    const btn = el("button", "btn-primary", "🎰 Spin for Player");
     btn.onclick = () => runPlayerShuffle(category, team, reel, btn);
     wrap.appendChild(btn);
     // A re-spin (from the card) drops back here and spins straight away, so the
@@ -943,14 +947,16 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
     else lockSkill(cat, pick);
     state.pickOrder.push(cat); // so Back re-opens the slot actually filled this round
     state.spunPlayer = null;
-    state.playerRerollsUsed = 0;
+    // playerRerollsUsed is NOT reset — it is a build-level pool of PLAYER_REROLLS
+    // shared across all 8 rounds, mirroring the team wheel's teamRerollsUsed.
     state.scoutTeam = null; // next round spins its own team
     state.currentStep++;
     render();
   };
   wrap.appendChild(lockBtn);
 
-  // Re-spin the player (a different one), bounded per pick.
+  // Re-spin the player (a different one). Draws from the build-level pool, so
+  // once it hits 0 this button stays disabled for the rest of the build.
   const respin = el("button", "btn-secondary",
     rerollsLeft > 0 ? `Spin Player Again (${rerollsLeft} left)` : "No Player Re-spins Left");
   respin.disabled = rerollsLeft <= 0;
