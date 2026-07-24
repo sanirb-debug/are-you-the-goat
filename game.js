@@ -1491,7 +1491,8 @@ const ACHIEVEMENTS = [
   { id: "careers_25",  name: "Obsessed",          desc: "Play 25 careers.",                                   check: (r, L) => L.careersPlayed >= 25 },
   // Shadow-chasing
   { id: "dethrone_1",  name: "Out of the Shadow", desc: "Dethrone your first legend (clear the majority of their benchmarks).", check: (r) => !!r.dethroned },
-  { id: "dethrone_all",name: "Cast Your Own Shadow", desc: "Dethrone all 14 shadow legends across your careers.", check: (r, L) => L.dethronedTargets.length >= SHADOW_ORDER.length },
+  // Description is built from SHADOW_ORDER so it can't drift when legends are added.
+  { id: "dethrone_all",name: "Cast Your Own Shadow", desc: `Dethrone all ${SHADOW_ORDER.length} shadow legends across your careers.`, check: (r, L) => L.dethronedTargets.length >= SHADOW_ORDER.length },
   // Extreme builds
   { id: "perfect_spend", name: "Perfect Spend",   desc: "Finish a build spending the cap to the last dollar.", check: (r) => r.budgetExact },
   { id: "draft_bust",  name: "Bust on Purpose",   desc: "Land the Draft Bust tier.",                          check: (r) => r.tierName === "Draft Bust" },

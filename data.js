@@ -874,14 +874,18 @@ const POSITIONS = {
 // season PPG / APG / RPG. The build beats a metric by matching-or-exceeding it.
 // Order matches the select screen. `label` is the short first name shown in the
 // live tracker.
-// NOTE: LeBron James and Stephen Curry were still active as of this build —
-// their numbers are a SNAPSHOT through the 2025-26 NBA season, deliberately
-// frozen (this is a static site). If revisited later, update these two by hand.
+// NOTE: LeBron James, Stephen Curry, Kevin Durant, Giannis Antetokounmpo and
+// Nikola Jokic were still active as of this build — their numbers are a
+// SNAPSHOT through the 2025-26 NBA season, deliberately frozen (this is a static
+// site). If revisited later, update these by hand — the counting stats
+// (All-NBA/All-Star especially) drift every season they keep playing.
 const SHADOW_TARGETS = {
   "Michael Jordan":      { label: "Jordan", rings: 6, mvps: 5, finalsMVPs: 6, allNBA: 10, allStar: 14, roty: 1, dpoys: 1, peakPPG: 37.1, peakAPG: 8.0, peakRPG: 8.0 },
   "LeBron James":        { label: "LeBron", rings: 4, mvps: 4, finalsMVPs: 4, allNBA: 20, allStar: 20, roty: 1, dpoys: 0, peakPPG: 31.4, peakAPG: 10.2, peakRPG: 9.7 },
   "Stephen Curry":       { label: "Curry", rings: 4, mvps: 2, finalsMVPs: 0, allNBA: 10, allStar: 10, roty: 0, dpoys: 0, peakPPG: 32.0, peakAPG: 9.3, peakRPG: 5.1 },
   "Kevin Durant":        { label: "Durant", rings: 2, mvps: 1, finalsMVPs: 2, allNBA: 11, allStar: 14, roty: 1, dpoys: 0, peakPPG: 32.0, peakAPG: 5.5, peakRPG: 8.2 },
+  "Giannis Antetokounmpo": { label: "Giannis", rings: 1, mvps: 2, finalsMVPs: 1, allNBA: 9, allStar: 9, roty: 0, dpoys: 1, peakPPG: 31.1, peakAPG: 6.5, peakRPG: 13.6 },
+  "Nikola Jokic":        { label: "Jokic", rings: 1, mvps: 3, finalsMVPs: 1, allNBA: 7, allStar: 7, roty: 0, dpoys: 0, peakPPG: 29.6, peakAPG: 10.2, peakRPG: 12.7 },
   "Kareem Abdul-Jabbar": { label: "Kareem", rings: 6, mvps: 6, finalsMVPs: 2, allNBA: 15, allStar: 19, roty: 1, dpoys: 0, peakPPG: 34.8, peakAPG: 5.4, peakRPG: 16.6 },
   "Kobe Bryant":         { label: "Kobe", rings: 5, mvps: 1, finalsMVPs: 2, allNBA: 15, allStar: 18, roty: 0, dpoys: 0, peakPPG: 35.4, peakAPG: 6.0, peakRPG: 6.9 },
   "Shaquille O'Neal":    { label: "Shaq", rings: 4, mvps: 1, finalsMVPs: 3, allNBA: 14, allStar: 15, roty: 1, dpoys: 0, peakPPG: 29.7, peakAPG: 3.8, peakRPG: 13.9 },
@@ -895,7 +899,7 @@ const SHADOW_TARGETS = {
 };
 // Fixed display order for the select screen (object key order isn't guaranteed
 // to be honored everywhere, so pin it explicitly).
-const SHADOW_ORDER = ["Michael Jordan", "LeBron James", "Stephen Curry", "Kevin Durant", "Kareem Abdul-Jabbar", "Kobe Bryant", "Shaquille O'Neal", "Hakeem Olajuwon", "Tim Duncan", "Bill Russell", "Wilt Chamberlain", "Larry Bird", "Magic Johnson", "Dirk Nowitzki"];
+const SHADOW_ORDER = ["Michael Jordan", "LeBron James", "Stephen Curry", "Kevin Durant", "Giannis Antetokounmpo", "Nikola Jokic", "Kareem Abdul-Jabbar", "Kobe Bryant", "Shaquille O'Neal", "Hakeem Olajuwon", "Tim Duncan", "Bill Russell", "Wilt Chamberlain", "Larry Bird", "Magic Johnson", "Dirk Nowitzki"];
 
 // ===== SIGNATURE TRAIT BADGES =====
 // 198 real-player signature traits, keyed "PlayerName|Category". A build ACQUIRES

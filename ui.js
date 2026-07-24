@@ -477,23 +477,61 @@ function renderShadowStep() {
   wrap.appendChild(el("div", "verdict-label", "CHASING THE SHADOW"));
   wrap.appendChild(el("h1", "step-title", "Who is your GOAT?"));
   wrap.appendChild(el("p", "step-sub", "Pick the legend your career will be measured against. You'll chase their rings, their MVPs, and their peak numbers."));
-  const grid = el("div", "shadow-select");
+  // A dropdown rather than a 16-card grid: the list stays scannable as legends
+  // are added, and the picked legend gets a full benchmark preview before it is
+  // locked in. Native <select> (same pattern as the Sandbox team picker) so the
+  // scroll/keyboard/mobile behaviour is the platform's.
+  const sel = el("select", "shadow-menu");
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose a legend\u2026";
+  sel.appendChild(placeholder);
   SHADOW_ORDER.forEach(name => {
-    const t = SHADOW_TARGETS[name];
-    // DPOY segment only for legends who actually won one — keeps the common
-    // 0-DPOY case from cluttering the line with "0× DPOY".
-    const dpoySeg = t.dpoys > 0 ? `${t.dpoys}× DPOY &middot; ` : "";
-    const btn = el("button", "shadow-option",
-      `<span class="shadow-opt-name">${name}</span>
-       <span class="shadow-opt-line">${t.rings}× Ring${t.rings === 1 ? "" : "s"} &middot; ${t.mvps}× MVP &middot; ${dpoySeg}${t.peakPPG} peak PPG</span>`);
-    btn.onclick = () => {
-      state.shadowTarget = name;
-      state.currentStep++;
-      render();
-    };
-    grid.appendChild(btn);
+    const o = document.createElement("option");
+    o.value = name;
+    o.textContent = name;
+    if (state.shadowTarget === name) o.selected = true;
+    sel.appendChild(o);
   });
-  wrap.appendChild(grid);
+  wrap.appendChild(sel);
+
+  const preview = el("div", "shadow-preview");
+  wrap.appendChild(preview);
+
+  const cta = el("button", "btn-primary", "Lock In Your GOAT \u2192");
+  cta.style.marginTop = "14px";
+
+  // The full benchmark set the Chasing the Shadow tracker will compare against —
+  // zeros included, since a legend with no DPOY/ROTY is a genuinely easier mark.
+  function showPreview(name) {
+    preview.innerHTML = "";
+    if (!name) { cta.disabled = true; return; }
+    const t = SHADOW_TARGETS[name];
+    const stat = (v, lbl) => `<span class="sp-stat"><b>${v}</b><i>${lbl}</i></span>`;
+    preview.appendChild(el("div", "sp-name", name));
+    preview.appendChild(el("div", "sp-stats",
+      stat(t.rings, `Ring${t.rings === 1 ? "" : "s"}`) +
+      stat(t.mvps, "MVP") +
+      stat(t.finalsMVPs, "Finals MVP") +
+      stat(t.allNBA, "All-NBA") +
+      stat(t.allStar, "All-Star") +
+      stat(t.dpoys, "DPOY") +
+      stat(t.roty, "ROTY") +
+      stat(t.peakPPG, "Peak PPG") +
+      stat(t.peakAPG, "Peak APG") +
+      stat(t.peakRPG, "Peak RPG")));
+    cta.disabled = false;
+  }
+
+  sel.onchange = () => showPreview(sel.value);
+  cta.onclick = () => {
+    if (!sel.value) return;
+    state.shadowTarget = sel.value;
+    state.currentStep++;
+    render();
+  };
+  showPreview(sel.value);
+  wrap.appendChild(cta);
   app.appendChild(wrap);
 }
 
