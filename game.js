@@ -3,7 +3,7 @@
 const SKILL_ORDER = ["Shooting", "Finishing", "Playmaking", "Handles", "Defense", "Rebounding"];
 const CATEGORIES = ["height", "athleticism", ...SKILL_ORDER];
 const BUDGET_CAP = 10000; // internal hundredths of $M — displays as the "$100M cap" via fmtSalary
-const TEAM_REROLLS = 3; // shared across all 7 scouting spins
+const TEAM_REROLLS = 3; // Salary Cap team-scouting respins, shared across the build (Classic uses its own reduced limit)
 
 const state = {
   shadowTarget: null,  // "Chasing the Shadow" — which all-time great this build is measured against

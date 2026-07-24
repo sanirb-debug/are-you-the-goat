@@ -14,8 +14,11 @@ let wheelSpinning = false;
 let wheelSpinToken = 0;
 // No-budget player spinner. The token guards the slot-machine shuffle the same way
 // the wheel's does; PLAYER_REROLLS re-spins are a build-level pool shared across
-// all 8 rounds (each round's first player spin is free), mirroring TEAM_REROLLS.
-const PLAYER_REROLLS = 3;
+// all 8 rounds (each round's first player spin is free).
+const PLAYER_REROLLS = 1;
+// Classic's team-wheel re-spins, also build-level. Kept separate from the Salary
+// Cap TEAM_REROLLS (still 3) so reducing Classic doesn't touch Salary Cap.
+const CLASSIC_TEAM_REROLLS = 1;
 let playerSpinToken = 0;
 let playerSpinning = false;
 
@@ -516,6 +519,16 @@ function renderShadowStep() {
     if (!name) { cta.disabled = true; return; }
     const t = SHADOW_TARGETS[name];
     const stat = (v, lbl) => `<span class="sp-stat"><b>${v}</b><i>${lbl}</i></span>`;
+    // Career totals show with thousands separators. For Russell/Wilt the
+    // pre-tracking blocks/steals/3PM (0) render as a muted "n/t" with era context
+    // rather than a hollow number — same handling as the tracker/verdict.
+    const total = (v, lbl, era) => {
+      const untracked = t.preTracking && era && v === 0;
+      const val = untracked
+        ? `<span class="sp-nt" title="Not an official stat in ${t.label}'s era">n/t</span>`
+        : v.toLocaleString();
+      return `<span class="sp-stat"><b>${val}</b><i>${lbl}</i></span>`;
+    };
     preview.appendChild(el("div", "sp-name", name));
     preview.appendChild(el("div", "sp-stats",
       stat(t.rings, `Ring${t.rings === 1 ? "" : "s"}`) +
@@ -528,6 +541,14 @@ function renderShadowStep() {
       stat(t.peakPPG, "Peak PPG") +
       stat(t.peakAPG, "Peak APG") +
       stat(t.peakRPG, "Peak RPG")));
+    preview.appendChild(el("div", "sp-sub", "Career Totals"));
+    preview.appendChild(el("div", "sp-stats",
+      total(t.totalPTS, "Points", false) +
+      total(t.totalAST, "Assists", false) +
+      total(t.totalREB, "Rebounds", false) +
+      total(t.totalBLK, "Blocks", true) +
+      total(t.total3PM, "3PM", true) +
+      total(t.totalSTL, "Steals", true)));
     cta.disabled = false;
   }
 
@@ -1026,7 +1047,8 @@ function renderRosterStep(category, title, sub, onLock) {
   // entry so a roster is visible straight away and let the dropdown drive.
   if (state.sandbox && !state.scoutTeam) state.scoutTeam = pickRandom(TEAMS);
   const team = state.scoutTeam;
-  const rerollsLeft = TEAM_REROLLS - state.teamRerollsUsed;
+  // Classic (autoPick) gets its own reduced team-respin limit; Salary Cap keeps TEAM_REROLLS.
+  const rerollsLeft = (state.autoPick ? CLASSIC_TEAM_REROLLS : TEAM_REROLLS) - state.teamRerollsUsed;
 
   const wrap = el("div", "card");
   // No-budget mode is a free-for-all loop \u2014 no fixed slot per screen, so the

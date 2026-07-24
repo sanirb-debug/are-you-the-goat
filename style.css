@@ -1079,6 +1079,24 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 8px;
 }
+/* Sub-heading dividing the accolades from the career totals. */
+.sp-sub {
+  font-family: var(--font-cond);
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border-top: 1px solid var(--card-border);
+  margin: 14px 0 9px;
+  padding-top: 10px;
+}
+/* Pre-tracking era value (Russell/Wilt blocks/steals/3PM). */
+.sp-nt {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: help;
+}
 .sp-stat {
   display: flex;
   flex-direction: column;
