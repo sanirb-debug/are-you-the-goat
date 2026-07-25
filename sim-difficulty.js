@@ -84,26 +84,56 @@ function buildSalaryCap(rand) {
   }
 }
 
-// Lucky/skilled Classic build: spin team + player (no repeats), take the best
-// of that player's still-open stats into its own slot.
-function buildClassic(rand) {
+// The single best still-open stat a player offers right now.
+function bestOpenStat(player, open) {
+  let cat = null, rating = -Infinity;
+  for (const c of open) { const r = G.categoryRating(player, c); if (r > rating) { rating = r; cat = c; } }
+  return { cat, rating };
+}
+// The best stat ANY not-yet-used player on this team could still fill.
+function teamCeiling(team, usedNames, open) {
+  let best = -Infinity;
+  for (const p of (G.TEAM_ROSTERS[team.abbr] || [])) {
+    if (usedNames.has(p.name)) continue;
+    const b = bestOpenStat(p, open).rating;
+    if (b > best) best = b;
+  }
+  return best;
+}
+
+// OPTIMAL Classic play — the ceiling the difficulty has to hold against. Each
+// round: spin a team (+1 reroll), spin a player from it (+1 reroll), and take the
+// single HIGHEST of that player's eight stats that still has an open slot. The
+// rerolls are modelled generously — draw two, keep the better — which is an UPPER
+// BOUND: it is slightly stronger than the shipped game (1 team + 1 player reroll
+// for the whole build, not per round). If even this can't reliably reach 90+ OVR,
+// the real game certainly can't.
+function buildClassicOptimal(rand) {
   resetBuild();
   G.state.autoPick = true;
   const usedTeams = new Set(), usedNames = new Set();
   const open = new Set(G.CATEGORIES);
   for (let round = 0; round < 8; round++) {
+    // Team spin + reroll: sample two available teams, keep the higher-ceiling one.
     const avail = G.TEAMS.filter(t => !usedTeams.has(t.abbr));
-    const team = avail[Math.floor(rand() * avail.length)];
-    const pool = (G.TEAM_ROSTERS[team.abbr] || []).filter(p => !usedNames.has(p.name));
-    const player = pool[Math.floor(rand() * pool.length)];
-    let bestCat = null, bestRating = -Infinity;
-    for (const cat of open) {
-      const r = G.categoryRating(player, cat);
-      if (r > bestRating) { bestRating = r; bestCat = cat; }
+    let team = avail[Math.floor(rand() * avail.length)];
+    if (avail.length > 1) {
+      const others = avail.filter(t => t.abbr !== team.abbr);
+      const teamB = others[Math.floor(rand() * others.length)];
+      if (teamCeiling(teamB, usedNames, open) > teamCeiling(team, usedNames, open)) team = teamB;
     }
-    lockInto(bestCat, G.buildStatPick(player, team, bestCat, bestCat));
+    // Player spin + reroll: sample two players on that team, keep the better one.
+    const pool = (G.TEAM_ROSTERS[team.abbr] || []).filter(p => !usedNames.has(p.name));
+    let player = pool[Math.floor(rand() * pool.length)];
+    if (pool.length > 1) {
+      const others = pool.filter(p => p.name !== player.name);
+      const playerB = others[Math.floor(rand() * others.length)];
+      if (bestOpenStat(playerB, open).rating > bestOpenStat(player, open).rating) player = playerB;
+    }
+    const { cat } = bestOpenStat(player, open);
+    lockInto(cat, G.buildStatPick(player, team, cat, cat));
     usedTeams.add(team.abbr); usedNames.add(player.name);
-    open.delete(bestCat);
+    open.delete(cat);
   }
 }
 
@@ -137,8 +167,10 @@ function run(label, builder, badgeCap) {
     ovrs.push(r.ovr); scores.push(r.score);
   }
   const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const pctGE = n => (ovrs.filter(o => o >= n).length / RUNS * 100).toFixed(1);
   console.log(`\n=== ${label} — ${RUNS} builds ===`);
-  console.log(`  avg peak-build OVR ${avg(ovrs).toFixed(1)}   avg GOAT Score ${Math.round(avg(scores))}`);
+  console.log(`  build OVR: avg ${avg(ovrs).toFixed(1)}  max ${Math.max(...ovrs)}  ` +
+    `>=90 ${pctGE(90)}%  >=85 ${pctGE(85)}%  >=80 ${pctGE(80)}%   avg GOAT Score ${Math.round(avg(scores))}`);
   for (const t of G.TIERS.map(t => t.name)) {
     const n = tiers[t] || 0;
     const pct = (n / RUNS) * 100;
@@ -148,5 +180,5 @@ function run(label, builder, badgeCap) {
 }
 
 run("SALARY CAP EDITION (greedy-optimal)", buildSalaryCap, 2);
-run("CLASSIC (lucky/skilled: best open stat each spin)", buildClassic, 3);
+run("CLASSIC (optimal: best open stat, team+player reroll)", buildClassicOptimal, 3);
 console.log("");
