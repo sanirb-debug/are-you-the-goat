@@ -515,17 +515,11 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
     roty = rng() < 0.03 + 0.9 * edge;
   }
 
-  // Defensive Player of the Year: gated on the build's post-modifier DEFENSE
-  // rating specifically, not overall OVR — a defensive specialist with a
-  // modest OVR can still win it. Eligibility now requires ELITE defense (90+),
-  // and even then the per-season odds are low: the real all-time record is 4,
-  // and it takes anchor-level, generational defense. The old "Defense 80 →
-  // rng() < 0.3" handed a merely-good defender ~6 expected DPOYs over 20
-  // seasons (one build won 9). The ramp below tops out at ~0.094 for a 99
-  // Defense, so even a perfect-defense 20-season career averages <2 and lands
-  // in the realistic 0-4 range essentially always.
-  let dpoy = false;
-  if (defRating >= 90) dpoy = rng() < (0.04 + (defRating - 90) * 0.006);
+  // Defensive Player of the Year is resolved in simCareer (dpoyRoll), NOT here:
+  // it scales with the season's actual defensive BOX SCORE and compounds over
+  // consecutive elite-defensive seasons, and those aren't known until the stats
+  // are generated. A flat per-season roll on the constant Defense rating (the old
+  // approach) left a build with 14 straight dominant defensive seasons winning 0.
 
   // All-Defensive Team: the defensive analogue of All-NBA, keyed on the build's
   // DEFENSE rating rather than overall OVR. Defense gets its own +/-3 season
@@ -543,34 +537,65 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   if (seasonDef >= 93) allDefensive = "1st";
   else if (seasonDef >= 85) allDefensive = "2nd";
 
-  return { wins, madePlayoffs, ring, finalsMVP, allStar, mvp, roty, dpoy, allDefensive, roundsWon };
+  return { wins, madePlayoffs, ring, finalsMVP, allStar, mvp, roty, allDefensive, roundsWon };
 }
 
-// All-NBA selection AND 1st/2nd/3rd tier from a season's real quality, called
-// from simCareer once the box score and hardware are known. Qualification keeps
-// overall OVR as the spine — with a small, capped assist so an elite-but-modest-
-// OVR scorer isn't shut out — while the tier split is driven by how dominant the
-// season actually was (scoring, efficiency, and DPOY/MVP hardware). This is what
-// stops a genuinely great two-way year from flattening to 3rd team just because
-// the build's overall OVR is held down by weak non-scoring categories.
-function allNbaSelection(seasonOVR, stats, mvp, dpoy) {
-  // Qualify on OVR alone (71+), a uniform gate so the qualifying pool spans the
-  // full range of season quality — a DPOY-anchor season always makes it. This
-  // is deliberately decoupled from the tier below: if scoring gated entry too,
-  // every qualifying season would already be a big-scoring one and the tiers
-  // would collapse to a single band.
-  if (seasonOVR < 71 && !dpoy) return null;
-  if (mvp) return "1st"; // an MVP season is a 1st-team season, always
-  // Tier: how dominant was THIS season? OVR base, lifted by heavy scoring, elite
-  // efficiency, and a DPOY anchor — so a 26/66 year reads 2nd and pairing it with
-  // DPOY reads 1st, while a bare qualifying season stays 3rd.
-  const quality = seasonOVR
-    + Math.max(0, stats.ppg - 20) * 0.55
-    + Math.max(0, stats.fgPct - 52) * 0.18
-    + (dpoy ? 5 : 0);
-  if (quality >= 80) return "1st";
-  if (quality >= 77) return "2nd";
-  return "3rd";
+// All-NBA selection AND 1st/2nd/3rd tier, called from simCareer once the box
+// score and hardware are known. All-NBA is an OFFENSE-first honor: scoring volume
+// is the spine, with credit for playmaking and efficiency plus team success
+// (wins). Defense/Rebounding deliberately DO NOT feed it — that is what the
+// All-Defensive Team recognizes — so a low-scoring defensive anchor lands
+// All-Defensive every year but All-NBA only rarely (the capped 3rd-team path at
+// the bottom), while a genuine scorer earns it at a normal high rate. The old
+// version qualified on overall OVR, which bakes in Defense (0.18) and Rebounding
+// (0.14), so a 5.5-PPG rim protector made All-NBA nearly every season — the bug.
+function allNbaSelection(stats, wins, mvp, allDefensive) {
+  const offScore =
+    stats.ppg +                                   // scoring volume is the spine
+    Math.max(0, stats.apg - 4) * 0.8 +            // playmaking is the clear #2
+    Math.max(0, stats.fgPct - 50) * 0.20 +        // efficiency, lightly
+    Math.max(0, stats.tptPct - 34) * 0.12;
+  const winBonus = Math.max(0, wins - 45) * 0.15; // team success helps the case
+  const score = offScore + winBonus;
+  // Selection is a PROBABILITY RAMP on the offensive case (same shape as the MVP
+  // and DPOY rolls), not a hard cutoff: a season's odds grade with how much it
+  // scores, so a build's career All-NBA count scales smoothly with its scoring
+  // instead of being all-or-nothing at a line (which made the count bimodal and
+  // swung the tier distribution). Calibrated so a strong ~24-PPG scorer averages
+  // the same ~7-8 selections it did under the old OVR gate, an elite scorer makes
+  // it nearly every year, and a low-scoring season almost never qualifies here.
+  const q = clamp((score - 18) / 17, 0, 1); // ~18 -> 0%, ~35+ -> ~100%
+  if (mvp || rng() < q) {
+    if (mvp || score >= 38) return "1st";
+    if (score >= 31) return "2nd";
+    return "3rd";
+  }
+  // Generational two-way defender: a capped, occasional 3rd-team nod scaled by how
+  // dominant the defense was, gated on a 1st-team All-Defensive season. Never
+  // higher than 3rd on defense alone — this is what keeps a defense-first star at
+  // ~2-4 All-NBA across a career instead of 12-14.
+  if (allDefensive === "1st") {
+    const domD = clamp((stats.bpg - 2.5) / 1.5 * 0.5 + (stats.spg - 1.5) / 1.0 * 0.3 + (stats.rpg - 10) / 4 * 0.2, 0, 1);
+    if (rng() < 0.08 + 0.28 * domD) return "3rd";
+  }
+  return null;
+}
+
+// Defensive Player of the Year roll for one season. Unlike the old flat per-season
+// chance on the constant Defense rating, this scales with the season's actual
+// defensive BOX SCORE (blocks/steals/boards) relative to a dominant line, is gated
+// on a 1st-team All-Defensive season, and COMPOUNDS over consecutive elite
+// defensive years (`streak` = prior back-to-back 1st-team All-D seasons). A career
+// of sustained, generational defense now lands ~4-8 DPOYs instead of frequently 0.
+function dpoyRoll(allDefensive, stats, streak) {
+  if (allDefensive !== "1st") return false;
+  const domD = clamp(
+    (stats.bpg - 2.0) / 1.8 * 0.45 +
+    (stats.spg - 1.2) / 1.3 * 0.30 +
+    (stats.rpg - 9.0) / 5.0 * 0.25, 0, 1);
+  let p = 0.09 + 0.30 * domD;   // barely-1st-team & modest stats ~0.09, dominant ~0.39
+  p *= 1 + 0.06 * streak;       // each consecutive elite-D season compounds the odds
+  return rng() < Math.min(p, 0.5);
 }
 
 const GAMES_PER_SEASON = 82;
@@ -607,6 +632,7 @@ function simCareer(ovr, team, mods = {}) {
   let bestMVPOVR = 0; // OVR of the strongest MVP-winning season (0 if none)
   let roty = 0, dpoys = 0; // Rookie of the Year (0/1), Defensive Player of the Year (repeatable)
   let allDefensives = 0;   // All-Defensive Team selections (1st or 2nd), repeatable
+  let dStreak = 0;         // consecutive prior 1st-team All-Defensive seasons (compounds DPOY odds)
   const varianceRange = state.positionFit ? 4 : 8;
   const f = finalSkills();
   const totals = { pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, threes: 0 };
@@ -626,12 +652,18 @@ function simCareer(ovr, team, mods = {}) {
     if (result.finalsMVP) finalsMVPs++;
     if (result.allStar) allStars++;
     if (result.roty) roty = 1;
-    if (result.dpoy) dpoys++;
     if (result.allDefensive) allDefensives++;
 
     const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.athleticism.rating, mods);
+    // DPOY scales with the season's real defensive box score and compounds over
+    // consecutive elite-defensive seasons (dStreak), so it's resolved here — after
+    // the stats exist — not on the flat constant rating inside simSeason.
+    result.dpoy = dpoyRoll(result.allDefensive, stats, dStreak);
+    if (result.dpoy) dpoys++;
+    dStreak = result.allDefensive === "1st" ? dStreak + 1 : 0;
     // All-NBA needs the season's box score + hardware, so it's resolved here.
-    result.allNBA = allNbaSelection(seasonOVR, stats, result.mvp, result.dpoy);
+    // It's OFFENSE-driven (see allNbaSelection) — defense no longer inflates it.
+    result.allNBA = allNbaSelection(stats, result.wins, result.mvp, result.allDefensive);
     if (result.allNBA) allNBAs++;
     totals.pts += stats.ppg * GAMES_PER_SEASON;
     totals.ast += stats.apg * GAMES_PER_SEASON;

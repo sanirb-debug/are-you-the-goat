@@ -612,9 +612,58 @@ button { cursor: pointer; border: none; font-family: inherit; }
 .verdict-headline {
   font-style: italic;
   color: var(--text-dim);
-  margin: 0 auto 20px;
+  margin: 0 auto 18px;
   font-size: 14px;
   max-width: 90%;
+}
+
+/* Base OVR / Peak OVR — two prominent headline tiles right under the tier name,
+   so both numbers read at a glance without hunting. */
+.verdict-ovr {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin: 0 auto 22px;
+  max-width: 420px;
+}
+.vo-tile {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 10px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.vo-tile.vo-peak {
+  border-color: var(--line-gold);
+  background: rgba(212, 167, 44, 0.10);
+}
+.vo-label {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.vo-tile.vo-peak .vo-label { color: var(--gold-bright); }
+.vo-val {
+  font-family: var(--font-display);
+  font-size: 52px;
+  line-height: 1;
+  color: var(--text);
+}
+.vo-tile.vo-peak .vo-val { color: var(--gold-bright); }
+.vo-sub {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.3px;
+}
+@media (max-width: 460px) {
+  .vo-val { font-size: 42px; }
 }
 
 /* Sim loading feed */

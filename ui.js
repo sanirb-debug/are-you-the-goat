@@ -1642,6 +1642,23 @@ function renderVerdict() {
   wrap.appendChild(el("h1", "verdict-tier", tier.name.toUpperCase()));
   wrap.appendChild(el("div", "verdict-headline", `"${headline}"`));
 
+  // Base OVR (the player you BUILT — weighted rating after the 8 picks + position
+  // fit, pre-variance) and Peak OVR (best single sim season), shown as two big
+  // headline tiles right under the tier so both read at a glance. Same 25-99
+  // scaled axis, so they're directly comparable; Peak >= Base by season variance.
+  const baseOVR = scaleOVR(ovr);
+  wrap.appendChild(el("div", "verdict-ovr",
+    `<div class="vo-tile">
+       <span class="vo-label">Base OVR</span>
+       <span class="vo-val">${baseOVR}</span>
+       <span class="vo-sub">the player you built</span>
+     </div>
+     <div class="vo-tile vo-peak">
+       <span class="vo-label">Peak OVR</span>
+       <span class="vo-val">${career.peakOVR}</span>
+       <span class="vo-sub">best single season</span>
+     </div>`));
+
   // Achievement toast: only for a real playthrough that unlocked something new.
   // A shared ?build= view never records, so runUnlocks is empty there.
   if (!state.sharedView && runUnlocks.length) {
@@ -1732,16 +1749,10 @@ function renderVerdict() {
   if (isNewBest) pctRow.appendChild(el("div", "best-badge", "★ NEW PERSONAL BEST"));
   wrap.appendChild(pctRow);
 
-  // Base OVR = the player you BUILT (weighted rating after all 8 picks + the
-  // position-fit bonus, before any career variance), on the same 25-99 scaled
-  // axis as Peak OVR so the two are directly comparable — Peak is the best single
-  // SEASON, which the sim's season-to-season swing lifts a little above Base.
-  const baseOVR = scaleOVR(ovr);
+  // Base OVR / Peak OVR now headline the top of the card (verdict-ovr); this line
+  // carries the remaining summary figures.
   wrap.appendChild(el("div", "seasons-line",
-    `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"} &middot; ` +
-    `<span title="The player you built — weighted rating from your 8 picks + position fit, before career-sim variance">Base OVR ${baseOVR}</span> &middot; ` +
-    `<span title="The build's best single season in the career sim">Peak OVR ${career.peakOVR}</span> &middot; ` +
-    `GOAT Score ${career.goatScore}`));
+    `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"} &middot; GOAT Score ${career.goatScore}`));
 
   const statsGrid = el("div", "stats-grid eight");
   let allNbaBox = null;
