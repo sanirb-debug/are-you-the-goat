@@ -400,7 +400,13 @@ function showBadges(trigger) {
 // on final Height/Athleticism).
 function inPickingPhase() {
   const step = STEPS[state.currentStep];
-  return step === "height" || step === "athleticism" || step === "confirm" || step === "chooseBadges" || SKILL_ORDER.includes(step);
+  // The sidebar stays up through the whole build — the attribute picks, the
+  // trait/position/team steps, and the confirm screen — so the 8 locked picks
+  // remain visible right up until the sim runs. (Position and Team come after
+  // the 8 attributes, so it shows fully filled there.)
+  return step === "height" || step === "athleticism" || step === "confirm" ||
+    step === "chooseBadges" || step === "position" || step === "careerTeam" ||
+    SKILL_ORDER.includes(step);
 }
 
 // A shadow-metric value for display: career totals (`big`) get thousands
@@ -1667,27 +1673,50 @@ function renderVerdict() {
     // and never contradicts a measured one below.
     box.appendChild(el("div", "comp-label",
       `Chasing the Shadow · ${isDethroned(career) ? "Caught" : "Chased"} ${shadow.targetName} — ${shadow.beatCount}/${shadow.total}`));
-    const grid = el("div", "shadow-cmp-grid");
-    shadow.rows.forEach(r => {
+
+    // One comparison cell. Pre-tracking-era rows (Russell/Wilt blocks/steals/3PM)
+    // show the build's own number tagged "n/t" rather than a hollow ✓ over a zero.
+    const shadowCell = r => {
       if (r.untracked) {
-        // Pre-tracking era (Russell/Wilt blocks/steals/3PM): show the build's own
-        // number but tag it rather than a hollow ✓ for "beating" a zero.
         const cell = el("div", "shadow-cmp untracked");
         cell.innerHTML =
           `<span class="scl">${r.label}</span>
            <span class="scv">${fmtMetric(r.build, r)} <span class="scvs">/ —</span></span>
            <span class="scm" title="Not an official stat in ${shadow.targetLabel}'s era">n/t</span>`;
-        grid.appendChild(cell);
-        return;
+        return cell;
       }
       const cell = el("div", "shadow-cmp" + (r.beat ? " beat" : " short"));
       cell.innerHTML =
         `<span class="scl">${r.label}</span>
          <span class="scv">${fmtMetric(r.build, r)} <span class="scvs">/ ${fmtMetric(r.target, r)}</span></span>
          <span class="scm">${r.beat ? "✓" : "✕"}</span>`;
-      grid.appendChild(cell);
-    });
+      return cell;
+    };
+
+    // Declutter: show only the three résumé pillars (Rings, MVPs, All-NBA — the
+    // heaviest-weighted metrics) by default; the rest fold behind a toggle. This
+    // is display-only — beatCount/total and the narrative still score every row.
+    const isPillar = r => SHADOW_PILLARS.includes(r.key);
+    const grid = el("div", "shadow-cmp-grid");
+    shadow.rows.filter(isPillar).forEach(r => grid.appendChild(shadowCell(r)));
     box.appendChild(grid);
+
+    const rest = shadow.rows.filter(r => !isPillar(r));
+    if (rest.length) {
+      const moreGrid = el("div", "shadow-cmp-grid shadow-more");
+      rest.forEach(r => moreGrid.appendChild(shadowCell(r)));
+      const toggle = el("button", "shadow-more-toggle", `Show more (${rest.length}) ▾`);
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.onclick = () => {
+        const open = !moreGrid.classList.contains("open");
+        moreGrid.classList.toggle("open", open);
+        toggle.textContent = open ? "Show less ▴" : `Show more (${rest.length}) ▾`;
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      box.appendChild(toggle);
+      box.appendChild(moreGrid);
+    }
+
     box.appendChild(el("p", "shadow-narrative", generateShadowVerdict(career)));
     wrap.appendChild(box);
   }
@@ -1703,7 +1732,16 @@ function renderVerdict() {
   if (isNewBest) pctRow.appendChild(el("div", "best-badge", "★ NEW PERSONAL BEST"));
   wrap.appendChild(pctRow);
 
-  wrap.appendChild(el("div", "seasons-line", `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"} &middot; Peak OVR ${career.peakOVR} &middot; GOAT Score ${career.goatScore}`));
+  // Base OVR = the player you BUILT (weighted rating after all 8 picks + the
+  // position-fit bonus, before any career variance), on the same 25-99 scaled
+  // axis as Peak OVR so the two are directly comparable — Peak is the best single
+  // SEASON, which the sim's season-to-season swing lifts a little above Base.
+  const baseOVR = scaleOVR(ovr);
+  wrap.appendChild(el("div", "seasons-line",
+    `${career.numSeasons} season${career.numSeasons === 1 ? "" : "s"} &middot; ` +
+    `<span title="The player you built — weighted rating from your 8 picks + position fit, before career-sim variance">Base OVR ${baseOVR}</span> &middot; ` +
+    `<span title="The build's best single season in the career sim">Peak OVR ${career.peakOVR}</span> &middot; ` +
+    `GOAT Score ${career.goatScore}`));
 
   const statsGrid = el("div", "stats-grid eight");
   let allNbaBox = null;

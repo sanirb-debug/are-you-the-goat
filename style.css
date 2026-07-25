@@ -1170,6 +1170,28 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 }
 .shadow-verdict > .comp-label { display: block; text-align: center; color: var(--gold-bright); margin-bottom: 10px; }
 .shadow-cmp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+/* The extra (non-pillar) metrics are collapsed by default; .open reveals them. */
+.shadow-cmp-grid.shadow-more { display: none; margin-top: 7px; }
+.shadow-cmp-grid.shadow-more.open { display: grid; }
+.shadow-more-toggle {
+  display: block;
+  width: 100%;
+  margin-top: 9px;
+  background: transparent;
+  border: 1px solid var(--line-gold);
+  border-radius: 5px;
+  padding: 7px 0;
+  font-family: var(--font-cond);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gold);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.shadow-more-toggle:hover { color: var(--gold-bright); background: var(--panel-2); border-color: var(--gold-bright); }
+.shadow-more-toggle:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
 .shadow-cmp {
   display: flex;
   flex-direction: column;
