@@ -298,19 +298,48 @@ function finalSkills() {
   return out;
 }
 
+// Single source of truth for the weighted-OVR blend: skills carry most of the
+// weight (Defense/Shooting/Finishing heaviest), the two physicals least. Shared
+// by computeOVR (finished build) and projectedOVR (live estimate) so the number
+// the sidebar previews can't drift from the number the sim actually uses.
+const OVR_WEIGHTS = {
+  Shooting: 0.16, Finishing: 0.16, Playmaking: 0.14, Handles: 0.12,
+  Defense: 0.18, Rebounding: 0.14, height: 0.05, athleticism: 0.05,
+};
+
 function computeOVR() {
   const f = finalSkills();
-  const ovr =
-    f.Shooting * 0.16 +
-    f.Finishing * 0.16 +
-    f.Playmaking * 0.14 +
-    f.Handles * 0.12 +
-    f.Defense * 0.18 +
-    f.Rebounding * 0.14 +
-    state.height.rating * 0.05 +
-    state.athleticism.rating * 0.05;
+  const vals = { ...f, height: state.height.rating, athleticism: state.athleticism.rating };
+  let ovr = 0;
+  for (const k in OVR_WEIGHTS) ovr += vals[k] * OVR_WEIGHTS[k];
   let bonus = state.positionFit ? 3 : 0;
   return clamp(Math.round(ovr + bonus), 25, 99);
+}
+
+// Live WEIGHTED OVR estimate from whatever slots are filled so far, expressed on
+// the SAME scaled peak axis the verdict uses (scaleOVR) so it reads as "what this
+// build translates to", not the flat unweighted average. Unlike computeOVR it
+// tolerates a partial build: it weights only the filled slots and renormalizes,
+// so it reflects the picks actually made instead of assuming zeros for the empty
+// ones. Skill height/athleticism synergies (applyModifiers) fold in only once
+// BOTH physicals are locked — matching finalSkills — and before that the raw
+// picked ratings are used. The +3 position-fit bonus joins as soon as a fitting
+// position is chosen. At 8/8 with a fitting position this equals
+// scaleOVR(computeOVR()) — i.e. the pre-variance Peak the sim starts from.
+// Returns null when nothing is filled yet.
+function projectedOVR() {
+  const bothPhysicals = state.height && state.athleticism;
+  let sum = 0, wsum = 0;
+  for (const cat in OVR_WEIGHTS) {
+    const pick = currentPick(cat);
+    if (!pick) continue;
+    const r = (SKILL_ORDER.includes(cat) && bothPhysicals) ? applyModifiers(pick.rating, cat) : pick.rating;
+    sum += r * OVR_WEIGHTS[cat];
+    wsum += OVR_WEIGHTS[cat];
+  }
+  if (!wsum) return null;
+  const bonus = state.positionFit ? 3 : 0;
+  return scaleOVR(clamp(Math.round(sum / wsum + bonus), 25, 99));
 }
 
 function checkPositionFit(posKey) {
@@ -1616,7 +1645,7 @@ function recordCareerRun(run) {
 if (typeof module !== "undefined") {
   module.exports = {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
-    seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR,
+    seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,

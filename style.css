@@ -1293,45 +1293,53 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   margin-top: 3px;
 }
 
-/* Live rating average at the foot of the picks panel. */
-.picks-avg {
+/* Live build metrics at the foot of the picks panel: Raw Avg + Projected OVR,
+   side by side as two tiles so they never read as one duplicated number. */
+.picks-metrics {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  gap: 8px;
   margin-top: 12px;
   padding-top: 11px;
   border-top: 1px solid var(--card-border);
 }
-.picks-avg .pa-label {
+.picks-metrics.complete { border-top-color: var(--line-gold); margin-top: 14px; }
+.metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.metric .m-label {
   font-family: var(--font-cond);
-  font-size: 11px;
-  letter-spacing: 1px;
+  font-size: 10px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-dim);
+  display: flex;
+  align-items: center;
 }
-/* Small "?" info affordance next to Ratings Avg (reuses the trait-tip controller). */
+.metric .m-val {
+  font-family: var(--font-display);
+  font-size: 27px;
+  line-height: 1;
+  color: var(--text);
+}
+/* Projected OVR is the headline translation — accent it in gold so it stands
+   apart from the muted raw average beside it. */
+.metric.metric-proj { background: rgba(212, 167, 44, 0.12); }
+.metric.metric-proj .m-label { color: var(--gold-bright); }
+.metric.metric-proj .m-val { color: var(--gold-bright); }
+.picks-metrics.complete .metric-proj .m-val { font-size: 33px; }
+/* Small "?" info affordance next to each metric (reuses the trait-tip controller). */
 .pa-info {
   font-size: 9px;
   padding: 0 4px;
   margin-left: 3px;
   letter-spacing: 0;
 }
-.picks-avg .pa-val {
-  font-family: var(--font-display);
-  font-size: 26px;
-  color: var(--text);
-  line-height: 1;
-}
-/* Once all 8 are locked, make it read as the headline number. */
-.picks-avg.complete {
-  border-top-color: var(--line-gold);
-  margin-top: 14px;
-  padding: 11px 12px;
-  background: rgba(212, 167, 44, 0.10);
-  border-radius: 5px;
-}
-.picks-avg.complete .pa-label { color: var(--gold-bright); }
-.picks-avg.complete .pa-val { font-size: 34px; color: var(--gold-bright); }
 
 /* Choose-2 step */
 .badge-choose-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }

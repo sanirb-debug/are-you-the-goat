@@ -415,22 +415,35 @@ function renderPicksPanel() {
   });
   panel.appendChild(body);
 
-  // Live ratings average: the unweighted mean of every LOCKED skill/athleticism
-  // rating (Height is excluded — it's an objective physical trait, not a skill
-  // rating, so averaging its number in is meaningless). Recomputed on every
-  // render, so it updates the moment a pick locks; shown prominently at 8/8.
-  // Deliberately NOT the same as Peak OVR: this is a flat mean of the seven raw
-  // picks, while OVR weights the skills (Defense/Shooting/Finishing highest) and
-  // adds a position-fit bonus, then rescales — see the tooltip below.
+  // Two live metrics, side by side:
+  //   Raw Avg      — flat unweighted mean of every LOCKED skill/athleticism
+  //                  rating (Height excluded — an objective physical trait, not a
+  //                  skill, so averaging its number in is meaningless).
+  //   Projected OVR — the SAME weighted formula the sim uses (Defense/Shooting/
+  //                  Finishing heaviest, physicals lightest) over the filled
+  //                  slots, plus the +3 fit bonus once a position is set, mapped
+  //                  onto the final Peak-OVR scale. This is "what the build
+  //                  translates to" and reads meaningfully higher than the flat
+  //                  average for builds stacked in heavily-weighted categories.
+  // Both recompute every render, so they track the moment a pick locks.
   const ratingSlots = CATEGORIES.filter(c => c !== "height");
   const filled = ratingSlots.map(c => currentPick(c)).filter(Boolean);
   const allPicked = CATEGORIES.every(c => currentPick(c));
   if (filled.length) {
     const avg = filled.reduce((s, p) => s + p.rating, 0) / filled.length;
-    panel.appendChild(el("div", "picks-avg" + (allPicked ? " complete" : ""),
-      `<span class="pa-label">Ratings Avg <span class="trait-pill pa-info" role="button" tabindex="0" ` +
-      `data-tip="Unweighted raw average of your skill ratings (Height excluded). Your final Peak OVR is weighted differently — the sim leans on your heaviest skills, adds a position-fit bonus, and rescales — so it usually reads higher.">?</span></span>` +
-      `<span class="pa-val">${Math.round(avg)}</span>`));
+    const proj = projectedOVR();
+    const info = tip =>
+      `<span class="trait-pill pa-info" role="button" tabindex="0" data-tip="${tip}">?</span>`;
+    const metrics = el("div", "picks-metrics" + (allPicked ? " complete" : ""));
+    metrics.appendChild(el("div", "metric",
+      `<span class="m-label">Raw Avg ${info("Unweighted raw average of your skill ratings (Height excluded). Projected OVR weights these — it is the truer read on what your build becomes.")}</span>` +
+      `<span class="m-val">${Math.round(avg)}</span>`));
+    if (proj != null) {
+      metrics.appendChild(el("div", "metric metric-proj",
+        `<span class="m-label">Proj OVR ${info("Weighted projection on your final Peak-OVR scale: heavier skills (Defense, Shooting, Finishing) count more and Height/Athleticism least, plus a +3 bonus once your position fits. Updates live; the career sim then adds season-to-season variance.")}</span>` +
+        `<span class="m-val">${proj}</span>`));
+    }
+    panel.appendChild(metrics);
   }
   return panel;
 }
