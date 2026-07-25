@@ -161,15 +161,15 @@ console.log("\n=== PEAK-OVR BANDS ON THE 25-99 SCALE ===");
 
 // Peak OVR is stored on a rescaled 25-99 display scale (scaleOVR in game.js), so
 // the tier floors read as the published ladder: Bust <60, Bench 60, Starter 70,
-// All-Star 80, Superstar 85, Legend 90, GOAT 95. These cases pin each floor.
-check("GOAT floor is reachable at scaled peak 95+",
-  tierOf(career({ peakOVR: 96, allNBAs: 18, allStars: 19, numSeasons: 20, mvps: 5,
+// All-Star 80, Superstar 85, Legend 90, GOAT 98. These cases pin each floor.
+check("GOAT floor is reachable at scaled peak 98+",
+  tierOf(career({ peakOVR: 98, allNBAs: 18, allStars: 19, numSeasons: 20, mvps: 5,
                   rings: 4, finalsMVPs: 3, goatScore: 900 })),
   "GOAT",
-  "a maxed resume at peak 96 must reach GOAT, not stall below it");
+  "a maxed resume at peak 98 must reach GOAT, not stall below it");
 
-check("just under the GOAT floor (peak 94) does not reach GOAT",
-  tierOf(career({ peakOVR: 94, allNBAs: 18, allStars: 19, numSeasons: 20, mvps: 5,
+check("just under the GOAT floor (peak 97) does not reach GOAT",
+  tierOf(career({ peakOVR: 97, allNBAs: 18, allStars: 19, numSeasons: 20, mvps: 5,
                   rings: 4, finalsMVPs: 3, goatScore: 900 })),
   atMost("Legend"));
 

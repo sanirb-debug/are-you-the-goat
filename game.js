@@ -688,10 +688,10 @@ function tierForScore(score) {
 // unreachable — the trap to avoid when retuning.
 // The published ladder, on the 25-99 scaled peak axis (see scaleOVR):
 //   Draft Bust <60 | Bench 60-70 | Starter 70-80 | All-Star 80-85
-//   Superstar 85-90 | Legend 90-95 | GOAT 95-99
+//   Superstar 85-90 | Legend 90-98 | GOAT 98-99
 const TIER_OVR_FLOORS = {
   "Bench Piece": 60, "Starter": 70, "All-Star": 80,
-  "Superstar": 85, "Legend": 90, "GOAT": 95,
+  "Superstar": 85, "Legend": 90, "GOAT": 98,
 };
 
 // Award-count floors per tier — the same AND-gate pattern as TIER_OVR_FLOORS:
@@ -1141,12 +1141,48 @@ function compDistance(profile, ref) {
 // similarly decorated one, while skill still discriminates among peers of like
 // standing. Never position-filtered; ties break on name.
 const ACCOMP_MATCH_WEIGHT = 3.5;
-// Full comp pool ranked closest-first: skill distance + accolade proximity,
-// ties broken alphabetically (so ordering is deterministic and the #1 match is
-// identical to the old single-best loop). Returns the top `n` refs.
+// A comp player's career CALIBER on the same 0-6 rank scale as the tiers
+// (0 Draft Bust .. 6 GOAT), derived from real accolades. Every comp is a real
+// NBA player, so even a decorated-nothing journeyman floors at 1 (Bench/Starter),
+// never 0. Hardware weighs most, All-NBA/All-Star least.
+function compCaliber(acc) {
+  const s = acc.rings * 3 + acc.mvps * 4 + acc.finalsMVPs * 2 + acc.allNBA * 0.6 + acc.allStar * 0.4;
+  if (s >= 26) return 6;   // GOAT resume
+  if (s >= 15) return 5;   // Legend
+  if (s >= 8) return 4;    // Superstar
+  if (s >= 3.5) return 3;  // All-Star
+  if (s >= 1) return 2;    // solid Starter
+  return 1;                // journeyman / role player
+}
+// How much a build's OWN career tier gates the comp: a Bench-Piece or Draft-Bust
+// build shouldn't match a multi-time All-Star just because the raw attributes
+// line up (the free-stat mechanic makes lopsided low-tier builds — one huge stat,
+// the rest floored — read attribute-close to athletic stars: an athletic-finisher
+// Draft-Bust build sits only ~26 attribute-units from Amar'e Stoudemire but ~85
+// from any true journeyman, so a gentle nudge can't override it). The penalty
+// only fires when a comp is HIGHER caliber than the build (one-directional) and
+// tolerates a ONE-tier difference for free — only a comp 2+ tiers too good is
+// pushed down, steeply enough to beat that raw-distance head start. A decorated
+// build matching a lesser comp is already handled by accompDistance.
+const CALIBER_MATCH_WEIGHT = 14;
+function tierRank(career) {
+  if (!career) return null;
+  const t = tierForCareer(career);
+  return t ? TIERS.findIndex(x => x.name === t.name) : null;
+}
+
+// Full comp pool ranked closest-first: skill distance + accolade proximity +
+// a caliber gate (build tier vs comp caliber). Ties broken alphabetically so the
+// ordering is deterministic. Returns the top `n` refs.
 function topComps(profile, career = null, n = 3) {
+  const bRank = tierRank(career);
+  const caliberPenalty = ref => {
+    if (bRank == null) return 0;
+    const over = compCaliber(accompOf(ref)) - bRank - 1; // tiers "too good" beyond a 1-tier grace
+    return over > 0 ? CALIBER_MATCH_WEIGHT * over * over : 0;
+  };
   return COMP_PLAYERS
-    .map(ref => ({ ref, dist: compDistance(profile, ref) + ACCOMP_MATCH_WEIGHT * accompDistance(career, accompOf(ref)) }))
+    .map(ref => ({ ref, dist: compDistance(profile, ref) + ACCOMP_MATCH_WEIGHT * accompDistance(career, accompOf(ref)) + caliberPenalty(ref) }))
     .sort((a, b) => a.dist - b.dist || (a.ref.name < b.ref.name ? -1 : 1))
     .slice(0, n)
     .map(x => x.ref);

@@ -415,16 +415,21 @@ function renderPicksPanel() {
   });
   panel.appendChild(body);
 
-  // Live rating average: the mean of every LOCKED slot's rating (open slots don't
-  // count), so the player sees where the build is trending before all 8 are in.
-  // Recomputed on every render, so it updates the moment a pick locks; shown
-  // prominently once the build is complete.
-  const filled = CATEGORIES.map(c => currentPick(c)).filter(Boolean);
+  // Live ratings average: the unweighted mean of every LOCKED skill/athleticism
+  // rating (Height is excluded — it's an objective physical trait, not a skill
+  // rating, so averaging its number in is meaningless). Recomputed on every
+  // render, so it updates the moment a pick locks; shown prominently at 8/8.
+  // Deliberately NOT the same as Peak OVR: this is a flat mean of the seven raw
+  // picks, while OVR weights the skills (Defense/Shooting/Finishing highest) and
+  // adds a position-fit bonus, then rescales — see the tooltip below.
+  const ratingSlots = CATEGORIES.filter(c => c !== "height");
+  const filled = ratingSlots.map(c => currentPick(c)).filter(Boolean);
+  const allPicked = CATEGORIES.every(c => currentPick(c));
   if (filled.length) {
     const avg = filled.reduce((s, p) => s + p.rating, 0) / filled.length;
-    const complete = filled.length === CATEGORIES.length;
-    panel.appendChild(el("div", "picks-avg" + (complete ? " complete" : ""),
-      `<span class="pa-label">${complete ? "Build Rating" : `Avg of ${filled.length}`}</span>` +
+    panel.appendChild(el("div", "picks-avg" + (allPicked ? " complete" : ""),
+      `<span class="pa-label">Ratings Avg <span class="trait-pill pa-info" role="button" tabindex="0" ` +
+      `data-tip="Unweighted raw average of your skill ratings (Height excluded). Your final Peak OVR is weighted differently — the sim leans on your heaviest skills, adds a position-fit bonus, and rescales — so it usually reads higher.">?</span></span>` +
       `<span class="pa-val">${Math.round(avg)}</span>`));
   }
   return panel;
@@ -977,7 +982,8 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
       [...card.querySelectorAll(".stat-cell")].forEach(c => c.classList.remove("selected"));
       cell.classList.add("selected");
       lockBtn.disabled = false;
-      lockBtn.textContent = `Lock ${categoryLabel(cat)}: ${rating} →`;
+      // Height is objective — show the feet-inches band, never the raw number.
+      lockBtn.textContent = `Lock ${categoryLabel(cat)}: ${cat === "height" ? bandLabel : rating} →`;
     };
     card.appendChild(cell);
   });

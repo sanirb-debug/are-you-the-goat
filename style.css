@@ -1309,6 +1309,13 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   text-transform: uppercase;
   color: var(--text-dim);
 }
+/* Small "?" info affordance next to Ratings Avg (reuses the trait-tip controller). */
+.pa-info {
+  font-size: 9px;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: 0;
+}
 .picks-avg .pa-val {
   font-family: var(--font-display);
   font-size: 26px;
