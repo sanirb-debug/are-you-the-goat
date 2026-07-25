@@ -141,6 +141,16 @@ function renderTopBar() {
   if (!state.sandbox && !state.autoPick && (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step))) {
     right.appendChild(el("div", "budget-pill", budgetPillHTML()));
   }
+  const attrs = el("button", "nav-btn", "Attributes");
+  attrs.title = "What each attribute does and how it factors in";
+  attrs.onclick = () => showAttributes(attrs);
+  right.appendChild(attrs);
+
+  const badges = el("button", "nav-btn", "Badges");
+  badges.title = "Browse every signature trait badge";
+  badges.onclick = () => showBadges(badges);
+  right.appendChild(badges);
+
   const help = el("button", "nav-btn", "How to Play");
   help.title = "How this game works";
   help.onclick = () => showHowToPlay(help);
@@ -254,6 +264,135 @@ function showHowToPlay(trigger) {
   select(state.autoPick ? "classic" : "cap");
 
   openModal("How to Play", body, null, trigger);
+}
+
+// ---- Attributes reference ----
+// Plain-language explanation of every attribute AND exactly how it factors into
+// the logic. The weight column is pulled live from OVR_WEIGHTS (game.js), and
+// the "drives"/"modifiers" lines mirror generateSeasonStats + applyModifiers, so
+// this stays honest if the formula is retuned. Keep entries short and scannable.
+const ATTR_INFO = [
+  { key: "height", label: "Height",
+    blurb: "Raw size. It sets which positions your body fits and anchors your work near the rim.",
+    drives: "Rebounds (RPG) and blocks (BPG). Extreme height also trims steals and three-point volume — giants live at the rim, not the arc.",
+    mods: "Raises your Rebounding &amp; Defense ratings. At 90+ it drags Playmaking, Shooting &amp; Handles <b>down</b> (a giant's ball-skill tax). Fitting your position's height range earns a +3 OVR bonus." },
+  { key: "athleticism", label: "Athleticism",
+    blurb: "Explosion, speed and leaping — a clean physical edge with no downside.",
+    drives: "Adds to shot-blocking (BPG).",
+    mods: "A one-directional boost: above ~55 it lifts your Finishing, Defense &amp; Rebounding ratings. It never penalizes anything." },
+  { key: "Shooting", label: "Shooting",
+    blurb: "Jump-shooting — range, and touch off the catch.",
+    drives: "Half of your scoring (PPG), plus FG% and 3PT% efficiency — and it <b>alone</b> sets three-point volume (3PM).",
+    mods: "Nudged down only if your Height is 90+." },
+  { key: "Finishing", label: "Finishing",
+    blurb: "Scoring at the rim — dunks, layups, inside touch.",
+    drives: "The other half of scoring (PPG) and FG%.",
+    mods: "Boosted by high Athleticism." },
+  { key: "Playmaking", label: "Playmaking",
+    blurb: "Passing and court vision.",
+    drives: "Assists (APG).",
+    mods: "Nudged down only if your Height is 90+." },
+  { key: "Handles", label: "Handles",
+    blurb: "Ball control and dribbling.",
+    drives: "No single box-score line — it feeds your overall OVR, which drives wins, award odds, career length and your final tier.",
+    mods: "Nudged down only if your Height is 90+." },
+  { key: "Defense", label: "Defense",
+    blurb: "On-ball defense, rim protection and instincts.",
+    drives: "Steals (SPG) and blocks (BPG), and it gates your Defensive Player of the Year odds.",
+    mods: "Raised by high Height and high Athleticism." },
+  { key: "Rebounding", label: "Rebounding",
+    blurb: "Cleaning the glass at both ends.",
+    drives: "Rebounds (RPG).",
+    mods: "Raised by high Height and high Athleticism." },
+];
+
+function showAttributes(trigger) {
+  const body = el("div", "attr-ref");
+  body.appendChild(el("p", "modal-text",
+    "Your eight picks feed one weighted <b>OVR</b>, and each also drives specific career stats in the sim. " +
+    "The percentages below are the live OVR weights — Defense counts most, the two physical traits least."));
+  const list = el("div", "attr-list");
+  ATTR_INFO.forEach(a => {
+    const pct = Math.round((OVR_WEIGHTS[a.key] || 0) * 100);
+    const entry = el("div", "attr-entry");
+    entry.innerHTML =
+      `<div class="attr-head"><span class="attr-name">${a.label}</span>` +
+      `<span class="attr-weight">${pct}% of OVR</span></div>` +
+      `<div class="attr-blurb">${a.blurb}</div>` +
+      `<div class="attr-meta"><span class="attr-tag">Drives</span>${a.drives}</div>` +
+      `<div class="attr-meta"><span class="attr-tag">Modifiers</span>${a.mods}</div>`;
+    list.appendChild(entry);
+  });
+  body.appendChild(list);
+  openModal("Attributes", body, null, trigger);
+}
+
+// ---- Badges reference ----
+// Every signature-trait badge in one browsable list, grouped by the skill it
+// attaches to, with a live player/badge name filter. Same {name, effect, mods}
+// the in-game tooltips show — sourced straight from TRAIT_BADGES so it can't drift.
+function showBadges(trigger) {
+  const body = el("div", "badge-ref");
+
+  const search = el("input", "badge-search");
+  search.type = "search";
+  search.placeholder = "Filter by player or badge name…";
+  search.setAttribute("aria-label", "Filter badges by player or badge name");
+  body.appendChild(search);
+
+  const groups = el("div", "badge-groups");
+  const noMatch = el("div", "badge-empty", "No badges match that filter.");
+  noMatch.style.display = "none";
+
+  // Collect entries per skill category, preserving TRAIT_BADGES order.
+  const byCat = {};
+  SKILL_ORDER.forEach(c => (byCat[c] = []));
+  Object.keys(TRAIT_BADGES).forEach(k => {
+    const [player, cat] = k.split("|");
+    if (byCat[cat]) byCat[cat].push({ player, b: TRAIT_BADGES[k] });
+  });
+
+  const rowRecords = []; // { row, header, hay } for filtering
+  SKILL_ORDER.forEach(cat => {
+    const entries = byCat[cat];
+    if (!entries.length) return;
+    const header = el("div", "badge-group-head", `${cat} <span class="badge-group-count">${entries.length}</span>`);
+    groups.appendChild(header);
+    entries.forEach(({ player, b }) => {
+      const mods = fmtMods(b.mods);
+      const row = el("div", "badge-row",
+        `<div class="badge-row-top"><span class="badge-row-player">${player}</span>` +
+        `<span class="badge-row-name">★ ${b.name}</span></div>` +
+        `<div class="badge-row-effect">${b.effect}</div>` +
+        `<div class="badge-row-mods">${mods}</div>`);
+      groups.appendChild(row);
+      rowRecords.push({ row, header, hay: (player + " " + b.name).toLowerCase() });
+    });
+  });
+
+  body.appendChild(groups);
+  body.appendChild(noMatch);
+
+  search.oninput = () => {
+    const q = search.value.trim().toLowerCase();
+    const headerVisible = new Map();
+    let anyVisible = false;
+    rowRecords.forEach(r => {
+      const show = !q || r.hay.includes(q);
+      r.row.style.display = show ? "" : "none";
+      if (show) { headerVisible.set(r.header, true); anyVisible = true; }
+    });
+    // A group header shows only if at least one of its rows is visible.
+    const seen = new Set();
+    rowRecords.forEach(r => {
+      if (seen.has(r.header)) return;
+      seen.add(r.header);
+      r.header.style.display = headerVisible.get(r.header) ? "" : "none";
+    });
+    noMatch.style.display = anyVisible ? "none" : "";
+  };
+
+  openModal("Signature Trait Badges", body, null, trigger);
 }
 
 // Picks are editable while choosing attributes and on the confirm screen;

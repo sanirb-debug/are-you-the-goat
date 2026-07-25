@@ -1858,6 +1858,136 @@ body.modal-open { overflow: hidden; }
   .nav-btn { transition: none; }
 }
 
+/* ---- Attributes reference modal ---- */
+.attr-list { display: flex; flex-direction: column; gap: 10px; }
+.attr-entry {
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 11px 13px;
+  background: var(--panel-2);
+}
+.attr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+.attr-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 0.5px;
+  color: var(--gold-bright);
+}
+.attr-weight {
+  font-family: var(--font-cond);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid var(--line-gold);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.attr-blurb {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 7px;
+}
+.attr-meta {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.attr-meta b { color: var(--text); }
+.attr-tag {
+  display: inline-block;
+  font-family: var(--font-cond);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--gold);
+  min-width: 66px;
+  margin-right: 4px;
+}
+
+/* ---- Badges reference modal ---- */
+.badge-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--navy);
+  border: 1px solid var(--line-gold);
+  border-radius: 5px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.badge-search::placeholder { color: var(--text-dim); }
+.badge-search:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 1px; }
+.badge-groups { display: flex; flex-direction: column; }
+.badge-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  background: var(--panel);
+  padding: 9px 0 6px;
+  margin-top: 6px;
+  border-bottom: 1px solid var(--line-gold);
+}
+.badge-group-count {
+  font-family: var(--font-cond);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+.badge-row {
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--card-border);
+}
+.badge-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.badge-row-player { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.badge-row-name {
+  font-family: var(--font-cond);
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  color: var(--gold-bright);
+  text-align: right;
+  white-space: nowrap;
+}
+.badge-row-effect {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.badge-row-mods {
+  font-family: var(--font-cond);
+  font-size: 11.5px;
+  letter-spacing: 0.4px;
+  color: var(--gold);
+  margin-top: 3px;
+}
+.badge-empty {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 14px 2px;
+  text-align: center;
+}
+
 /* ---- Home secondary links (Trophy Case entry points) ---- */
 .home-secondary {
   display: flex;
