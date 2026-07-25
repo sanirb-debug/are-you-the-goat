@@ -490,7 +490,7 @@ function generateSeasonStats(ovr, f, h, fr, mods = {}) {
 }
 
 // ---- Season / career sim ----
-function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
+function simSeason(ovr, scr, varianceRange, defRating = 0) {
   const variance = randInt(-varianceRange, varianceRange);
   let wins = Math.round(41 + (ovr - 75) * 0.9 + (scr - 60) * 0.35 + variance);
   wins = clamp(wins, 12, 73);
@@ -519,11 +519,10 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
     }
   }
 
-  // All-Star is a pure OVR gate (70+). All-NBA (selection AND 1st/2nd/3rd tier)
-  // is decided later in simCareer by allNbaSelection(), which sees the season's
-  // real box score and hardware — raw OVR alone flattened every qualifying
-  // season of a modest-OVR scorer to 3rd team regardless of how dominant it was.
-  const allStar = ovr >= 70;
+  // All-Star, All-NBA and ROTY are all resolved later in simCareer, once the
+  // season's real box score exists — see allStarSelection / allNbaSelection /
+  // rotyRoll. None of them can be decided here: a raw-OVR gate cannot tell a
+  // 24-PPG scorer from a 9-PPG build with the same overall rating.
 
   // MVP odds SCALE with how dominant the season was, rather than a flat roll at
   // the qualifying line. A flat 35% meant a merely-eligible 80-OVR/50-win year
@@ -540,24 +539,6 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   }
 
   let finalsMVP = ring && ovr >= 78;
-
-  // Rookie of the Year: first simulated season only. ROTY is contested by one
-  // draft class, not the whole league, so a debut of any real quality wins it
-  // most years — the old "OVR 72+, then a 50/50 roll" made it an All-Star-only
-  // lottery that a perfectly respectable Starter-tier rookie could never win
-  // (an OVR-67 build peaks at 70 and was locked out entirely). Odds now ramp
-  // from ~3% at bust level to ~88% once the season clears a modest bar.
-  // Hard "not a bust" eligibility bar: a genuinely weak rookie season cannot win
-  // ROTY at all. seasonOVR here is raw and tracks the rookie's scoring — raw 58 is
-  // roughly a 7.5-PPG season, so a sub-58 debut (the reported 6.6-PPG / Draft-Bust
-  // case sits at ~raw 56) is locked out entirely. Above the bar the odds ramp from
-  // ~3% up to ~93% by raw 70, so a real Starter-tier rookie (raw 61+, ~10+ PPG)
-  // still wins most years while a fringe/bust debut never does.
-  let roty = false;
-  if (isRookie && ovr >= 58) {
-    const edge = clamp((ovr - 58) / 12, 0, 1); // 58 -> 0.0, 70+ -> 1.0
-    roty = rng() < 0.03 + 0.9 * edge;
-  }
 
   // Defensive Player of the Year is resolved in simCareer (dpoyRoll), NOT here:
   // it scales with the season's actual defensive BOX SCORE and compounds over
@@ -581,7 +562,8 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   if (seasonDef >= 93) allDefensive = "1st";
   else if (seasonDef >= 85) allDefensive = "2nd";
 
-  return { wins, madePlayoffs, ring, finalsMVP, allStar, mvp, roty, allDefensive, roundsWon };
+  // allStar / allNBA / roty are attached by simCareer once the box score exists.
+  return { wins, madePlayoffs, ring, finalsMVP, mvp, allDefensive, roundsWon };
 }
 
 // All-NBA selection AND 1st/2nd/3rd tier, called from simCareer once the box
@@ -623,6 +605,53 @@ function allNbaSelection(stats, wins, mvp, allDefensive) {
     if (rng() < 0.08 + 0.28 * domD) return "3rd";
   }
   return null;
+}
+
+// All-Star selection for one season, resolved in simCareer once the box score is
+// known. This used to be a bare `ovr >= 70` gate, which is why a 9.3-PPG /
+// 8.7-RPG / 7-APG build at raw OVR 73 made All-Star in EVERY season of a 15-year
+// career: overall OVR bakes in Defense (0.18) and Rebounding (0.14), so being good
+// everywhere and great nowhere cleared the line permanently — the same flaw that
+// All-NBA had before it moved to a box-score case.
+//
+// Real All-Stars are either high-volume scorers or carry one genuine signature
+// strength, so this takes the BETTER of two cases:
+//   - the OFFENSIVE case: the same spine All-NBA uses, on a lower bar (~24-30
+//     All-Stars are named a year against 15 All-NBA slots)
+//   - the SIGNATURE case: an anchor defender, a lead playmaker at star volume, or
+//     a dominant rebounder can make the team without scoring — that's how the
+//     Mutombo/Rodman/Ben-Wallace type of All-Star happened. Capped well below the
+//     scoring path so it grants a few nods across a career, not a permanent seat.
+function allStarSelection(stats, wins, allDefensive) {
+  const off =
+    stats.ppg +
+    Math.max(0, stats.apg - 4) * 0.8 +
+    Math.max(0, stats.fgPct - 50) * 0.20 +
+    Math.max(0, stats.tptPct - 34) * 0.12;
+  const winBonus = Math.max(0, wins - 45) * 0.15;
+  const scoringCase = clamp((off + winBonus - 15) / 12, 0, 1); // ~15 -> 0%, ~27+ -> ~100%
+
+  let signature = allDefensive === "1st" ? 0.45 : allDefensive === "2nd" ? 0.18 : 0;
+  signature = Math.max(signature, clamp((stats.apg - 7.5) / 3, 0, 1) * 0.6);
+  signature = Math.max(signature, clamp((stats.rpg - 12) / 3, 0, 1) * 0.45);
+
+  return rng() < Math.max(scoringCase, signature);
+}
+
+// Rookie of the Year, resolved in simCareer for the debut season only. ROTY is
+// contested inside a single draft class, so a genuinely strong debut still wins it
+// often — but the season has to SHOW something. The old version rolled on raw OVR
+// alone (~93% for anything not a bust), which handed the award to a 9.7-PPG rookie
+// with no standout category. Eligibility is now the best of the rookie's actual
+// claims, and a debut that is merely respectable everywhere wins nothing.
+function rotyRoll(stats, allDefensive) {
+  const scoring = clamp((stats.ppg - 14) / 8, 0, 1);      // 14 -> 0, 22+ -> 1
+  const passing = clamp((stats.apg - 7.5) / 3.5, 0, 1);
+  const boards  = clamp((stats.rpg - 9.5) / 3.5, 0, 1);
+  const defense = allDefensive === "1st" ? 0.7 : allDefensive === "2nd" ? 0.3 : 0;
+  const best = Math.max(scoring, passing, boards, defense);
+  if (best <= 0) return false; // nothing notable in any category -> never ROTY
+  return rng() < 0.05 + 0.82 * best;
 }
 
 // Defensive Player of the Year roll for one season. Unlike the old flat per-season
@@ -707,16 +736,21 @@ function simCareer(ovr, team, mods = {}) {
     // Filling the team's positional need lifts the supporting cast a touch.
     const teamScr = team.scr + (state.teamNeedMet ? 5 : 0);
     const scrThisYear = clamp(teamScr + randInt(-5, 5), 15, 99);
-    const result = simSeason(seasonOVR, scrThisYear, varianceRange, i === 0, f.Defense);
+    const result = simSeason(seasonOVR, scrThisYear, varianceRange, f.Defense);
     careerWins += result.wins;
     if (result.ring) rings++;
     if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, scaleOVR(seasonOVR)); }
     if (result.finalsMVP) finalsMVPs++;
-    if (result.allStar) allStars++;
-    if (result.roty) roty = 1;
     if (result.allDefensive) allDefensives++;
 
     const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.athleticism.rating, mods);
+    // All-Star needs the box score for the same reason All-NBA does: overall OVR
+    // can't tell a 24-PPG scorer from a 9-PPG build rated the same.
+    result.allStar = allStarSelection(stats, result.wins, result.allDefensive);
+    if (result.allStar) allStars++;
+    // ROTY is the debut season only, and now keys on what the rookie actually did.
+    result.roty = i === 0 && rotyRoll(stats, result.allDefensive);
+    if (result.roty) roty = 1;
     // DPOY scales with the season's real defensive box score and compounds over
     // consecutive elite-defensive seasons (dStreak), so it's resolved here — after
     // the stats exist — not on the flat constant rating inside simSeason.
@@ -1741,7 +1775,7 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, fmtSalary, capPct, budgetRemaining, uncappedMode, inputCeiling, baseOVRDisplay, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
-    checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
+    checkPositionFit, TEAM_NEEDS, simSeason, simCareer, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,

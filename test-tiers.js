@@ -263,17 +263,21 @@ function simN(skill, def, runs) {
   G.state.activeBadges = [];
   const ovr = G.computeOVR();
   let mvpSum = 0, anSum = 0, seasonSum = 0, rotySum = 0, maxSeasons = 0, minSeasons = 99, tiers = {};
+  let asSum = 0, ppgSum = 0, ppgN = 0;
   for (let i = 0; i < runs; i++) {
     G.seedRng(4242 + i);
     const c = G.simCareer(ovr, T, G.activeBadgeMods());
     mvpSum += c.mvps; anSum += c.allNBAs;
+    asSum += c.allStars;
+    c.seasons.forEach(s => { ppgSum += s.stats.ppg; ppgN++; });
     seasonSum += c.numSeasons; rotySum += c.roty;
     maxSeasons = Math.max(maxSeasons, c.numSeasons);
     minSeasons = Math.min(minSeasons, c.numSeasons);
     const t = G.tierForCareer(c).name; tiers[t] = (tiers[t] || 0) + 1;
   }
   return { ovr, mvps: mvpSum / runs, allNBAs: anSum / runs, tiers,
-           seasons: seasonSum / runs, minSeasons, maxSeasons, rotyRate: rotySum / runs };
+           seasons: seasonSum / runs, minSeasons, maxSeasons, rotyRate: rotySum / runs,
+           allStars: asSum / runs, ppg: ppgSum / Math.max(1, ppgN) };
 }
 
 const dominant = simN(99, 99, 400);
@@ -313,19 +317,38 @@ check("strong build still gets the full-length career",
 check("strong build career length stays within 15-20",
   `${great.minSeasons}-${great.maxSeasons}`, v => great.minSeasons >= 15 && great.maxSeasons <= 20);
 
-console.log("\n=== ROTY GOES TO ANY REAL ROOKIE SEASON ===");
+console.log("\n=== ROTY NEEDS A STANDOUT ROOKIE SEASON ===");
 
-// A rookie season of real quality should win ROTY most of the time; only a
-// bust-level debut should be a long shot.
-check("solid rookie season wins ROTY most years",
+// ROTY keys on the rookie's actual box score (rotyRoll), not raw OVR. A debut with
+// real standout production in some category wins it often; a debut that is merely
+// respectable everywhere — the `mid` build is ~10 PPG / 7.6 RPG / 5.4 APG — should
+// NOT, which is the whole point of the retune. It used to convert ~86% of the time.
+check("standout rookie season wins ROTY most years",
   Number(great.rotyRate.toFixed(2)), v => v >= 0.7,
-  "a quality rookie year should convert ~70-90% of the time");
-check("mid-quality rookie season still usually wins ROTY",
-  Number(mid.rotyRate.toFixed(2)), v => v >= 0.6,
-  "Starter-tier-or-better debuts are the realistic ROTY pool");
+  "a genuinely standout rookie year should convert ~70-90% of the time");
+check("unremarkable rookie season rarely wins ROTY",
+  Number(mid.rotyRate.toFixed(2)), v => v <= 0.25,
+  "single-digit-PPG debuts with no standout category are not ROTY winners");
 check("bust-level rookie season rarely wins ROTY",
   Number(bust.rotyRate.toFixed(2)), v => v <= 0.15,
   "a genuinely bad debut should be near-zero, not a coin flip");
+
+// ---------------------------------------------------------------------------
+console.log("\n=== ALL-STAR TRACKS STAR PRODUCTION, NOT RAW OVR ===");
+
+// All-Star was a bare `ovr >= 70` gate, so a build that was good everywhere and
+// great nowhere made it EVERY season (overall OVR bakes in Defense 0.18 +
+// Rebounding 0.14). It now runs off the season box score — the same reason All-NBA
+// had to move — so a low-volume all-rounder collects few nods while a real scorer
+// still makes it nearly every year.
+console.log(`  (mid build: ${mid.ppg.toFixed(1)} PPG, All-Star ${mid.allStars.toFixed(1)} of ${mid.seasons.toFixed(1)} seasons)`);
+console.log(`  (great build: ${great.ppg.toFixed(1)} PPG, All-Star ${great.allStars.toFixed(1)} of ${great.seasons.toFixed(1)} seasons)`);
+check("low-volume all-rounder does NOT make All-Star most seasons",
+  Number((mid.allStars / mid.seasons).toFixed(2)), v => v <= 0.25,
+  "good-at-everything/great-at-nothing is a role player, not a perennial All-Star");
+check("genuine star scorer still makes All-Star nearly every season",
+  Number((great.allStars / great.seasons).toFixed(2)), v => v >= 0.8,
+  "the fix must not overcorrect — real stars keep their nods");
 
 // ---------------------------------------------------------------------------
 console.log("\n=== BACK NAVIGATION (step back one screen) ===");

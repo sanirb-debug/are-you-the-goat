@@ -135,6 +135,22 @@ skills: {Shooting, ...} }`.
   `career.bestSeason` (82 games/season assumed).
 - Verdict tier comes from `goatScore` against the TIERS ladder; personal best
   is stored in localStorage under `aytg_best_score`.
+- **Awards run off the season BOX SCORE, not overall OVR.** `simSeason` only
+  decides wins/ring/MVP/All-Defensive; All-Star (`allStarSelection`), All-NBA
+  (`allNbaSelection`), DPOY (`dpoyRoll`) and ROTY (`rotyRoll`) are all resolved
+  in `simCareer` after `generateSeasonStats`, because overall OVR bakes in
+  Defense (.18) + Rebounding (.14) and so cannot tell a 24-PPG scorer from a
+  9-PPG build rated the same. Every past "awards are too generous/stingy" bug
+  came from an OVR gate standing in for production — don't reintroduce one.
+  All-Star takes the better of an offensive case and a signature-strength case
+  (anchor defender / lead playmaker / dominant rebounder) so a specialist can
+  still be honored without scoring volume.
+- CAVEAT worth knowing before retuning `TIER_AWARD_FLOORS`: its comment justifies
+  Superstar's 11-All-Star floor by All-Star and All-NBA counts "moving together
+  (mean gap 1.7)", which was true only while both were OVR-gated. They are now
+  decoupled (greedy-optimal cap build: 13.3 All-Star vs 8.7 All-NBA, gap 4.6),
+  so that stated rationale is stale — re-derive from `sim-difficulty.js` rather
+  than trusting it.
 
 ## UI conventions (ui.js)
 
