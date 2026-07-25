@@ -133,6 +133,14 @@ function renderTopBar() {
   home.title = "Leave this build and return to the home screen";
   home.onclick = () => goHome(home);
   left.appendChild(home);
+  // Reset sits beside Back/Home for the whole build-in-progress window, but only
+  // once there is actually something to clear.
+  if (inPickingPhase() && hasBuildProgress()) {
+    const reset = el("button", "nav-btn nav-reset", "↺ Reset Build");
+    reset.title = "Clear every pick and start the build over — keeps your name and shadow target";
+    reset.onclick = () => confirmResetBuild(reset);
+    left.appendChild(reset);
+  }
   bar.appendChild(left);
 
   bar.appendChild(el("div", "brand", "🏀 ARE YOU THE GOAT?"));
@@ -205,6 +213,50 @@ function goHome(trigger) {
   openModal("Leave Build", body, [
     ["Cancel", "btn-secondary", null],
     ["Leave", "btn-primary", () => resetGame()],
+  ], trigger);
+}
+
+// Start the build over WITHOUT leaving the run: clears every pick, the position,
+// the career team and any badges, then drops back on the first attribute step.
+// Deliberately keeps the two things chosen before the build began — the player's
+// name and their Chasing-the-Shadow target — plus the mode flags, so a reset
+// never silently moves you between Classic / Salary Cap / Sandbox.
+// Distinct from resetGame (abandons the run entirely, back to the home screen)
+// and from goBack (steps back one screen, build intact).
+function resetBuild() {
+  state.activeBadges = [];
+  state.height = null;
+  state.athleticism = null;
+  state.skills = {};
+  state.budgetSpent = 0;
+  state.position = null;
+  state.positionFit = null;
+  state.teamNeedMet = false;
+  state.team = null;
+  state.scoutTeam = null;
+  state.teamRerollsUsed = 0;
+  state.spunPlayer = null;
+  state.playerRerollsUsed = 0;
+  state.pickOrder = [];
+  state.editingCategory = null;
+  state.seed = null;          // a fresh build earns a fresh sim seed
+  sandboxQuery = "";
+  wheelRotation = 0;
+  wheelSpinning = false;
+  playerSpinning = false;
+  career = null;
+  picksDrawerOpen = false;
+  runUnlocks = [];
+  state.currentStep = STEPS.indexOf("height");
+  render();
+}
+
+// Same confirm-before-destroying shape as goHome.
+function confirmResetBuild(trigger) {
+  const body = el("p", "modal-text", "Reset your build? This can't be undone.");
+  openModal("Reset Build", body, [
+    ["Cancel", "btn-secondary", null],
+    ["Reset", "btn-primary", () => resetBuild()],
   ], trigger);
 }
 
@@ -1076,7 +1128,11 @@ function renderTeamWheel(category, team, rerollsLeft, wrap) {
     `${n} team${n === 1 ? "" : "s"} still on the wheel`));
 
   const canReroll = rerollsLeft > 0;
-  const btn = el("button", "btn-primary",
+  // Solid gold is reserved for CONFIRM actions. The first spin is the only thing
+  // on screen, so it stays the gold primary; once a team has landed the button
+  // becomes a re-spin competing with the lock-in below it, and switches to the
+  // slate .btn-spin treatment so the two can't be confused at a glance.
+  const btn = el("button", team ? "btn-spin" : "btn-primary",
     !team ? "🎡 Spin the Wheel"
       : canReroll ? `Spin Again (${rerollsLeft} left)`
       : "No Rerolls Left");
@@ -1230,7 +1286,9 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
 
   // Re-spin the player (a different one). Draws from the build-level pool, so
   // once it hits 0 this button stays disabled for the rest of the build.
-  const respin = el("button", "btn-secondary",
+  // Sits directly under the gold "Lock ..." button, so it gets the slate re-spin
+  // treatment — this is the exact pair a playtester kept misclicking.
+  const respin = el("button", "btn-spin",
     rerollsLeft > 0 ? `Spin Player Again (${rerollsLeft} left)` : "No Player Re-spins Left");
   respin.disabled = rerollsLeft <= 0;
   respin.style.marginTop = "8px";
@@ -1323,7 +1381,10 @@ function renderRosterStep(category, title, sub, onLock) {
   } else if (state.autoPick) {
     renderTeamWheel(category, team, rerollsLeft, wrap);
   } else {
-    const spinBtn = el("button", "btn-primary",
+    // Same rule as the Classic wheel: gold while it's the only action on screen,
+    // slate once the roster list is showing and this is a re-spin competing with
+    // locking a player in.
+    const spinBtn = el("button", team ? "btn-spin" : "btn-primary",
       !team ? "🎡 Spin for a Team"
         : rerollsLeft > 0 ? `Spin Again (${rerollsLeft} left)`
         : "No Rerolls Left");

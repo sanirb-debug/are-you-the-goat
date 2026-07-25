@@ -383,7 +383,33 @@ button { cursor: pointer; border: none; font-family: inherit; }
 }
 .btn-secondary:hover:not(:disabled) { background: rgba(242, 201, 76, 0.08); }
 
-.btn-secondary:disabled, .btn-primary:disabled {
+/* Re-spin / re-roll actions. Deliberately NOT gold: solid gold is reserved for
+   confirm/lock-in, and when a re-spin sits next to a "Lock It In" both being
+   gold made them easy to misclick. Cool slate reads as the alternate action at a
+   glance, without competing for the eye on a navy/gold page. */
+.btn-spin {
+  background: rgba(125, 160, 205, 0.07);
+  color: #9fc0e8;
+  border: 1px solid rgba(125, 160, 205, 0.5);
+  font-family: var(--font-cond);
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 12px 26px;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.btn-spin:hover:not(:disabled) {
+  background: rgba(125, 160, 205, 0.16);
+  border-color: #9fc0e8;
+  color: #cfe2fa;
+}
+.btn-spin:focus-visible { outline: 2px solid #9fc0e8; outline-offset: 2px; }
+
+.btn-secondary:disabled, .btn-primary:disabled, .btn-spin:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -1801,6 +1827,11 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   color: var(--gold-bright);
   border-color: var(--line-gold);
   background: var(--panel-2);
+}
+/* Reset Build is destructive, so it warms to red on hover rather than gold. */
+.nav-reset:hover {
+  color: var(--red);
+  border-color: rgba(239, 68, 68, 0.55);
 }
 .nav-btn:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
 
