@@ -2000,25 +2000,55 @@ body.modal-open { overflow: hidden; }
 .badge-search::placeholder { color: var(--text-dim); }
 .badge-search:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 1px; }
 .badge-groups { display: flex; flex-direction: column; }
+.badge-group { display: flex; flex-direction: column; }
+/* Collapsible category header. A <button>, so it resets the UA button styling and
+   keeps the same gold-on-navy bar the flat version had. */
 .badge-group-head {
   position: sticky;
   top: 0;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  border: none;
+  border-bottom: 1px solid var(--line-gold);
+  border-radius: 0;
   font-family: var(--font-display);
   font-size: 15px;
   letter-spacing: 0.8px;
   text-transform: uppercase;
+  text-align: left;
   color: var(--gold-bright);
   background: var(--panel);
-  padding: 9px 0 6px;
+  padding: 10px 2px 7px;
   margin-top: 6px;
-  border-bottom: 1px solid var(--line-gold);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
 }
+.badge-group-head:hover { color: var(--gold); background: var(--navy-light); }
+.badge-group-head:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: -2px; }
+.badge-group-head.open { color: var(--gold-bright); }
+.bgh-label { display: inline-flex; align-items: baseline; gap: 6px; }
+.bgh-caret {
+  font-size: 12px;
+  color: var(--gold);
+  transition: transform 0.18s ease;
+  flex: 0 0 auto;
+}
+.badge-group-head.open .bgh-caret { transform: rotate(180deg); }
+.badge-group-panel { display: flex; flex-direction: column; }
+.badge-group-panel[hidden] { display: none; }
 .badge-group-count {
   font-family: var(--font-cond);
   font-size: 11px;
   color: var(--text-dim);
-  margin-left: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge-group-head, .bgh-caret { transition: none; }
 }
 .badge-row {
   padding: 8px 2px;

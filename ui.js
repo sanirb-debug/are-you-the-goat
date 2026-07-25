@@ -328,9 +328,13 @@ function showAttributes(trigger) {
 }
 
 // ---- Badges reference ----
-// Every signature-trait badge in one browsable list, grouped by the skill it
-// attaches to, with a live player/badge name filter. Same {name, effect, mods}
-// the in-game tooltips show — sourced straight from TRAIT_BADGES so it can't drift.
+// Every signature-trait badge, grouped by the skill it attaches to, with a live
+// player/badge name filter. Same {name, effect, mods} the in-game tooltips show —
+// sourced straight from TRAIT_BADGES so it can't drift.
+//
+// Each category is a collapsible accordion section: everything starts collapsed
+// (200+ badges at once was an unreadable wall), and opening one closes the rest so
+// only a single list is ever on screen. The filter overrides that — see below.
 function showBadges(trigger) {
   const body = el("div", "badge-ref");
 
@@ -352,12 +356,34 @@ function showBadges(trigger) {
     if (byCat[cat]) byCat[cat].push({ player, b: TRAIT_BADGES[k] });
   });
 
-  const rowRecords = []; // { row, header, hay } for filtering
+  const sections = [];
+
+  const setOpen = (sec, open) => {
+    sec.panel.hidden = !open;
+    sec.head.setAttribute("aria-expanded", open ? "true" : "false");
+    sec.head.classList.toggle("open", open);
+  };
+  // Accordion: opening a section closes every other one; clicking the open
+  // section's own header collapses it back down.
+  const toggle = sec => {
+    const willOpen = sec.panel.hidden;
+    sections.forEach(s => setOpen(s, false));
+    if (willOpen) setOpen(sec, true);
+  };
+
   SKILL_ORDER.forEach(cat => {
     const entries = byCat[cat];
     if (!entries.length) return;
-    const header = el("div", "badge-group-head", `${cat} <span class="badge-group-count">${entries.length}</span>`);
-    groups.appendChild(header);
+
+    const head = el("button", "badge-group-head");
+    head.type = "button";
+    head.innerHTML =
+      `<span class="bgh-label">${cat}<span class="badge-group-count">${entries.length}</span></span>` +
+      `<span class="bgh-caret" aria-hidden="true">▾</span>`;
+    const countEl = head.querySelector(".badge-group-count");
+
+    const panel = el("div", "badge-group-panel");
+    const rows = [];
     entries.forEach(({ player, b }) => {
       const mods = fmtMods(b.mods);
       const row = el("div", "badge-row",
@@ -365,9 +391,19 @@ function showBadges(trigger) {
         `<span class="badge-row-name">★ ${b.name}</span></div>` +
         `<div class="badge-row-effect">${b.effect}</div>` +
         `<div class="badge-row-mods">${mods}</div>`);
-      groups.appendChild(row);
-      rowRecords.push({ row, header, hay: (player + " " + b.name).toLowerCase() });
+      panel.appendChild(row);
+      rows.push({ row, hay: (player + " " + b.name).toLowerCase() });
     });
+
+    const wrap = el("div", "badge-group");
+    wrap.appendChild(head);
+    wrap.appendChild(panel);
+    groups.appendChild(wrap);
+
+    const sec = { cat, head, panel, rows, wrap, countEl, total: entries.length };
+    setOpen(sec, false); // collapsed by default
+    head.onclick = () => toggle(sec);
+    sections.push(sec);
   });
 
   body.appendChild(groups);
@@ -375,19 +411,22 @@ function showBadges(trigger) {
 
   search.oninput = () => {
     const q = search.value.trim().toLowerCase();
-    const headerVisible = new Map();
     let anyVisible = false;
-    rowRecords.forEach(r => {
-      const show = !q || r.hay.includes(q);
-      r.row.style.display = show ? "" : "none";
-      if (show) { headerVisible.set(r.header, true); anyVisible = true; }
-    });
-    // A group header shows only if at least one of its rows is visible.
-    const seen = new Set();
-    rowRecords.forEach(r => {
-      if (seen.has(r.header)) return;
-      seen.add(r.header);
-      r.header.style.display = headerVisible.get(r.header) ? "" : "none";
+    sections.forEach(sec => {
+      let matches = 0;
+      sec.rows.forEach(r => {
+        const show = !q || r.hay.includes(q);
+        r.row.style.display = show ? "" : "none";
+        if (show) matches++;
+      });
+      // A section with no hits drops out entirely; the count reflects the hits
+      // while filtering so the header doesn't claim 33 when 2 are showing.
+      sec.wrap.style.display = matches ? "" : "none";
+      sec.countEl.textContent = q ? String(matches) : String(sec.total);
+      // Results must be visible, so a live filter force-opens the sections that
+      // matched; clearing it returns everything to collapsed.
+      setOpen(sec, !!q && matches > 0);
+      if (matches) anyVisible = true;
     });
     noMatch.style.display = anyVisible ? "none" : "";
   };
