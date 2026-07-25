@@ -1293,6 +1293,39 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   margin-top: 3px;
 }
 
+/* Live rating average at the foot of the picks panel. */
+.picks-avg {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--card-border);
+}
+.picks-avg .pa-label {
+  font-family: var(--font-cond);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.picks-avg .pa-val {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--text);
+  line-height: 1;
+}
+/* Once all 8 are locked, make it read as the headline number. */
+.picks-avg.complete {
+  border-top-color: var(--line-gold);
+  margin-top: 14px;
+  padding: 11px 12px;
+  background: rgba(212, 167, 44, 0.10);
+  border-radius: 5px;
+}
+.picks-avg.complete .pa-label { color: var(--gold-bright); }
+.picks-avg.complete .pa-val { font-size: 34px; color: var(--gold-bright); }
+
 /* Choose-2 step */
 .badge-choose-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .badge-choose {

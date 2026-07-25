@@ -414,6 +414,19 @@ function renderPicksPanel() {
     }
   });
   panel.appendChild(body);
+
+  // Live rating average: the mean of every LOCKED slot's rating (open slots don't
+  // count), so the player sees where the build is trending before all 8 are in.
+  // Recomputed on every render, so it updates the moment a pick locks; shown
+  // prominently once the build is complete.
+  const filled = CATEGORIES.map(c => currentPick(c)).filter(Boolean);
+  if (filled.length) {
+    const avg = filled.reduce((s, p) => s + p.rating, 0) / filled.length;
+    const complete = filled.length === CATEGORIES.length;
+    panel.appendChild(el("div", "picks-avg" + (complete ? " complete" : ""),
+      `<span class="pa-label">${complete ? "Build Rating" : `Avg of ${filled.length}`}</span>` +
+      `<span class="pa-val">${Math.round(avg)}</span>`));
+  }
   return panel;
 }
 
