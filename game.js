@@ -96,12 +96,19 @@ function fmtSalary(hundredths) {
   return "$" + (hundredths / 100).toFixed(1).replace(/\.0$/, "") + "M";
 }
 
+// The modes with no salary cap: Classic (autoPick) and Sandbox. Named because
+// more than the budget hangs off it — scaleOVR's calibration is only valid when
+// a cap is actually constraining the build (see scaleOVR).
+function uncappedMode() {
+  return !!(state.sandbox || state.autoPick);
+}
+
 function budgetRemaining() {
   // Sandbox lifts the cap entirely. Returning Infinity is deliberately the ONLY
   // budget change needed: getRosterOptions gates purely on `cost <= remaining`,
   // so every roster player becomes affordable and the budget-bin fallback (which
   // only exists to prevent a soft-lock when nothing is affordable) never fires.
-  if (state.sandbox || state.autoPick) return Infinity;
+  if (uncappedMode()) return Infinity;
   return BUDGET_CAP - state.budgetSpent;
 }
 
@@ -307,13 +314,32 @@ const OVR_WEIGHTS = {
   Defense: 0.18, Rebounding: 0.14, height: 0.05, athleticism: 0.05,
 };
 
+// A weighted average always lies between the min and max of its inputs, so the
+// only way OVR can exceed the build's best single rating is something additive on
+// top. inputCeiling() enforces that bound, and deliberately measures it against
+// the ratings the player actually PICKED (pre-applyModifiers) — those are the
+// numbers shown in the sidebar, so an overall above the best of them reads as
+// broken no matter how it was derived. The height/athleticism synergy can still
+// shift weight toward a build's strengths and push the average up toward that
+// ceiling; it just can't manufacture an overall above every rating on the card.
+// Both breaches this closes: the +3 position-fit bonus (all-84 build + fit
+// reported 87) and synergy-inflated skills (the same build with elite
+// athleticism reported 90).
+function inputCeiling() {
+  let m = -Infinity;
+  if (state.height) m = Math.max(m, state.height.rating);
+  if (state.athleticism) m = Math.max(m, state.athleticism.rating);
+  SKILL_ORDER.forEach(s => { if (state.skills[s]) m = Math.max(m, state.skills[s].rating); });
+  return m;
+}
+
 function computeOVR() {
   const f = finalSkills();
   const vals = { ...f, height: state.height.rating, athleticism: state.athleticism.rating };
   let ovr = 0;
   for (const k in OVR_WEIGHTS) ovr += vals[k] * OVR_WEIGHTS[k];
-  let bonus = state.positionFit ? 3 : 0;
-  return clamp(Math.round(ovr + bonus), 25, 99);
+  const bonus = state.positionFit ? 3 : 0;
+  return clamp(Math.round(Math.min(ovr + bonus, inputCeiling())), 25, 99);
 }
 
 // Live WEIGHTED OVR estimate from whatever slots are filled so far, expressed on
@@ -329,17 +355,21 @@ function computeOVR() {
 // Returns null when nothing is filled yet.
 function projectedOVR() {
   const bothPhysicals = state.height && state.athleticism;
-  let sum = 0, wsum = 0;
+  let sum = 0, wsum = 0, ceiling = -Infinity;
   for (const cat in OVR_WEIGHTS) {
     const pick = currentPick(cat);
     if (!pick) continue;
     const r = (SKILL_ORDER.includes(cat) && bothPhysicals) ? applyModifiers(pick.rating, cat) : pick.rating;
     sum += r * OVR_WEIGHTS[cat];
     wsum += OVR_WEIGHTS[cat];
+    // Same input-ceiling bound computeOVR applies, over the slots filled so far —
+    // measured on the PICKED rating, not the synergy-modified one.
+    if (pick.rating > ceiling) ceiling = pick.rating;
   }
   if (!wsum) return null;
   const bonus = state.positionFit ? 3 : 0;
-  return scaleOVR(clamp(Math.round(sum / wsum + bonus), 25, 99));
+  // Bounded before AND after scaling, for the same reason baseOVRDisplay is.
+  return Math.min(scaleOVR(clamp(Math.round(Math.min(sum / wsum + bonus, ceiling)), 25, 99)), ceiling);
 }
 
 function checkPositionFit(posKey) {
@@ -609,8 +639,26 @@ const GAMES_PER_SEASON = 82;
 // onto the full 25..99 the player sees, so the tier floors read as the published
 // numbers (Bust <60 ... GOAT 95+) without touching the economy, the award gates
 // or generateSeasonStats — all of which stay on the raw scale.
+//
+// CRITICAL: that 25..83 premise only holds while a cap is actually constraining
+// the build. The no-cap modes (Classic, Sandbox) can buy elite ratings in every
+// slot and reach raw 94+ on their own, so applying the 1.276x expansion there
+// stretched an already-full axis: a legitimate raw 81 build was displayed as
+// Base OVR 96, and Classic's top tiers became far too easy (51.8% Legend-or-
+// better at optimal play). Uncapped modes therefore report the raw axis as-is —
+// they already span the published ladder without help.
 function scaleOVR(raw) {
+  if (uncappedMode()) return clamp(Math.round(raw), 25, 99);
   return clamp(Math.round((raw - 25) * (74 / 58) + 25), 25, 99);
+}
+
+// The Base OVR the verdict displays: the finished build on the same scaled axis
+// as Peak, but never above the best rating actually picked. Under the cap the
+// scaleOVR expansion can still nudge a point past that ceiling (measured: 0.1% of
+// greedy builds, by at most +1), so the bound is re-applied after scaling. Display
+// only — simCareer, the award gates and the tier floors all stay on the raw axis.
+function baseOVRDisplay() {
+  return Math.min(scaleOVR(computeOVR()), inputCeiling());
 }
 
 function simCareer(ovr, team, mods = {}) {
@@ -1676,7 +1724,7 @@ function recordCareerRun(run) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, categoryRating, getRosterOptions,
+    state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, uncappedMode, inputCeiling, baseOVRDisplay, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,

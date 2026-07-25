@@ -1648,7 +1648,9 @@ function renderVerdict() {
   // fit, pre-variance) and Peak OVR (best single sim season), shown as two big
   // headline tiles right under the tier so both read at a glance. Same 25-99
   // scaled axis, so they're directly comparable; Peak >= Base by season variance.
-  const baseOVR = scaleOVR(ovr);
+  // baseOVRDisplay keeps Base bounded by the best rating actually picked — a
+  // weighted average can't exceed its inputs, and the display must not either.
+  const baseOVR = baseOVRDisplay();
   wrap.appendChild(el("div", "verdict-ovr",
     `<div class="vo-tile">
        <span class="vo-label">Base OVR</span>
