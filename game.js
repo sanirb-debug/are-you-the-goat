@@ -474,10 +474,16 @@ function simSeason(ovr, scr, varianceRange, isRookie = false, defRating = 0) {
   // lottery that a perfectly respectable Starter-tier rookie could never win
   // (an OVR-67 build peaks at 70 and was locked out entirely). Odds now ramp
   // from ~3% at bust level to ~88% once the season clears a modest bar.
+  // Hard "not a bust" eligibility bar: a genuinely weak rookie season cannot win
+  // ROTY at all. seasonOVR here is raw and tracks the rookie's scoring — raw 58 is
+  // roughly a 7.5-PPG season, so a sub-58 debut (the reported 6.6-PPG / Draft-Bust
+  // case sits at ~raw 56) is locked out entirely. Above the bar the odds ramp from
+  // ~3% up to ~93% by raw 70, so a real Starter-tier rookie (raw 61+, ~10+ PPG)
+  // still wins most years while a fringe/bust debut never does.
   let roty = false;
-  if (isRookie) {
-    const edge = clamp((ovr - 50) / 12, 0, 1); // 50 -> 0.0, 62+ -> 1.0
-    roty = rng() < 0.03 + 0.85 * edge;
+  if (isRookie && ovr >= 58) {
+    const edge = clamp((ovr - 58) / 12, 0, 1); // 58 -> 0.0, 70+ -> 1.0
+    roty = rng() < 0.03 + 0.9 * edge;
   }
 
   // Defensive Player of the Year: gated on the build's post-modifier DEFENSE

@@ -298,7 +298,10 @@ body {
   font-size: 9px;
   text-transform: uppercase;
 }
-.sc-star { color: var(--gold-bright); margin-left: 4px; font-size: 11px; }
+/* Compact trait-pill star on a Classic stat-cell (click/hover -> badge tooltip). */
+.sc-star-pill { margin-left: 4px; padding: 0 4px; font-size: 10px; }
+/* Sidebar badge line hosts a trait-pill; keep it flush-left on its own row. */
+.picks-badge .trait-pill { margin-left: 0; }
 .stat-cell.selected {
   background: rgba(212, 167, 44, 0.12);
   border-color: var(--gold-bright);

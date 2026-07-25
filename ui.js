@@ -289,6 +289,14 @@ function traitPillHTML(name, category) {
   return ` <span class="trait-pill" role="button" tabindex="0" data-tip="${tip}" data-mods="${mods}" aria-label="Trait ${b.name}. ${b.effect}. ${mods}">★ ${b.name}</span>`;
 }
 
+// The click-to-toggle tooltip attributes for a badge object, so the same trait-tip
+// controller can drive any .trait-pill element — used by Classic's sidebar badge
+// and stat-card star, which show the badge outside the Salary Cap roster list.
+function traitTipAttrs(b) {
+  const mods = fmtMods(b.mods);
+  return `role="button" tabindex="0" data-tip="${b.name} — ${b.effect}" data-mods="${mods}" aria-label="Trait ${b.name}. ${b.effect}. ${mods}"`;
+}
+
 // ---- Trait-pill info tooltip: click-to-toggle (primary), hover-preview (bonus) ----
 // The roster list is a scroll container that would clip a CSS ::after tooltip,
 // so this floats a single element on <body> positioned to the clicked pill.
@@ -387,11 +395,11 @@ function renderPicksPanel() {
     const pick = currentPick(cat);
     if (pick) {
       const b = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[pick.name + "|" + cat] : null;
-      const badgeLine = b ? `<span class="picks-badge" title="${b.name} — ${b.effect}">★ ${b.name}</span>` : "";
+      const badgeLine = b ? `<span class="picks-badge"><span class="trait-pill" ${traitTipAttrs(b)}>★ ${b.name}</span></span>` : "";
       const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : "") + (state.autoPick ? " locked-in" : ""),
         `<span class="picks-cat">${categoryLabel(cat)}</span>
          <span class="picks-player">${pick.name}</span>
-         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${state.autoPick ? pick.rating : fmtSalary(pick.cost)}</span>
+         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${state.autoPick ? (cat === "height" ? pick.label : pick.rating) : fmtSalary(pick.cost)}</span>
          ${badgeLine}`);
       row.disabled = state.autoPick; // the spin decides; no re-picking from a list
       row.onclick = () => {
@@ -425,7 +433,7 @@ function renderEditStep(category) {
   const list = el("div", "roster-list");
   getRosterOptions(category, team, pick.cost).forEach(opt => {
     const isCurrent = opt.name === pick.name && opt.cost === pick.cost;
-    const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
+    const display = opt.label ? (category === "height" ? opt.label : `${opt.label} <span class="sub-rating">${opt.rating}</span>`) : opt.rating;
     const row = el("button", "roster-row" + (opt.affordable ? "" : " locked") + (isCurrent ? " current" : ""),
       `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}${traitPillHTML(opt.name, category)}</span>
        <span class="roster-rating">${display}</span>
@@ -944,10 +952,11 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
     const rating = categoryRating(p, cat);
     const bandLabel = cat === "height" ? p.height.label : cat === "athleticism" ? p.athleticism.label : null;
     const filled = !!currentPick(cat);
-    const hasBadge = SKILL_ORDER.includes(cat) && !!TRAIT_BADGES[p.name + "|" + cat];
+    const badge = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[p.name + "|" + cat] : null;
+    const starTip = badge ? ` <span class="trait-pill sc-star-pill" ${traitTipAttrs(badge)}>★</span>` : "";
     const cell = el("button", "stat-cell" + (filled ? " filled" : ""),
-      `<span class="sc-cat">${categoryLabel(cat)}${filled ? ` <span class="sc-taken">filled</span>` : hasBadge ? ` <span class="sc-star">★</span>` : ""}</span>
-       <span class="sc-val">${bandLabel ? `${bandLabel} <span class="sc-sub">${rating}</span>` : rating}</span>`);
+      `<span class="sc-cat">${categoryLabel(cat)}${filled ? ` <span class="sc-taken">filled</span>` : starTip}</span>
+       <span class="sc-val">${bandLabel ? (cat === "height" ? bandLabel : `${bandLabel} <span class="sc-sub">${rating}</span>`) : rating}</span>`);
     cell.disabled = filled;
     cell.onclick = () => {
       if (filled) return;
@@ -1122,7 +1131,7 @@ function renderRosterStep(category, title, sub, onLock) {
     source.forEach(opt => {
       // Height/Athleticism show their real-world label plus the individual rating;
       // skills show the rating alone.
-      const display = opt.label ? `${opt.label} <span class="sub-rating">${opt.rating}</span>` : opt.rating;
+      const display = opt.label ? (category === "height" ? opt.label : `${opt.label} <span class="sub-rating">${opt.rating}</span>`) : opt.rating;
       const row = el("button", "roster-row" + (!opt.affordable ? " locked" : ""),
         `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${q ? ` <span class="era-tag team-tag">${opt.team.abbr}</span>` : ""}${traitPillHTML(opt.name, category)}</span>
          <span class="roster-rating">${display}</span>
@@ -1225,7 +1234,7 @@ function renderConfirmStep() {
   const list = el("div", "roster-list");
   CATEGORIES.forEach(cat => {
     const p = currentPick(cat);
-    const display = p.label ? `${p.label} <span class="sub-rating">${p.rating}</span>` : p.rating;
+    const display = p.label ? (cat === "height" ? p.label : `${p.label} <span class="sub-rating">${p.rating}</span>`) : p.rating;
     const row = el("button", "roster-row" + (state.autoPick ? " no-cost" : ""),
       `<span class="roster-name">${categoryLabel(cat)}: ${p.name} <span class="era-tag">${p.team ? p.team.abbr : "—"}</span></span>
        <span class="roster-rating">${display}</span>
@@ -1687,7 +1696,7 @@ function renderVerdict() {
   const legendList = el("div", "legend-list");
   const f = finalSkills();
   const rows = [
-    ["Height", `${state.height.name} (${state.height.label})`, state.height.rating, fmtSalary(state.height.cost)],
+    ["Height", `${state.height.name} (${state.height.label})`, "", fmtSalary(state.height.cost)],
     ["Athleticism", `${state.athleticism.name} (${state.athleticism.label})`, state.athleticism.rating, fmtSalary(state.athleticism.cost)],
     ...SKILL_ORDER.map(s => [s, state.skills[s].name, f[s], fmtSalary(state.skills[s].cost)]),
   ];
