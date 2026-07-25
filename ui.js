@@ -225,7 +225,7 @@ const HOWTO_STEPS = {
     <ol class="howto-list">
       <li><b>Pick your shadow.</b> Same all-time great to measure yourself against, category by category.</li>
       <li><b>Name your player.</b></li>
-      <li><b>Fill 8 attribute slots — no budget, no fixed order.</b> Each round, <b>spin the wheel</b> for a team (no team repeats across your build, so the wheel shrinks as you go), then <b>spin for a player</b> on that team (no player repeats). You see that player's <b>full 8-stat card</b> and take <b>any one</b> rating whose slot is still open — it fills that slot. Fill the eight in whatever order you like; a stat whose slot is already taken is greyed out.</li>
+      <li><b>Fill 8 attribute slots — no budget, no fixed order.</b> Each round, <b>spin the wheel</b> for a team (no team repeats across your build, so the wheel shrinks as you go) and it <b>spins up a player</b> from that team automatically (no player repeats). You see that player's <b>full 8-stat card</b> and take <b>any one</b> rating whose slot is still open — it fills that slot. Fill the eight in whatever order you like; a stat whose slot is already taken is greyed out. You get <b>one player re-spin for the whole build</b>.</li>
       <li><b>Claim trait badges.</b> Same signature traits (★) — here you can activate up to <b>three</b>.</li>
       <li><b>No do-overs.</b> Once a rating is locked into a slot it's final — the sidebar isn't click-to-swap here. Use <b>Back</b> to step back a whole round.</li>
       <li><b>Pick a position and a career team, then simulate.</b> Just like Salary Cap — position fit and team need matter — then read the verdict.</li>
@@ -1253,7 +1253,7 @@ function renderRosterStep(category, title, sub, onLock) {
     : state.autoPick ? `${openLeft} slot${openLeft === 1 ? "" : "s"} left to fill \u2014 no repeats`
     : "Cap space: " + fmtSalary(budgetRemaining());
   const subLine = state.autoPick
-    ? "Spin a team, spin a player, then take one of their ratings into any open slot."
+    ? "Spin a team — a player spins up automatically — then take one of their ratings into any open slot."
     : sub;
   wrap.appendChild(el("p", "step-sub center", `${subLine} &nbsp;·&nbsp; ${teamNote} &nbsp;·&nbsp; ${capNote}`));
 
