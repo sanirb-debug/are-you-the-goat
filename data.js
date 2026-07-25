@@ -62,6 +62,11 @@ const TEAM_ROSTER_ROWS = {
     ["Marcus Banks", "2000s", "6'3\"", 44, "Solid", 54, 49, 49, 51, 50, 49, 46],
   ],
   OKC: [
+    // bench/role guards — positional rebalance (verified Thunder / Seattle SuperSonics)
+    ["Dennis Schroder", "Modern", "6'1\"", 36, "Athletic", 76, 68, 74, 78, 80, 62, 48],
+    ["Reggie Jackson", "2010s", "6'3\"", 44, "Athletic", 74, 70, 72, 72, 74, 58, 49],
+    ["Eric Maynor", "2010s", "6'3\"", 44, "Solid", 60, 60, 58, 74, 70, 58, 46],
+    ["Nate McMillan", "'90s", "6'5\"", 52, "Athletic", 68, 55, 56, 78, 70, 80, 58],
     ["Gary Payton", "'90s", "6'4\"", 48, "Athletic", 76, 74, 76, 88, 84, 94, 55],
     ["Shawn Kemp", "'90s", "6'10\"", 75, "Elite", 96, 46, 92, 53, 57, 70, 86],
     ["Detlef Schrempf", "'90s", "6'10\"", 75, "Limited", 46, 82, 75, 66, 55, 56, 66],
@@ -103,6 +108,11 @@ const TEAM_ROSTER_ROWS = {
     ["Mike Muscala", "2010s", "6'11\"", 82, "Solid", 53, 52, 50, 46, 47, 48, 52],
   ],
   DEN: [
+    // bench/role guards — positional rebalance (verified Nuggets)
+    ["Michael Adams", "'90s", "5'10\"", 27, "Athletic", 72, 74, 62, 76, 74, 56, 46],
+    ["Nick Van Exel", "2000s", "6'1\"", 36, "Athletic", 72, 74, 66, 78, 78, 54, 48],
+    ["Andre Miller", "2000s", "6'2\"", 40, "Solid", 58, 58, 70, 82, 74, 60, 54],
+    ["Monte Morris", "Modern", "6'2\"", 40, "Solid", 62, 72, 64, 76, 74, 56, 47],
     ["Alex English", "'80s", "6'7\"", 58, "Athletic", 65, 84, 86, 60, 71, 46, 56],
     ["Dikembe Mutombo", "'90s", "7'2\"", 93, "Athletic", 77, 46, 66, 48, 52, 95, 93],
     ["Antonio McDyess", "'90s", "6'9\"", 68, "Explosive", 84, 56, 84, 52, 63, 66, 80],
@@ -243,6 +253,11 @@ const TEAM_ROSTER_ROWS = {
     ["Bobby Brown", "2000s", "6'2\"", 40, "Limited", 48, 50, 48, 51, 50, 47, 45],
   ],
   MIL: [
+    // bench/role guards — positional rebalance (verified Bucks)
+    ["Mo Williams", "2000s", "6'1\"", 36, "Athletic", 70, 76, 66, 74, 74, 52, 47],
+    ["Brandon Jennings", "2010s", "6'1\"", 36, "Athletic", 76, 68, 66, 76, 80, 56, 47],
+    ["Luke Ridnour", "2000s", "6'2\"", 40, "Solid", 62, 70, 60, 74, 70, 56, 46],
+    ["Malcolm Brogdon", "Modern", "6'5\"", 52, "Athletic", 68, 76, 68, 70, 68, 70, 54],
     ["Kareem Abdul-Jabbar", "'70s", "7'2\"", 93, "Explosive", 78, 58, 94, 60, 52, 86, 90],
     ["Oscar Robertson", "'70s", "6'5\"", 52, "Athletic", 76, 80, 83, 93, 79, 70, 70],
     ["Sidney Moncrief", "'80s", "6'4\"", 48, "Explosive", 80, 74, 78, 66, 77, 90, 49],
@@ -424,6 +439,11 @@ const TEAM_ROSTER_ROWS = {
     ["Josh Akognon", "2010s", "6'1\"", 36, "Limited", 48, 52, 48, 50, 50, 47, 45],
   ],
   LAL: [
+    // bench/role guards — positional rebalance (verified Lakers)
+    ["Norm Nixon", "'80s", "6'2\"", 40, "Athletic", 76, 68, 70, 80, 76, 62, 50],
+    ["Steve Blake", "2010s", "6'3\"", 44, "Solid", 55, 70, 56, 74, 68, 56, 47],
+    ["Ramon Sessions", "2010s", "6'3\"", 44, "Athletic", 72, 58, 70, 74, 74, 54, 48],
+    ["Jordan Clarkson", "Modern", "6'5\"", 52, "Athletic", 74, 72, 72, 60, 72, 54, 49],
     ["Jerry West", "'60s", "6'2\"", 40, "Athletic", 76, 90, 80, 83, 84, 80, 53],
     ["Wilt Chamberlain", "'70s", "7'1\"", 90, "Elite", 97, 53, 96, 49, 45, 88, 99],
     ["Kareem Abdul-Jabbar", "'80s", "7'2\"", 93, "Explosive", 78, 58, 93, 60, 52, 86, 90],
@@ -606,6 +626,11 @@ const TEAM_ROSTER_ROWS = {
     ["D.J. Stephens", "2010s", "6'7\"", 58, "Athletic", 74, 46, 49, 46, 47, 49, 49],
   ],
   IND: [
+    // bench/role guards — positional rebalance (verified Pacers)
+    ["T.J. McConnell", "Modern", "6'1\"", 36, "Athletic", 68, 55, 62, 82, 78, 74, 48],
+    ["Travis Best", "'90s", "6'0\"", 32, "Athletic", 70, 64, 66, 76, 74, 58, 46],
+    ["Darren Collison", "2010s", "6'0\"", 32, "Athletic", 74, 72, 68, 78, 76, 60, 47],
+    ["George Hill", "2010s", "6'3\"", 44, "Athletic", 72, 72, 66, 70, 68, 74, 52],
     ["Reggie Miller", "'90s", "6'7\"", 58, "Solid", 55, 94, 72, 60, 68, 56, 51],
     ["Rik Smits", "'90s", "7'4\"", 99, "Solid", 50, 70, 82, 52, 53, 60, 76],
     ["Mark Jackson", "'90s", "6'1\"", 36, "Solid", 54, 66, 60, 88, 92, 49, 52],
@@ -647,6 +672,11 @@ const TEAM_ROSTER_ROWS = {
     ["Justin Holiday", "2010s", "6'7\"", 58, "Solid", 54, 52, 49, 47, 48, 51, 47],
   ],
   ORL: [
+    // bench/role guards — positional rebalance (verified Magic)
+    ["Scott Skiles", "'90s", "6'1\"", 36, "Solid", 55, 70, 60, 82, 76, 56, 48],
+    ["D.J. Augustin", "2010s", "6'0\"", 32, "Solid", 60, 74, 62, 76, 74, 52, 45],
+    ["Elfrid Payton", "2010s", "6'4\"", 48, "Athletic", 76, 48, 66, 80, 74, 66, 58],
+    ["Arron Afflalo", "2010s", "6'5\"", 52, "Athletic", 68, 76, 64, 52, 58, 70, 52],
     ["Shaquille O'Neal", "'90s", "7'1\"", 90, "Explosive", 86, 48, 98, 49, 52, 80, 91],
     ["Penny Hardaway", "'90s", "6'7\"", 58, "Elite", 90, 76, 83, 88, 77, 73, 49],
     ["Nick Anderson", "'90s", "6'6\"", 55, "Athletic", 72, 78, 76, 56, 72, 70, 55],
@@ -859,6 +889,11 @@ const TEAM_ROSTER_ROWS = {
     ["Bobby Brown", "2000s", "6'2\"", 40, "Limited", 48, 50, 48, 51, 50, 47, 45],
   ],
   NOP: [
+    // bench/role guards — positional rebalance (verified New Orleans Hornets / Pelicans)
+    ["Speedy Claxton", "2000s", "5'11\"", 28, "Athletic", 76, 58, 66, 76, 76, 72, 47],
+    ["Jannero Pargo", "2000s", "6'1\"", 36, "Athletic", 68, 70, 64, 68, 72, 54, 46],
+    ["Bobby Jackson", "2000s", "6'1\"", 36, "Athletic", 74, 70, 70, 70, 72, 60, 52],
+    ["Norris Cole", "2010s", "6'1\"", 36, "Athletic", 72, 62, 62, 72, 70, 68, 48],
     ["Jamal Mashburn", "2000s", "6'8\"", 62, "Solid", 60, 80, 78, 60, 70, 46, 56],
     ["Baron Davis", "2000s", "6'3\"", 44, "Explosive", 87, 73, 80, 83, 82, 63, 54],
     ["Chris Paul", "2000s", "6'0\"", 32, "Athletic", 67, 83, 73, 94, 95, 80, 53],
@@ -901,6 +936,11 @@ const TEAM_ROSTER_ROWS = {
     ["Terrence Jones", "2010s", "6'9\"", 68, "Solid", 52, 49, 51, 47, 47, 50, 52],
   ],
   SAS: [
+    // bench/role guards — positional rebalance (verified Spurs)
+    ["Johnny Moore", "'80s", "6'3\"", 44, "Athletic", 74, 58, 62, 82, 74, 74, 50],
+    ["Gary Neal", "2010s", "6'4\"", 48, "Solid", 60, 78, 62, 56, 60, 54, 46],
+    ["Vinny Del Negro", "'90s", "6'4\"", 48, "Solid", 58, 74, 62, 64, 64, 58, 48],
+    ["Alvin Robertson", "'80s", "6'4\"", 48, "Explosive", 80, 58, 66, 68, 70, 88, 58],
     ["George Gervin", "'70s", "6'7\"", 58, "Athletic", 69, 86, 90, 58, 73, 49, 46],
     ["David Robinson", "'90s", "7'1\"", 90, "Elite", 93, 60, 88, 49, 52, 93, 90],
     ["Sean Elliott", "'90s", "6'8\"", 62, "Athletic", 68, 80, 76, 57, 68, 66, 45],
@@ -987,6 +1027,11 @@ const TEAM_ROSTER_ROWS = {
     ["Ivan Johnson", "2010s", "6'9\"", 68, "Solid", 52, 46, 49, 46, 46, 50, 52],
   ],
   CHI: [
+    // bench/role guards — positional rebalance (verified Bulls)
+    ["B.J. Armstrong", "'90s", "6'2\"", 40, "Solid", 62, 76, 62, 72, 70, 54, 46],
+    ["John Paxson", "'90s", "6'2\"", 40, "Solid", 55, 76, 56, 70, 66, 56, 45],
+    ["Randy Brown", "'90s", "6'2\"", 40, "Athletic", 72, 52, 58, 66, 66, 80, 48],
+    ["Aaron Brooks", "2010s", "6'0\"", 32, "Athletic", 76, 72, 66, 70, 74, 52, 45],
     ["Michael Jordan", "'90s", "6'6\"", 55, "Elite", 98, 88, 94, 80, 82, 90, 60],
     ["Scottie Pippen", "'90s", "6'8\"", 62, "Elite", 90, 70, 80, 83, 74, 91, 70],
     ["Dennis Rodman", "'90s", "6'7\"", 58, "Explosive", 88, 46, 49, 53, 65, 88, 96],
@@ -1289,6 +1334,11 @@ const TEAM_ROSTER_ROWS = {
     ["Chris Douglas-Roberts", "2010s", "6'7\"", 58, "Solid", 50, 51, 49, 47, 49, 48, 47],
   ],
   WAS: [
+    // bench/role guards — positional rebalance (verified Bullets / Wizards)
+    ["Muggsy Bogues", "'90s", "5'3\"", 15, "Athletic", 74, 56, 52, 82, 80, 74, 45],
+    ["Chris Whitney", "2000s", "6'0\"", 32, "Solid", 58, 72, 58, 72, 68, 54, 45],
+    ["Antonio Daniels", "2000s", "6'4\"", 48, "Athletic", 70, 60, 66, 74, 70, 62, 50],
+    ["Earl Boykins", "2000s", "5'6\"", 20, "Athletic", 72, 70, 66, 74, 78, 52, 45],
     ["Wes Unseld", "'70s", "6'7\"", 58, "Solid", 58, 53, 68, 60, 72, 76, 94],
     ["Elvin Hayes", "'70s", "6'9\"", 68, "Athletic", 72, 64, 84, 53, 62, 78, 90],
     ["Chris Webber", "'90s", "6'10\"", 75, "Explosive", 85, 66, 86, 76, 55, 66, 84],
