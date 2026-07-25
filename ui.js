@@ -459,6 +459,14 @@ const CATEGORY_LABELS = { height: "Height", athleticism: "Athleticism" };
 const STAT_LABEL = { ppg: "PPG", apg: "APG", rpg: "RPG", spg: "SPG", bpg: "BPG", tpg: "3PM", fgPct: "FG%", tptPct: "3PT%" };
 const fmtMods = mods => Object.entries(mods).map(([k, v]) => `${STAT_LABEL[k]} +${v}`).join(" · ");
 function categoryLabel(cat) { return CATEGORY_LABELS[cat] || cat; }
+// A roster row's cost cell: the salary plus its share of the full $100M cap, so
+// the price reads as a fraction of the budget while you're choosing. Sandbox has
+// no cap for a share to be of, so it shows the salary alone. (Classic never
+// reaches this code — it uses the player spinner, not a roster list.)
+function rosterCostHTML(cost) {
+  if (state.sandbox) return fmtSalary(cost);
+  return `${fmtSalary(cost)}<span class="roster-cost-pct">${capPct(cost)}</span>`;
+}
 // Signature-Trait pill for a roster row: only for skill categories, only if this
 // exact player carries a badge there.
 function traitPillHTML(name, category) {
@@ -580,10 +588,20 @@ function renderPicksPanel() {
     if (pick) {
       const b = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[pick.name + "|" + cat] : null;
       const badgeLine = b ? `<span class="picks-badge"><span class="trait-pill" ${traitTipAttrs(b)}>★ ${b.name}</span></span>` : "";
+      // Meta line: team, the pick's RATING, then what it cost. Every mode shows the
+      // rating (Classic had it first; the capped modes were missing it) and Height
+      // always shows its feet-inches band, never a bare rating number. Under the cap
+      // the salary carries its share of the full $100M so the budget reads at a
+      // glance; the uncapped modes have no share to quote.
+      const metaBits = [pick.team ? pick.team.abbr : "—", cat === "height" ? pick.label : pick.rating];
+      if (!state.autoPick) {
+        metaBits.push(fmtSalary(pick.cost));
+        if (!state.sandbox) metaBits.push(`<span class="picks-pct">${capPct(pick.cost)}</span>`);
+      }
       const row = el("button", "picks-row" + (state.editingCategory === cat ? " editing" : "") + (state.autoPick ? " locked-in" : ""),
         `<span class="picks-cat">${categoryLabel(cat)}</span>
          <span class="picks-player">${pick.name}</span>
-         <span class="picks-meta">${pick.team ? pick.team.abbr : "—"} &nbsp;·&nbsp; ${state.autoPick ? (cat === "height" ? pick.label : pick.rating) : fmtSalary(pick.cost)}</span>
+         <span class="picks-meta">${metaBits.join(" &nbsp;·&nbsp; ")}</span>
          ${badgeLine}`);
       row.disabled = state.autoPick; // the spin decides; no re-picking from a list
       row.onclick = () => {
@@ -652,7 +670,7 @@ function renderEditStep(category) {
     const row = el("button", "roster-row" + (opt.affordable ? "" : " locked") + (isCurrent ? " current" : ""),
       `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}${traitPillHTML(opt.name, category)}</span>
        <span class="roster-rating">${display}</span>
-       <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
+       <span class="roster-cost">${rosterCostHTML(opt.cost)}</span>`);
     row.disabled = !opt.affordable;
     row.onclick = () => {
       replacePick(category, opt);
@@ -1353,7 +1371,7 @@ function renderRosterStep(category, title, sub, onLock) {
       const row = el("button", "roster-row" + (!opt.affordable ? " locked" : ""),
         `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${q ? ` <span class="era-tag team-tag">${opt.team.abbr}</span>` : ""}${traitPillHTML(opt.name, category)}</span>
          <span class="roster-rating">${display}</span>
-         <span class="roster-cost">${fmtSalary(opt.cost)}</span>`);
+         <span class="roster-cost">${rosterCostHTML(opt.cost)}</span>`);
       row.disabled = !opt.affordable;
       row.onclick = () => {
         onLock(opt); // opt carries its own .team, so cross-team picks are self-describing

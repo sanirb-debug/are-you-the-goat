@@ -96,6 +96,20 @@ function fmtSalary(hundredths) {
   return "$" + (hundredths / 100).toFixed(1).replace(/\.0$/, "") + "M";
 }
 
+// A cost as a share of the FULL cap — never of the remaining space. Dividing by
+// the whole $100M keeps shares additive as picks lock in (8% + 5% reads as 13% of
+// the budget committed), which a share-of-remaining would not.
+//
+// Deliberately divides by BUDGET_CAP/100 rather than doing (h / BUDGET_CAP) * 100:
+// the latter is a DIFFERENT float expression from fmtSalary's h/100 and disagreed
+// with it at the rounding boundary — cost 1785 printed "$17.9M · 17.8%" because
+// (1785/10000)*100 is 17.849999999999998 while 1785/100 is 17.85. Reusing the same
+// division keeps the pair identical at every cost (under a $100M cap the share and
+// the dollar figure are the same number, so any gap is a visible bug).
+function capPct(hundredths) {
+  return (hundredths / (BUDGET_CAP / 100)).toFixed(1).replace(/\.0$/, "") + "%";
+}
+
 // The modes with no salary cap: Classic (autoPick) and Sandbox. Named because
 // more than the budget hangs off it — scaleOVR's calibration is only valid when
 // a cap is actually constraining the build (see scaleOVR).
@@ -1724,7 +1738,7 @@ function recordCareerRun(run) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, budgetRemaining, uncappedMode, inputCeiling, baseOVRDisplay, categoryRating, getRosterOptions,
+    state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, fmtSalary, capPct, budgetRemaining, uncappedMode, inputCeiling, baseOVRDisplay, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,

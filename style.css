@@ -526,6 +526,16 @@ button { cursor: pointer; border: none; font-family: inherit; }
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+/* Share of the full $100M cap, stacked under the salary so the pair fits the
+   existing 58px cost column without squeezing the name. */
+.roster-cost-pct {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: var(--gold);
+  opacity: 0.75;
+  margin-top: 1px;
+}
 
 /* ---- Position grid ---- */
 .position-grid {
@@ -1072,6 +1082,8 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 .picks-player { display: block; font-family: var(--font-cond); font-size: 14px; font-weight: 600; color: #fff; }
 .picks-row.empty .picks-player { color: var(--text-dim); font-weight: 400; font-size: 12px; }
 .picks-meta { display: block; font-size: 11px; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+/* Cap share in a locked pick's meta line — same size, dimmer than the salary. */
+.picks-pct { color: var(--gold); opacity: 0.85; }
 
 /* Narrow screens: the panel becomes a collapsible drawer above the card */
 @media (max-width: 1240px) {
