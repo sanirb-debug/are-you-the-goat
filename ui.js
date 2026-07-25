@@ -1086,30 +1086,33 @@ function renderTeamWheel(category, team, rerollsLeft, wrap) {
 }
 
 // ---- No-budget mode: the player spinner + free stat choice ----
-// After the team wheel lands, spin a slot-machine reel of that team's roster
-// names to ONE random player, then let the player take ANY of that player's 8
+// Once the team wheel lands, the player spin fires AUTOMATICALLY as part of the
+// same flow — no separate "Spin for Player" press. The reel shuffles that team's
+// roster names to ONE random player, then the player takes ANY of that player's 8
 // ratings into the CURRENT slot (off-category allowed — the whole point of the
 // mode). Only this mode calls it; the team wheel above stays untouched.
 let statChoiceKey = null;      // the stat cell currently selected on the 8-stat card
-let pendingPlayerSpin = false; // set by "Spin Player Again" so the re-render auto-spins
 
 function renderPlayerSpinner(category, team, onLock, wrap) {
   playerSpinToken++;   // invalidate any shuffle still running from a prior render
   playerSpinning = false;
   const rerollsLeft = PLAYER_REROLLS - state.playerRerollsUsed;
 
-  // ---- Not yet spun: the reel + a spin button ----
+  // ---- Not yet spun: the reel auto-spins ----
+  // Every path that clears spunPlayer with a team already set — the wheel
+  // landing, a team re-spin, Back, or "Spin Player Again" — re-renders into
+  // here, and the player spin starts immediately. The old manual button is gone;
+  // runPlayerShuffle locks interaction and lands on a player, which re-renders
+  // into the stat card below.
   if (!state.spunPlayer) {
     const reel = el("div", "player-reel", "—");
     wrap.appendChild(reel);
-    // Each round's first player spin is free (the "Again" nuance lives on the
-    // separate respin button below, which draws from the shared pool).
-    const btn = el("button", "btn-primary", "🎰 Spin for Player");
-    btn.onclick = () => runPlayerShuffle(category, team, reel, btn);
+    // Placeholder button the shuffle disables; kept off-screen because there is
+    // nothing left for the player to click at this step.
+    const btn = el("button", "btn-primary");
+    btn.style.display = "none";
     wrap.appendChild(btn);
-    // A re-spin (from the card) drops back here and spins straight away, so the
-    // "Spin Player Again" button is one click, not two.
-    if (pendingPlayerSpin) { pendingPlayerSpin = false; runPlayerShuffle(category, team, reel, btn); }
+    runPlayerShuffle(category, team, reel, btn);
     return;
   }
 
@@ -1177,8 +1180,7 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
   respin.onclick = () => {
     if (rerollsLeft <= 0) return;
     state.playerRerollsUsed++;
-    state.spunPlayer = null;
-    pendingPlayerSpin = true; // re-render lands on the idle branch and spins immediately
+    state.spunPlayer = null; // re-render lands on the idle branch and auto-spins
     render();
   };
   wrap.appendChild(respin);
@@ -2181,7 +2183,6 @@ function resetGame() {
   wheelRotation = 0;
   wheelSpinning = false;
   playerSpinning = false;
-  pendingPlayerSpin = false;
   state.currentStep = 0;
   career = null;
   picksDrawerOpen = false;
