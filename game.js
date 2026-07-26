@@ -948,14 +948,43 @@ function meetsAwardFloor(tierName, career, altPath = false) {
 }
 
 // One gate for a tier: BOTH the peak-OVR floor and the award floor must pass.
-// Every tier assignment routes through this — there is no path that sets a
-// tier without running both checks. TIER_ALT_PATHS above supplies the alternate
-// routes (alongside the MVP-season OVR already folded into effectivePeak): any
-// one clears the peak-OVR floor AND waives the MVP award requirement.
+//
+// THE PEAK-OVR FLOOR IS ABSOLUTE. No alternate path, award record, longevity
+// total or MVP season may bypass it. This line previously read
+//     if (ovrFloor && effectivePeak < ovrFloor && !hasAltPath(...)) return false;
+// and that `!hasAltPath` clause is the single defect behind this bug class, which
+// resurfaced 5-6 times: it let any tier's alt path waive the OVR band entirely, so
+// a Peak-OVR-83 career with 15 All-NBA (or 2 DPOY, or the volume path) was granted
+// LEGEND, whose floor is 90. Alt paths now do only what meetsAwardFloor documents:
+// stand in for the MVP requirement. See also clampTierToPeak, a second, structural
+// guarantee applied to every value tierForCareer returns.
 function meetsTierFloors(tierName, effectivePeak, career) {
   const ovrFloor = TIER_OVR_FLOORS[tierName];
-  if (ovrFloor && effectivePeak < ovrFloor && !hasAltPath(tierName, career)) return false;
+  if (ovrFloor && effectivePeak < ovrFloor) return false;
   return meetsAwardFloor(tierName, career, altPathWaivesMvp(tierName, career));
+}
+
+// ---- STRUCTURAL INVARIANT: the published band is the ceiling, always ----
+// The recurring failure was never one bad comparison; it was that tier assignment
+// had several routes and each new route had to remember the floor. So the rule is
+// enforced ONCE more at the exit, independently of how a tier was chosen: whatever
+// any path decides, the result is clamped to the highest tier the career's peak OVR
+// actually permits. A future alt path, award tweak or new code path cannot lift a
+// career above its band without deleting this function.
+//   Draft Bust <60 | Bench 60 | Starter 70 | All-Star 80 | Superstar 85
+//   Legend 90 | GOAT 98        (TIER_OVR_FLOORS is the single source of truth)
+function highestTierIndexForPeak(effectivePeak) {
+  for (let i = TIERS.length - 1; i >= 0; i--) {
+    const floor = TIER_OVR_FLOORS[TIERS[i].name];
+    if (!floor || effectivePeak >= floor) return i;
+  }
+  return 0;
+}
+
+function clampTierToPeak(tier, effectivePeak) {
+  const cap = highestTierIndexForPeak(effectivePeak);
+  const idx = TIERS.indexOf(tier);
+  return idx > cap ? TIERS[cap] : tier;
 }
 
 // A tier's OVR floor is satisfied by EITHER the tracked career peak OR the
@@ -992,9 +1021,12 @@ function tierForCareer(career, ...legacy) {
   // scores only ~410 (All-Star = 1pt each, peakOVR*4 dominates) and so was
   // capped at All-Star despite clearing Superstar's 9 AS / 6 AN floor outright.
   // Below All-Star there are no award floors, so those tiers stay score-ranked.
+  // EVERY return below goes through clampTierToPeak, so the published band holds
+  // no matter which route produced the tier. Belt and braces on purpose: this bug
+  // came back repeatedly because each new route re-implemented the floor check.
   const firstFloorTier = TIERS.findIndex(t => TIER_AWARD_FLOORS[t.name]);
   for (let i = TIERS.length - 1; i >= firstFloorTier; i--) {
-    if (meetsTierFloors(TIERS[i].name, effectivePeak, c)) return TIERS[i];
+    if (meetsTierFloors(TIERS[i].name, effectivePeak, c)) return clampTierToPeak(TIERS[i], effectivePeak);
   }
   // No floor tier earned. Below All-Star there are no award floors, so rank by
   // BOTH the published peak-OVR band and the GOAT Score bucket and take the
@@ -1007,7 +1039,7 @@ function tierForCareer(career, ...legacy) {
   }
   let byScore = TIERS.indexOf(tierForScore(score));
   if (byScore >= firstFloorTier) byScore = firstFloorTier - 1;
-  return TIERS[Math.max(0, Math.min(byOvr, byScore))];
+  return clampTierToPeak(TIERS[Math.max(0, Math.min(byOvr, byScore))], effectivePeak);
 }
 
 // Hall of Fame: a top-tier career (Superstar+) — OR the very-good/long-career
@@ -1967,7 +1999,7 @@ if (typeof module !== "undefined") {
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
-    TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, isHallOfFame,
+    TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, clampTierToPeak, highestTierIndexForPeak, TIER_OVR_FLOORS, isHallOfFame,
     isNameBlocked, nameTokens, PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
     MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,
   };

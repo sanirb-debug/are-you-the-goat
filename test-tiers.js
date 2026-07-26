@@ -4,17 +4,31 @@
  *
  *     node test-tiers.js
  *
- * RE-RUN THIS WHENEVER YOU TOUCH: tierForCareer / meetsTierFloors /
- * meetsAwardFloor / TIER_OVR_FLOORS / TIER_AWARD_FLOORS / TIER_ALT_PATHS /
- * goatScore weights / the MVP, All-NBA or All-Star thresholds in simSeason.
+ * THIS SUITE IS A PRE-COMMIT GATE (hooks/pre-commit) for any change to data.js,
+ * game.js, ui.js or this file. Run it manually too whenever you touch:
+ * tierForCareer / meetsTierFloors / meetsAwardFloor / clampTierToPeak /
+ * TIER_OVR_FLOORS / TIER_AWARD_FLOORS / TIER_ALT_PATHS / scaleOVR / goatScore
+ * weights / the MVP, All-NBA, DPOY or All-Star thresholds. It is NOT only for
+ * sessions that are deliberately working on tiers — the regressions below were
+ * all caused by unrelated award/OVR changes.
  *
- * WHY THIS FILE EXISTS: the "maxed-out award record still lands at All-Star"
- * bug has been reported and patched at least four separate times. Each patch
- * added one narrow alternate path and moved on, so the next build that cleared
- * the award floors but not the peak-OVR floor fell straight back to All-Star.
- * These cases pin that behaviour down permanently. If you are reading this
- * because a tier looks wrong again: add the failing scenario here FIRST, watch
- * it fail, then fix the logic.
+ * THE ONE RULE: the published peak-OVR band is ABSOLUTE and is the ceiling on
+ * every tier assignment.
+ *   Draft Bust <60 | Bench 60 | Starter 70 | All-Star 80 | Superstar 85
+ *   Legend 90 | GOAT 98
+ * Award floors, alternate paths, longevity/volume totals and MVP-season OVR can
+ * only ever make a tier HARDER to reach, never lift a career above its band. An
+ * alt path may stand in for a tier's MVP requirement and nothing else.
+ *
+ * WHY THIS FILE EXISTS — read this before "fixing" a failure here. The tier-floor
+ * bug was reported 5-6 times, and this suite was the cause of the recurrence, not
+ * the cure: four cases used to assert that peaks of 73/74/75/76 must reach LEGEND
+ * (floor 90), i.e. they mandated the very bypass being reported as a bug. Every
+ * session that enforced the band broke those four, and the next session made them
+ * pass again by reinstating the bypass. They were inverted on 2026-07-26. If a case
+ * here fails, fix the LOGIC — do not relax the assertion to match the code.
+ * If a tier looks wrong again: add the failing scenario here FIRST, watch it fail,
+ * then fix the logic.
  *
  * The browser build has no module system (plain <script> tags sharing globals),
  * so this concatenates data.js + game.js and evaluates them in one vm context,
@@ -87,33 +101,108 @@ const atMost = ceil => actual => rank(actual) <= rank(ceil);
 
 console.log("\n=== TIER FLOORS: alternate qualifying paths ===");
 
-// The headline regression. A career that maxed BOTH award categories over 20
-// seasons is unambiguously Legend-tier, even though its peak OVR (73) sits
-// under Superstar's 76 floor — every prior version dropped this to All-Star
-// because the peak-OVR gate had no award-based alternate.
-check("20x All-NBA / 20x All-Star (peak OVR 73)",
+// ############################################################################
+// THESE FOUR CASES WERE INVERTED ON 2026-07-26, AND THAT INVERSION IS THE FIX.
+//
+// They previously asserted atLeast("Legend") for peak OVRs of 73/74/75/76 while
+// Legend's floor is 90 — i.e. they REQUIRED the alt paths to bypass the published
+// peak-OVR band. That is precisely the bug reported 5-6 separate times ("a Peak
+// OVR 83 build reached Legend"). The mechanism of the recurrence was this file:
+// any session that enforced the band broke these four assertions, and the next
+// session made them pass again by restoring the bypass.
+//
+// The band is now authoritative and absolute:
+//   Draft Bust <60 | Bench 60 | Starter 70 | All-Star 80 | Superstar 85
+//   Legend 90 | GOAT 98
+// An alt path may still stand in for a tier's MVP requirement — it may NEVER
+// substitute for peak OVR. Do not "restore" these to atLeast(...) without an
+// explicit product decision to abandon the band.
+// ############################################################################
+check("20x All-NBA / 20x All-Star, peak OVR 73 -> capped by the band",
   tierOf(career({ allNBAs: 20, allStars: 20, numSeasons: 20, peakOVR: 73, goatScore: 430 })),
-  atLeast("Legend"),
-  "peak-OVR floor must not veto a maxed-out award record");
+  atMost("Starter"),
+  "peak 73 is inside the Starter band (70-80); no award record may lift it");
 
-// Same shape, but with the MVPs/rings a GOAT resume needs.
-check("20x All-NBA / 20x All-Star + 5 MVP + 5 rings",
+check("20x All-NBA / 20x All-Star + 5 MVP + 5 rings, peak OVR 75",
   tierOf(career({ allNBAs: 20, allStars: 20, numSeasons: 20, peakOVR: 75,
                   mvps: 5, rings: 5, finalsMVPs: 3, goatScore: 700 })),
-  atLeast("Legend"));
+  atMost("Starter"),
+  "even a full GOAT resume cannot exceed the peak-OVR band");
 
-// Career longevity / volume path: ~43k points over a long, winning career is
-// top-10-all-time scoring volume and should reach Legend on its own.
-check("43k career points, 20 seasons, 1000 wins (peak OVR 74)",
+check("43k career points, 20 seasons, 1000 wins, peak OVR 74",
   tierOf(career({ totals: { pts: 43000, ast: 8000, reb: 9000, stl: 1500, blk: 900, threes: 1800 },
                   numSeasons: 20, careerWins: 1000, peakOVR: 74,
                   allStars: 15, allNBAs: 13, goatScore: 480 })),
-  atLeast("Legend"));
+  atMost("Starter"),
+  "the volume/longevity path must not bypass the band either");
 
-// Defensive path must still work (added in an earlier session).
-check("2 DPOY / 0 MVP, sub-floor peak OVR",
+check("2 DPOY / 0 MVP, peak OVR 76",
   tierOf(career({ dpoys: 2, allStars: 14, allNBAs: 12, peakOVR: 76, rings: 2, goatScore: 400 })),
-  "Legend");
+  atMost("Starter"),
+  "the DPOY path must not bypass the band either");
+
+// The alt paths retain their ONE legitimate job: waiving a tier's MVP floor for a
+// career that clears the OVR band but never won MVP.
+check("Legend-band peak (92) + 2 DPOY + 0 MVP still reaches Legend",
+  tierOf(career({ peakOVR: 92, dpoys: 2, allStars: 14, allNBAs: 12, mvps: 0,
+                  rings: 2, numSeasons: 18, goatScore: 700 })),
+  "Legend",
+  "alt path may substitute for the MVP requirement when the band is satisfied");
+
+console.log("\n=== REPORTED 2026-07-26: Peak OVR 83 must cap at All-Star ===");
+
+// The exact reported scenario, one case per alt path that used to grant Legend.
+// 83 sits in the All-Star band (80-85), so All-Star is the ceiling regardless of
+// how decorated the career is.
+const peak83 = extra => career(Object.assign({
+  peakOVR: 83, goatScore: 700, numSeasons: 18, careerWins: 900,
+  allStars: 14, allNBAs: 12,
+  totals: { pts: 20000, ast: 4000, reb: 6000, stl: 1000, blk: 500, threes: 900 },
+}, extra));
+
+check("peak 83 + 15x All-NBA (allNBAs alt path)",
+  tierOf(peak83({ allNBAs: 15 })), "All-Star",
+  "REPORTED BUG: this returned Legend");
+check("peak 83 + 2 DPOY (dpoys alt path)",
+  tierOf(peak83({ dpoys: 2 })), "All-Star",
+  "REPORTED BUG: this returned Legend");
+check("peak 83 + 33k pts / 18 seasons / 900 wins (volume alt path)",
+  tierOf(peak83({ totals: { pts: 33000, ast: 5000, reb: 7000, stl: 1200, blk: 600, threes: 1000 } })),
+  "All-Star", "REPORTED BUG: this returned Legend");
+check("peak 83 + full GOAT resume (5 MVP, 5 rings, 20x All-NBA)",
+  tierOf(peak83({ mvps: 5, rings: 5, finalsMVPs: 3, allNBAs: 20, allStars: 20 })),
+  "All-Star", "no resume may exceed the band");
+check("peak 83 via bestMVPOVR only (effectivePeak still 83)",
+  tierOf(peak83({ peakOVR: 70, bestMVPOVR: 83, mvps: 3 })), "All-Star",
+  "the MVP-season OVR route must respect the band too");
+check("peak 84 (top of the All-Star band) still All-Star",
+  tierOf(peak83({ peakOVR: 84, allNBAs: 20 })), "All-Star");
+check("peak 85 (bottom of the Superstar band) may reach Superstar",
+  tierOf(peak83({ peakOVR: 85, allNBAs: 20 })), "Superstar");
+
+// Exhaustive: for EVERY integer peak 25..99, a maximally-decorated career must
+// never exceed the band that peak allows. This is the invariant, not a sample.
+console.log("\n=== BAND INVARIANT SWEEP: peak 25..99, maxed resume ===");
+const FLOORS = G.TIER_OVR_FLOORS;
+const allowedFor = peak => {
+  let best = G.TIERS[0].name;
+  for (const t of G.TIERS) { const f = FLOORS[t.name]; if (!f || peak >= f) best = t.name; }
+  return best;
+};
+let sweepBad = [];
+for (let peak = 25; peak <= 99; peak++) {
+  const maxed = career({
+    peakOVR: peak, bestMVPOVR: peak, goatScore: 100000,
+    allStars: 25, allNBAs: 25, mvps: 10, rings: 10, finalsMVPs: 8,
+    dpoys: 5, allDefensives: 15, numSeasons: 20, careerWins: 1300,
+    totals: { pts: 50000, ast: 12000, reb: 15000, stl: 3000, blk: 2000, threes: 3000 },
+  });
+  const got = tierOf(maxed), cap = allowedFor(peak);
+  if (rank(got) > rank(cap)) sweepBad.push(`peak ${peak}: got ${got}, band allows at most ${cap}`);
+}
+check("no peak 25-99 can exceed its band with a maxed resume",
+  sweepBad.length === 0 ? "clean" : sweepBad.slice(0, 5).join(" | "), "clean",
+  "75 peaks x maxed resume; any hit here is a band violation");
 
 console.log("\n=== TIER FLOORS: guards that must NOT loosen ===");
 
