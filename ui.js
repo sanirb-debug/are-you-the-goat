@@ -1024,12 +1024,36 @@ function renderNameStep() {
   input.placeholder = "e.g. Zayde Storm";
   input.maxLength = 24;
   wrap.appendChild(input);
-  const btn = el("button", "btn-primary", "Let's Go →");
-  btn.onclick = () => {
-    state.name = input.value.trim() || "The Mystery Player";
+
+  // Inline rejection message. Kept in the DOM (not inserted on demand) so showing
+  // it never shifts the button underneath it.
+  const err = el("p", "name-error", "Please choose an appropriate name.");
+  err.style.visibility = "hidden";
+  err.setAttribute("role", "alert");
+  wrap.appendChild(err);
+
+  const submit = () => {
+    const value = input.value.trim();
+    // Blocked names are REJECTED, not silently replaced — the player is told why
+    // and gets to try again rather than being surprised by a swapped-in name later.
+    if (isNameBlocked(value)) {
+      err.style.visibility = "";
+      input.classList.add("invalid");
+      input.focus();
+      input.select();
+      return;
+    }
+    state.name = value || "The Mystery Player";
     state.currentStep++;
     render();
   };
+  // Clear the warning as soon as they start editing, so it reads as guidance
+  // rather than a persistent scold.
+  input.oninput = () => { err.style.visibility = "hidden"; input.classList.remove("invalid"); };
+  input.onkeydown = e => { if (e.key === "Enter") submit(); };
+
+  const btn = el("button", "btn-primary", "Let's Go →");
+  btn.onclick = submit;
   wrap.appendChild(btn);
   app.appendChild(wrap);
   input.focus();

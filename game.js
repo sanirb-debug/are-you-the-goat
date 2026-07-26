@@ -1663,6 +1663,87 @@ function activeBadgeList() {
   return acquired.filter(b => state.activeBadges.includes(b.key));
 }
 
+// ===== PLAYER-NAME FILTER =====
+// A small hardcoded list rather than an npm dependency on purpose: the game ships
+// as three plain <script> tags with no build step and no package.json (see
+// CLAUDE.md), so a filter library would have to be vendored as a UMD bundle for no
+// real gain over the list below.
+//
+// Matching is TOKEN-BASED and never substring, because substring matching is what
+// produces the classic false positives — this game's own rosters contain "Sam
+// Cassell", and "assassin", "class", "bass", "Scunthorpe" and "Cockburn" all
+// embed blocked strings. A token counts as a hit when it EQUALS a blocked word or
+// is that word plus at most 3 trailing characters, so "fucking" and "bitches" are
+// caught while "assassin" (5 extra chars) and "classic" are not. Compounds that
+// don't share a prefix with their root ("dumbass") are listed explicitly.
+//
+// Scope is deliberately modest per the brief: obvious/common cases only. It does
+// not chase spacing tricks or exotic homoglyphs, though a light leet map catches
+// the everyday "sh1t"/"a55" substitutions.
+//
+// TWO lists, because one rule can't serve both. Long unambiguous roots are safe to
+// match with a short suffix ("fuck" -> "fucking"); short or name-like roots are
+// matched EXACTLY, since suffixing them produced real false positives caught in
+// testing: "tit"+an = Titan, "cock"+ing = the surname Cocking, "spic"+y = Spicy,
+// "nazi"+r = the given name Nazir.
+const NAME_BLOCK_STEM = [
+  // profanity with unambiguous roots — "+ s/ed/ing/er" stays profane
+  "fuck", "fuk", "fck", "shit", "shite", "bitch", "bastard", "cunt", "twat",
+  "wank", "prick", "bollock", "arsehole", "asshole", "dumbass", "jackass",
+  "dickhead", "shithead", "fuckface", "motherfucker", "bullshit", "piss",
+  "goddamn", "damnit",
+  // sexual / explicit
+  "penis", "vagina", "pussy", "boob", "titty", "nutsack", "ballsack", "jizz",
+  "handjob", "blowjob", "whore", "slut", "hooker", "porn", "hentai",
+  "rape", "rapist", "molest", "pedophile", "paedo",
+  // slurs
+  "nigger", "nigga", "faggot", "dyke", "tranny", "shemale",
+  "wetback", "beaner", "raghead", "towelhead", "sandnigger", "jigaboo",
+  "zipperhead", "retard", "spastic", "mongoloid", "cripple",
+  // hate / extremist
+  "hitler", "klansman", "genocide", "holocaust", "terrorist",
+  // scatological
+  "douche", "skank",
+];
+// Matched only as a whole token. Short, or plausible as part of a real name.
+const NAME_BLOCK_EXACT = [
+  "ass", "tit", "tits", "cock", "cocks", "dick", "hoe", "hoes", "fag", "fags",
+  "crap", "cum", "anus", "rectum", "turd", "milf", "porno",
+  "coon", "jap", "abo", "coolie", "chink", "gook", "spic", "paki",
+  "kike", "heeb", "yid", "hymie", "muzzie",
+  "cracker", "honky", "whitey", "gringo",
+  "nazi", "nazis", "heil", "kkk", "pedo",
+];
+// Multi-word entries, checked against the re-joined token string.
+const NAME_BLOCK_PHRASES = ["curry muncher"];
+// Deliberately NOT blocked, after testing against real names:
+//   "negro"  — Vinny Del Negro is a real player in TEAM_ROSTERS
+//   "lynch"  — a common surname (George Lynch, Kevin Lynch played in the NBA)
+//   "haji"   — a legitimate given name and honorific
+//   "isis"   — a legitimate given name
+//   "queer"  — widely reclaimed as an identity term
+//   "spade", "slant", "greaser" — weak slurs with real-surname collisions
+// Everyday character swaps only — enough for "sh1t"/"a55", not a homoglyph engine.
+const NAME_LEET_MAP = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "@": "a", "$": "s", "!": "i" };
+
+// Lowercase, undo the light leet swaps, then split on anything that isn't a
+// letter — so punctuation, digits and spacing all act as token separators.
+function nameTokens(raw) {
+  const norm = String(raw || "").toLowerCase()
+    .replace(/[0134578@$!]/g, ch => NAME_LEET_MAP[ch] || ch);
+  return norm.split(/[^a-z]+/).filter(Boolean);
+}
+
+function isNameBlocked(raw) {
+  const tokens = nameTokens(raw);
+  if (!tokens.length) return false;               // empty -> caller's placeholder
+  const joined = tokens.join(" ");
+  if (NAME_BLOCK_PHRASES.some(p => joined.includes(p))) return true;
+  return tokens.some(t =>
+    NAME_BLOCK_EXACT.includes(t) ||
+    NAME_BLOCK_STEM.some(w => t === w || (t.startsWith(w) && t.length - w.length <= 3)));
+}
+
 // ===== PERSISTENT PROGRESS: lifetime stats + achievements =====
 // Everything the player accumulates across careers lives under one localStorage
 // key. Unlike the per-build state, this survives Play Again and page reloads.
@@ -1887,7 +1968,7 @@ if (typeof module !== "undefined") {
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
     TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, isHallOfFame,
-    PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
+    isNameBlocked, nameTokens, PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
     MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,
   };
 }

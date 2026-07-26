@@ -175,6 +175,14 @@ body {
   text-align: center;
 }
 .name-input:focus { outline: none; border-bottom-color: var(--gold-bright); }
+.name-input.invalid { border-bottom-color: var(--red); }
+/* Reserves its own line so toggling visibility never nudges the button below. */
+.name-error {
+  font-size: 13px;
+  color: var(--red);
+  margin: 8px 0 0;
+  min-height: 1.2em;
+}
 
 /* ---- Spin result box (career team wheel) ---- */
 .spin-result {
