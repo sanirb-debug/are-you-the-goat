@@ -802,7 +802,8 @@ console.log("\n=== STARTING FIVES -> SUPPORTING CAST RATING ===");
 // Phase 1 Pacific + Phase 2 Southwest. Adding a division means extending this
 // list and the un-migrated count below — the per-team cases below are generated,
 // so a new division is covered automatically.
-const MIGRATED = ["LAL", "LAC", "GSW", "PHX", "SAC", "HOU", "DAL", "MEM", "NOP", "SAS"];
+const MIGRATED = ["LAL", "LAC", "GSW", "PHX", "SAC", "HOU", "DAL", "MEM", "NOP", "SAS",
+                  "MIN", "DEN", "OKC", "POR", "UTA"];
 const UNMIGRATED_COUNT = 30 - MIGRATED.length;
 
 MIGRATED.forEach(abbr => {

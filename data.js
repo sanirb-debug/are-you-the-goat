@@ -1623,14 +1623,14 @@ const TEAMS = [
 // 85-89 All-NBA, 80-84 quality starter, 75-79 solid starter, 70-74 replaceable,
 // under 70 a hole in the lineup.
 //
-// MIGRATION STATUS — MIGRATED: PACIFIC (phase 1), SOUTHWEST (phase 2). 10 of 30.
+// MIGRATION STATUS — MIGRATED: PACIFIC (1), SOUTHWEST (2), NORTHWEST (3). 15 of 30.
 // A team ABSENT from this map falls back to its TEAMS[].scr and TEAM_NEEDS entry
 // and renders the old placeholder panel (see hasStartingFive / effectiveScr in
 // game.js). Nothing else keys off migration status, so adding a division is a
 // pure fill-in here: append its 5 keys and it goes live. No other file changes.
 //
-// STILL ON PLACEHOLDER: Northwest (MIN DEN OKC POR UTA), Southeast (ATL CHA MIA
-// ORL WAS), Atlantic (BOS BKN NYK PHI TOR), Central (CHI CLE DET IND MIL).
+// STILL ON PLACEHOLDER: Southeast (ATL CHA MIA ORL WAS), Atlantic (BOS BKN NYK
+// PHI TOR), Central (CHI CLE DET IND MIL).
 //
 // A starting five cannot express bench depth, so a deep team (Houston) reads a
 // little low and a top-heavy one reads a little high. That is a property of the
@@ -1708,6 +1708,42 @@ const TEAM_FIVE_ROWS = {
     ["Devin Vassell", "SF", 76],       // solid two-way wing, streaky as a scorer
     ["Jeremy Sochan", "PF", 73],       // defensive versatility, no reliable shot
     ["Victor Wembanyama", "C", 92],    // MVP-tier: DPOY-level rim protection with 24 PPG
+  ],
+  // ---- NORTHWEST ----
+  MIN: [
+    ["Donte DiVincenzo", "PG", 76],    // nominal point by default, not by trade; shooter who defends
+    ["Anthony Edwards", "SG", 89],     // All-NBA scorer at ~27 PPG, just short of MVP-tier
+    ["Jaden McDaniels", "SF", 79],     // premier perimeter stopper who now scores enough to start
+    ["Julius Randle", "PF", 82],       // 3x All-Star, 19/7/5, held up in the playoffs
+    ["Rudy Gobert", "C", 79],          // 4x DPOY; rim protection and rebounding still elite, offence never was
+  ],
+  DEN: [
+    ["Jamal Murray", "PG", 84],        // 21/6 and a genuine playoff riser, though never an All-Star
+    ["Christian Braun", "SG", 78],     // 15 PPG leap, athletic, defends
+    ["Cameron Johnson", "SF", 77],     // acquired for Porter; a 19 PPG scorer in Brooklyn, third option here
+    ["Aaron Gordon", "PF", 80],        // elite finisher and multi-position defender in a reduced role
+    ["Nikola Jokic", "C", 97],         // three MVPs — the highest rating in the league, by some distance
+  ],
+  OKC: [
+    ["Shai Gilgeous-Alexander", "PG", 96], // reigning MVP, scoring champ and Finals MVP
+    ["Jalen Williams", "SG", 86],      // All-NBA 3rd, 21 PPG two-way wing — a title team's clear number two
+    ["Lu Dort", "SF", 76],             // best point-of-attack defender here; offence is corner threes
+    ["Chet Holmgren", "PF", 82],       // stretch big and shot-blocking menace, availability the caveat
+    ["Isaiah Hartenstein", "C", 78],   // rebounding, screening and passing rather than scoring
+  ],
+  POR: [
+    ["Jrue Holiday", "PG", 76],        // 35 and fading offensively, still a real defender
+    ["Shaedon Sharpe", "SG", 75],      // 19 PPG of explosive athleticism at 43% and no defence
+    ["Deni Avdija", "SF", 79],         // best player here after a 17 PPG all-around leap
+    ["Toumani Camara", "PF", 75],      // All-Defensive wing playing up a position; scoring is incidental
+    ["Donovan Clingan", "C", 74],      // rim protection is real, everything else is unfinished
+  ],
+  UTA: [
+    ["Keyonte George", "PG", 72],      // 17 PPG on 39% — high usage, low efficiency, poor defence
+    ["Ace Bailey", "SG", 71],          // top-5 pick taking rookie shots; talent well ahead of production
+    ["Lauri Markkanen", "SF", 84],     // All-Star-level scoring big and the only settled quality here
+    ["Taylor Hendricks", "PF", 68],    // back from a broken leg, 5 PPG — the league's weakest starting slot
+    ["Walker Kessler", "C", 78],       // elite shot-blocker and rebounder, offence is lobs only
   ],
 };
 
