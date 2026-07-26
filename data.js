@@ -1623,14 +1623,15 @@ const TEAMS = [
 // 85-89 All-NBA, 80-84 quality starter, 75-79 solid starter, 70-74 replaceable,
 // under 70 a hole in the lineup.
 //
-// MIGRATION STATUS — MIGRATED: PACIFIC (1), SOUTHWEST (2), NORTHWEST (3). 15 of 30.
+// MIGRATION STATUS — MIGRATED: PACIFIC (1), SOUTHWEST (2), NORTHWEST (3),
+// ATLANTIC (4). 20 of 30.
 // A team ABSENT from this map falls back to its TEAMS[].scr and TEAM_NEEDS entry
 // and renders the old placeholder panel (see hasStartingFive / effectiveScr in
 // game.js). Nothing else keys off migration status, so adding a division is a
 // pure fill-in here: append its 5 keys and it goes live. No other file changes.
 //
-// STILL ON PLACEHOLDER: Southeast (ATL CHA MIA ORL WAS), Atlantic (BOS BKN NYK
-// PHI TOR), Central (CHI CLE DET IND MIL).
+// STILL ON PLACEHOLDER: Southeast (ATL CHA MIA ORL WAS), Central (CHI CLE DET
+// IND MIL).
 //
 // A starting five cannot express bench depth, so a deep team (Houston) reads a
 // little low and a top-heavy one reads a little high. That is a property of the
@@ -1744,6 +1745,47 @@ const TEAM_FIVE_ROWS = {
     ["Lauri Markkanen", "SF", 84],     // All-Star-level scoring big and the only settled quality here
     ["Taylor Hendricks", "PF", 68],    // back from a broken leg, 5 PPG — the league's weakest starting slot
     ["Walker Kessler", "C", 78],       // elite shot-blocker and rebounder, offence is lobs only
+  ],
+  // ---- ATLANTIC ----
+  // Boston is the clearest case yet of the lineup, not history, setting the win
+  // total: Tatum's Achilles plus losing Holiday, Porzingis, Horford and Kornet in
+  // one offseason turned an 88-SCR title roster into this. Star ratings here are
+  // long-run ability (the sim runs 15-20 seasons), so Tatum and Embiid are
+  // discounted for durability rather than written down to one lost season.
+  BOS: [
+    ["Derrick White", "PG", 82],       // All-Defensive guard who shoots it; quietly their most complete player
+    ["Anfernee Simons", "SG", 76],     // 19 PPG arriving from Portland, gives much of it back defending
+    ["Jaylen Brown", "SF", 86],        // Finals MVP, downhill scorer, the offence runs through him now
+    ["Jayson Tatum", "PF", 88],        // 5x All-NBA at ~27 PPG, marked down from 92 for the Achilles
+    ["Neemias Queta", "C", 72],        // starts by default after the whole centre rotation left
+  ],
+  BKN: [
+    ["Egor Demin", "PG", 69],          // lottery rookie running the offence; size and passing, no jumper yet
+    ["Cam Thomas", "SG", 75],          // 24 PPG of pure volume — no efficiency, no passing, no defence
+    ["Michael Porter Jr.", "SF", 79],  // elite shooting forward acquired for Cam Johnson, still a defensive target
+    ["Noah Clowney", "PF", 71],        // young stretch four, streaky enough to be a hole most nights
+    ["Nic Claxton", "C", 77],          // rim protection and lob finishing; nothing outside the paint
+  ],
+  NYK: [
+    ["Jalen Brunson", "PG", 88],       // 26 PPG and the league's best closer, All-NBA 2nd
+    ["Mikal Bridges", "SG", 79],       // durable two-way wing, short of his Phoenix peak
+    ["OG Anunoby", "SF", 81],          // 18 PPG plus the toughest wing defensive assignment
+    ["Josh Hart", "PF", 76],           // rebounds and competes at 6'4"; the jumper is the problem
+    ["Karl-Anthony Towns", "C", 85],   // 24/13 All-NBA scoring big whose defence caps him
+  ],
+  PHI: [
+    ["Tyrese Maxey", "PG", 85],        // 26 PPG All-Star, carries the offence when Embiid is out
+    ["VJ Edgecombe", "SG", 76],        // top-3 pick, explosive and already defending, shot unfinished
+    ["Paul George", "SF", 78],         // 35 with a bad knee; a 22 PPG player as recently as 2024
+    ["Kelly Oubre Jr.", "PF", 74],     // energy scorer playing up a position
+    ["Joel Embiid", "C", 87],          // a 94 when healthy, which the knee no longer allows often
+  ],
+  TOR: [
+    ["Immanuel Quickley", "PG", 75],   // starter-quality combo guard who cannot stay on the floor
+    ["RJ Barrett", "SG", 77],          // 21 PPG on heavy usage, thin efficiency, poor defence
+    ["Brandon Ingram", "SF", 80],      // 24 PPG scorer at his peak, marked down for availability
+    ["Scottie Barnes", "PF", 80],      // fills every column, still not efficient enough to be a star
+    ["Jakob Poeltl", "C", 77],         // 14/10 two-way centre, the steadiest thing here
   ],
 };
 

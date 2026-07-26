@@ -803,7 +803,8 @@ console.log("\n=== STARTING FIVES -> SUPPORTING CAST RATING ===");
 // list and the un-migrated count below — the per-team cases below are generated,
 // so a new division is covered automatically.
 const MIGRATED = ["LAL", "LAC", "GSW", "PHX", "SAC", "HOU", "DAL", "MEM", "NOP", "SAS",
-                  "MIN", "DEN", "OKC", "POR", "UTA"];
+                  "MIN", "DEN", "OKC", "POR", "UTA",
+                  "BOS", "BKN", "NYK", "PHI", "TOR"];
 const UNMIGRATED_COUNT = 30 - MIGRATED.length;
 
 MIGRATED.forEach(abbr => {
