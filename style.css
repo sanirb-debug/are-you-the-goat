@@ -795,8 +795,108 @@ button { cursor: pointer; border: none; font-family: inherit; }
   margin: 0 0 22px;
 }
 
-/* Career-team list — need tags + match highlight */
-.team-row { grid-template-columns: 1fr auto 44px; }
+/* Career-team list — starting-five accordion, need tags + match highlight.
+   The row is now a HEADER, not the commit: it expands .team-five-panel and only
+   the confirm button inside advances the step. Fourth column is the caret. */
+.team-row { grid-template-columns: 1fr auto 44px 18px; }
+.team-five-group { border-bottom: 1px solid var(--line); }
+.team-five-group:last-child { border-bottom: none; }
+/* The border now lives on the group wrapper, so the row must not double it. */
+.team-five-group .roster-row { border-bottom: none; }
+.tf-caret {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-align: right;
+  transition: transform 0.15s ease;
+}
+.team-row.open .tf-caret { transform: rotate(180deg); color: var(--gold-bright); }
+.team-row.open { background: rgba(212, 167, 44, 0.07); }
+.team-row.open::before { opacity: 1; }
+.team-swing {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.team-swing.up { color: var(--green); }
+.team-swing.down { color: var(--red); }
+
+.team-five-panel {
+  padding: 4px 14px 14px 16px;
+  background: #0a1120;
+}
+.team-five-panel[hidden] { display: none; }
+.tf-rows { display: flex; flex-direction: column; margin-bottom: 10px; }
+.tf-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 34px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 13px;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.06);
+}
+.tf-row:last-child { border-bottom: none; }
+.tf-pos {
+  font-family: var(--font-cond);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.tf-player { color: var(--text); }
+.tf-rating {
+  font-family: var(--font-cond);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+/* The slot the build would take: struck through, with your rating beside it. */
+.tf-row.taken .tf-player,
+.tf-row.taken .tf-rating { text-decoration: line-through; color: var(--text-dim); }
+.tf-row.taken .tf-pos { color: var(--gold-bright); }
+.tf-you {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold-bright);
+  white-space: nowrap;
+}
+.tf-summary {
+  font-family: var(--font-cond);
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.tf-summary strong { color: #fff; font-size: 16px; }
+.tf-summary strong.up { color: var(--green); }
+.tf-summary strong.down { color: var(--red); }
+.tf-arrow { color: var(--gold); margin: 0 2px; }
+.tf-needpill {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--green);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+.tf-placeholder {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.tf-placeholder strong { color: var(--text); }
+.tf-confirm { width: 100%; }
+
 .team-need {
   font-family: var(--font-cond);
   font-size: 11px;
@@ -1206,13 +1306,27 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
      (.roster-name / .team-need / .roster-rating), and being more specific they
      override the generic .roster-row areas above. */
   .team-row {
-    grid-template-columns: 1fr auto;
-    grid-template-areas: "name name" "need scr";
+    grid-template-columns: 1fr auto 18px;
+    grid-template-areas: "name name caret" "need scr scr";
     row-gap: 2px;
   }
   .team-row .roster-name { grid-area: name; }
   .team-row .team-need { grid-area: need; white-space: normal; }
+  .team-row .team-swing { grid-area: need; }
   .team-row .roster-rating { grid-area: scr; text-align: right; }
+  .team-row .tf-caret { grid-area: caret; align-self: start; }
+  /* At 375px the four starting-five columns don't fit on one line; the "→ you 88"
+     tail drops under the row rather than squeezing the player's name. */
+  .tf-row {
+    grid-template-columns: 30px 1fr 34px;
+    grid-template-areas: "pos player rating" ". you you";
+  }
+  .tf-pos { grid-area: pos; }
+  .tf-player { grid-area: player; }
+  .tf-rating { grid-area: rating; }
+  .tf-you { grid-area: you; }
+  .tf-summary { line-height: 1.6; }
+  .tf-needpill { margin-left: 0; margin-top: 4px; }
 
   .picks-title { padding-top: 10px; padding-bottom: 10px; }
 }

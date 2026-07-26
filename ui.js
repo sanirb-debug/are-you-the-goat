@@ -1446,7 +1446,9 @@ function renderRosterStep(category, title, sub, onLock) {
        <div class="scout-head-text">
          <div class="scout-kicker">● Scouting Report</div>
          <div class="scout-teamname">${team.name}</div>
-         <div class="scout-scr">Supporting Cast Rating ${team.scr}</div>
+         <div class="scout-scr">${hasStartingFive(team.abbr)
+           ? `Starting Five Rating ${teamRatingFromFive(team.abbr)}`
+           : `Supporting Cast Rating ${team.scr}`}</div>
        </div>`));
     // No-budget mode: a player spinner + free stat choice instead of the list.
     if (state.autoPick) {
@@ -1781,35 +1783,139 @@ function renderSimulating() {
 // The one team that drives the season sim — separate from the per-pick
 // scouting spins. Choosing a team whose positional need matches your chosen
 // position fills that need for an SCR bonus.
+//
+// TWO-STAGE: tapping a row expands it, only the confirm button commits. That is
+// the whole point of the rework — you see the lineup you'd be joining BEFORE the
+// choice is locked, instead of picking off an abstract number.
+//
+// Migrated teams (see TEAM_FIVES in data.js) show their real starting five and
+// the projected team rating with the build in it. Un-migrated teams keep the old
+// "need a Power Forward" + SCR treatment — deliberately the old panel, not an
+// empty lineup, so every team stays pickable during the division migration.
+// .team-list is its OWN scroll container (max-height ~447px at 375px) and an
+// expanded group runs ~430px, so opening a row near the bottom of the visible
+// window pushed the Sign button below the fold with no cue it was there.
+// scrollIntoView is not usable for this: block "nearest" is a no-op whenever the
+// element's top is already visible (measured — the container stayed at
+// scrollTop 0 with 276px of the group hidden), and "start"/"center" yank the
+// whole page around. Compute the scroll directly instead.
+function revealGroup(container, group) {
+  const c = container.getBoundingClientRect();
+  const g = group.getBoundingClientRect();
+  const overflowBelow = g.bottom - c.bottom;
+  if (overflowBelow <= 0) return;
+  // Never scroll so far that the group's own header leaves the top of the window.
+  const delta = Math.min(overflowBelow, g.top - c.top);
+  // Plain scrollTop, not scrollTo({behavior:"smooth"}) — the latter measured as a
+  // complete no-op on this container (scrollTop stayed 0 with delta 276), so the
+  // button stayed hidden. The instant jump is short and always works.
+  if (delta > 0) container.scrollTop += delta;
+}
+
 function renderCareerTeamStep() {
   const posLabel = POSITIONS[state.position].label;
+  const buildRating = baseOVRDisplay();
   const wrap = el("div", "card");
   wrap.appendChild(el("h1", "step-title center", "Choose Your Career Team"));
   wrap.appendChild(el("p", "step-sub center",
-    `You're a <span class="scout-team-name">${posLabel}</span>. Their supporting cast (SCR) decides your win totals — and a team that <strong>needs a ${posLabel}</strong> gives you a bonus for filling it.`));
+    `You're a <span class="scout-team-name">${posLabel}</span> rated <strong>${buildRating}</strong>. Tap a team to see the starting five you'd be joining — the lineup around you decides your win totals.`));
 
   const list = el("div", "roster-list team-list");
-  // sort so teams that need YOUR position float to the top
+
+  // Sort: migrated teams by how much the build would improve them (the most
+  // meaningful signal on this screen), then by team quality.
+  const upgradeOf = t => {
+    if (!hasStartingFive(t.abbr)) return null;
+    return projectedRatingWith(t.abbr, state.position, buildRating) - teamRatingFromFive(t.abbr);
+  };
   const sorted = [...TEAMS].sort((a, b) => {
-    const am = TEAM_NEEDS[a.abbr] === state.position ? 0 : 1;
-    const bm = TEAM_NEEDS[b.abbr] === state.position ? 0 : 1;
+    const au = upgradeOf(a), bu = upgradeOf(b);
+    if (au !== null && bu !== null) return bu - au || teamRatingFromFive(b.abbr) - teamRatingFromFive(a.abbr);
+    if (au !== null) return -1;              // migrated teams first — they're the informative ones
+    if (bu !== null) return 1;
+    const am = teamNeedPosition(a.abbr) === state.position ? 0 : 1;
+    const bm = teamNeedPosition(b.abbr) === state.position ? 0 : 1;
     return am - bm || b.scr - a.scr;
   });
+
+  const sections = [];
+  const setOpen = (sec, open) => {
+    sec.panel.hidden = !open;
+    sec.head.setAttribute("aria-expanded", open ? "true" : "false");
+    sec.head.classList.toggle("open", open);
+  };
+  // One open at a time — same accordion behaviour as the Badges reference.
+  const toggle = sec => {
+    const willOpen = sec.panel.hidden;
+    sections.forEach(s => setOpen(s, false));
+    if (willOpen) { setOpen(sec, true); revealGroup(list, sec.group); }
+  };
+
   sorted.forEach(team => {
-    const need = TEAM_NEEDS[team.abbr];
+    const migrated = hasStartingFive(team.abbr);
+    const need = teamNeedPosition(team.abbr);
     const match = need === state.position;
-    const row = el("button", "roster-row team-row" + (match ? " need-match" : ""),
+    const rating = migrated ? teamRatingFromFive(team.abbr) : team.scr;
+
+    const head = el("button", "roster-row team-row" + (match ? " need-match" : ""));
+    head.type = "button";
+    let headMeta;
+    if (migrated) {
+      const delta = projectedRatingWith(team.abbr, state.position, buildRating) - rating;
+      const sign = delta > 0 ? "▲ +" + delta : delta < 0 ? "▼ " + delta : "— 0";
+      headMeta = `<span class="team-swing ${delta > 0 ? "up" : delta < 0 ? "down" : "flat"}">${sign}</span>`;
+    } else {
+      headMeta = `<span class="team-need${match ? " match" : ""}">need a ${POSITIONS[need].label}${match ? " ✓" : ""}</span>`;
+    }
+    head.innerHTML =
       `<span class="roster-name">${team.name} <span class="era-tag">${team.abbr}</span></span>
-       <span class="team-need${match ? " match" : ""}">need a ${POSITIONS[need].label}${match ? " ✓" : ""}</span>
-       <span class="roster-rating">${team.scr}</span>`);
-    row.onclick = () => {
+       ${headMeta}
+       <span class="roster-rating">${rating}</span>
+       <span class="tf-caret" aria-hidden="true">▾</span>`;
+
+    const panel = el("div", "team-five-panel");
+    if (migrated) {
+      const projected = projectedRatingWith(team.abbr, state.position, buildRating);
+      const rows = teamFive(team.abbr).map(p => {
+        const taken = p.pos === state.position;
+        return `<div class="tf-row${taken ? " taken" : ""}">
+           <span class="tf-pos">${p.pos}</span>
+           <span class="tf-player">${p.name}</span>
+           <span class="tf-rating">${p.rating}</span>
+           ${taken ? `<span class="tf-you">→ you ${buildRating}</span>` : ""}
+         </div>`;
+      }).join("");
+      panel.innerHTML =
+        `<div class="tf-rows">${rows}</div>
+         <div class="tf-summary">Team rating <strong>${rating}</strong> <span class="tf-arrow">→</span> <strong class="${projected > rating ? "up" : projected < rating ? "down" : ""}">${projected}</strong>
+           ${match ? `<span class="tf-needpill">✓ fills their weakest slot</span>` : ""}</div>`;
+    } else {
+      panel.innerHTML =
+        `<div class="tf-placeholder">Starting five not scouted yet for this team — signing here uses their
+           <strong>Supporting Cast Rating ${team.scr}</strong> and their standing need at
+           <strong>${POSITIONS[need].label}</strong>.${match ? " Your position fills it. ✓" : ""}</div>`;
+    }
+    const confirm = el("button", "btn btn-primary tf-confirm", `Sign with ${team.name} →`);
+    confirm.type = "button";
+    confirm.onclick = () => {
       state.team = team;
       state.teamNeedMet = match;
       state.currentStep++;
       render();
     };
-    list.appendChild(row);
+    panel.appendChild(confirm);
+
+    const group = el("div", "team-five-group");
+    group.appendChild(head);
+    group.appendChild(panel);
+    list.appendChild(group);
+
+    const sec = { head, panel, group };
+    setOpen(sec, false);
+    head.onclick = () => toggle(sec);
+    sections.push(sec);
   });
+
   wrap.appendChild(list);
   app.appendChild(wrap);
 }

@@ -145,10 +145,13 @@ function finishAndSim(seed, badgeCap) {
   S.position = positions.find(p => { S.position = p; return G.checkPositionFit(p); }) || positions[0];
   S.positionFit = G.checkPositionFit(S.position);
 
-  const byStrength = [...G.TEAMS].sort((a, b) => b.scr - a.scr);
-  const team = byStrength.find(t => G.TEAM_NEEDS[t.abbr] === S.position) || byStrength[0];
+  // effectiveScr / teamNeedPosition, not the raw fields: migrated teams (those
+  // with a starting five) derive both from the visible lineup, and the harness
+  // must model the same "strongest team that needs me" a player would pick.
+  const byStrength = [...G.TEAMS].sort((a, b) => G.effectiveScr(b.abbr) - G.effectiveScr(a.abbr));
+  const team = byStrength.find(t => G.teamNeedPosition(t.abbr) === S.position) || byStrength[0];
   S.team = team;
-  S.teamNeedMet = G.TEAM_NEEDS[team.abbr] === S.position;
+  S.teamNeedMet = G.teamNeedPosition(team.abbr) === S.position;
 
   S.activeBadges = G.acquiredBadges().slice(0, badgeCap).map(b => b.key);
 

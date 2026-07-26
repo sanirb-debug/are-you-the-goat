@@ -1612,6 +1612,71 @@ const TEAMS = [
   { abbr: "WAS", name: "Washington Wizards", scr: 25 },
 ];
 
+// ===== CURRENT STARTING FIVES =====
+// The concrete lineup shown on the Choose Your Career Team screen. Replaces the
+// old opaque pair of (hand-authored SCR number + historical positional "need")
+// with five real starters the player can read, so "this team's PF is the weak
+// link" is visible instead of inferred.
+//
+// Each row: [name, position, rating]  — exactly one row per position, PG→C order.
+// Ratings are on the same 0-99 scale as the build's own OVR: 90+ MVP-tier,
+// 85-89 All-NBA, 80-84 quality starter, 75-79 solid starter, 70-74 replaceable,
+// under 70 a hole in the lineup.
+//
+// MIGRATION STATUS — PHASE 1: PACIFIC DIVISION ONLY.
+// A team ABSENT from this map falls back to its TEAMS[].scr and TEAM_NEEDS entry
+// and renders the old placeholder panel (see hasStartingFive / effectiveScr in
+// game.js). Nothing else keys off migration status, so adding a division is a
+// pure fill-in here: append its 5 keys and it goes live. No other file changes.
+//
+// STILL ON PLACEHOLDER: Northwest (MIN DEN OKC POR UTA), Southwest (HOU DAL MEM
+// NOP SAS), Southeast (ATL CHA MIA ORL WAS), Atlantic (BOS BKN NYK PHI TOR),
+// Central (CHI CLE DET IND MIL).
+const TEAM_FIVE_ROWS = {
+  // ---- PACIFIC ----
+  LAL: [
+    ["Luka Doncic", "PG", 94],
+    ["Austin Reaves", "SG", 83],
+    ["LeBron James", "SF", 84],
+    ["Rui Hachimura", "PF", 74],
+    ["Deandre Ayton", "C", 78],
+  ],
+  LAC: [
+    ["James Harden", "PG", 82],
+    ["Bogdan Bogdanovic", "SG", 75],
+    ["Kawhi Leonard", "SF", 86],
+    ["John Collins", "PF", 77],
+    ["Ivica Zubac", "C", 82],
+  ],
+  GSW: [
+    ["Stephen Curry", "PG", 91],
+    ["Buddy Hield", "SG", 74],
+    ["Jimmy Butler", "SF", 84],
+    ["Draymond Green", "PF", 77],
+    ["Al Horford", "C", 75],
+  ],
+  PHX: [
+    ["Jalen Green", "PG", 79],
+    ["Devin Booker", "SG", 88],
+    ["Dillon Brooks", "SF", 75],
+    ["Ryan Dunn", "PF", 70],
+    ["Mark Williams", "C", 76],
+  ],
+  SAC: [
+    ["Dennis Schroder", "PG", 74],
+    ["Zach LaVine", "SG", 80],
+    ["DeMar DeRozan", "SF", 78],
+    ["Keegan Murray", "PF", 76],
+    ["Domantas Sabonis", "C", 85],
+  ],
+};
+
+// { abbr: [{ name, pos, rating }, ...] } — hydrated once, PG→C order preserved.
+const TEAM_FIVES = {};
+Object.keys(TEAM_FIVE_ROWS).forEach(abbr => {
+  TEAM_FIVES[abbr] = TEAM_FIVE_ROWS[abbr].map(([name, pos, rating]) => ({ name, pos, rating }));
+});
+
 const POSITIONS = {
   PG: { label: "Point Guard", hMin: 15, hMax: 50 },
   SG: { label: "Shooting Guard", hMin: 35, hMax: 65 },
@@ -1994,5 +2059,5 @@ const COMP_PLAYERS = COMP_ROWS.map(([name, pos, height, athleticism, sh, fi, pl,
 }));
 
 if (typeof module !== "undefined") {
-  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, POSITIONS, COMP_PLAYERS, SHADOW_TARGETS, SHADOW_ORDER, TRAIT_BADGES };
+  module.exports = { TEAM_ROSTERS, BUDGET_BIN, TEAMS, TEAM_FIVES, POSITIONS, COMP_PLAYERS, SHADOW_TARGETS, SHADOW_ORDER, TRAIT_BADGES };
 }

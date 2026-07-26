@@ -437,6 +437,88 @@ function computeTeamNeeds() {
 }
 const TEAM_NEEDS = computeTeamNeeds();
 
+// ---- Starting fives -> Supporting Cast Rating ----
+// TEAM_FIVES (data.js) is the migrated, player-visible source of team quality.
+// It does NOT create a second team-strength axis: everything downstream still
+// consumes ONE number, SCR, and effectiveScr() is the single place the five is
+// converted into it. Un-migrated teams return their hand-authored TEAMS[].scr
+// unchanged, so the sim, the playoff odds and the UI all keep working during the
+// division-by-division migration.
+//
+// THE MAPPING. simSeason pays 0.35 wins per SCR point. Two league-wide anchors,
+// deliberately NOT fitted to the migrated teams so later divisions drop in
+// without recalibration:
+//   SCR_BASE    64 — the league mean of the existing 30 SCR values (64.1).
+//                    An average five must map to an average supporting cast, so
+//                    the pivot is the DATA's mean, not simSeason's 60 pivot;
+//                    using 60 would quietly dock every migrated team ~1.4 wins.
+//   FIVE_ANCHOR 79 — the rating an average NBA starting five averages on this scale.
+//   SCR_SLOPE  4.4 — SCR's spread is sd 17.5; starting-five averages spread about
+//                    sd 4. 17.5/4 keeps team choice worth as many wins as it is
+//                    today instead of compressing all 30 teams into ±2 wins.
+// Truly elite (85+ average) and truly gutted (sub-70) fives hit the 25-90 clamp;
+// that is intended — those are the ends of the existing scale, not new territory.
+const SCR_BASE = 64;
+const FIVE_ANCHOR = 79;
+const SCR_SLOPE = 4.4;
+
+const TEAMS_BY_ABBR = {};
+TEAMS.forEach(t => { TEAMS_BY_ABBR[t.abbr] = t; });
+
+const POSITION_ORDER = Object.keys(POSITIONS); // PG..C
+
+// The ONE migration check. Everything that branches on "does this team have a
+// real lineup yet" asks this, so no caller has to know about TEAM_FIVES.
+function hasStartingFive(abbr) {
+  return Array.isArray(TEAM_FIVES[abbr]) && TEAM_FIVES[abbr].length === POSITION_ORDER.length;
+}
+function teamFive(abbr) {
+  return hasStartingFive(abbr) ? TEAM_FIVES[abbr] : null;
+}
+// Plain mean, rounded — the player can verify it by eye off the five rows on
+// screen. A positional weighting would be defensible but not checkable, and the
+// whole point of this screen is that the number is legible.
+function teamRatingFromFive(abbr) {
+  const five = teamFive(abbr);
+  if (!five) return null;
+  return Math.round(five.reduce((a, p) => a + p.rating, 0) / five.length);
+}
+// The slot a signing would most obviously improve: lowest-rated starter.
+// Ties resolve to the earlier position (PG..C), matching computeTeamNeeds.
+function weakestSlot(abbr) {
+  const five = teamFive(abbr);
+  if (!five) return null;
+  let best = null;
+  POSITION_ORDER.forEach(pos => {
+    const p = five.find(s => s.pos === pos);
+    if (p && (best === null || p.rating < best.rating)) best = p;
+  });
+  return best ? best.pos : null;
+}
+function starterAt(abbr, pos) {
+  const five = teamFive(abbr);
+  return five ? five.find(p => p.pos === pos) || null : null;
+}
+// Team rating if buildRating replaced the current starter at `pos`. Only that
+// slot changes; the other four are the cast the build actually plays alongside.
+function projectedRatingWith(abbr, pos, buildRating) {
+  const five = teamFive(abbr);
+  if (!five) return null;
+  const swapped = five.map(p => (p.pos === pos ? buildRating : p.rating));
+  return Math.round(swapped.reduce((a, r) => a + r, 0) / swapped.length);
+}
+// The ORIGINAL five, never the projected-with-you version: SCR is the cast
+// AROUND the build, and simSeason already adds the build's own OVR separately.
+function effectiveScr(abbr) {
+  if (!hasStartingFive(abbr)) return TEAMS_BY_ABBR[abbr] ? TEAMS_BY_ABBR[abbr].scr : 60;
+  return clamp(Math.round(SCR_BASE + (teamRatingFromFive(abbr) - FIVE_ANCHOR) * SCR_SLOPE), 25, 90);
+}
+// The position a team most needs filled. Migrated teams answer from the visible
+// lineup; the rest keep the historical-roster z-score. Same +5 SCR semantics.
+function teamNeedPosition(abbr) {
+  return hasStartingFive(abbr) ? weakestSlot(abbr) : TEAM_NEEDS[abbr];
+}
+
 // ---- Per-season box score ----
 // Per-game averages for one season, jittered so no two years look identical.
 // ovr = that season's overall, f = finalSkills(), h = height, fr = athleticism.
@@ -734,7 +816,7 @@ function simCareer(ovr, team, mods = {}) {
     const seasonOVR = clamp(ovr + randInt(-3, 3), 25, 99);
     peakOVR = Math.max(peakOVR, scaleOVR(seasonOVR)); // seasonOVR itself stays raw for the award gates
     // Filling the team's positional need lifts the supporting cast a touch.
-    const teamScr = team.scr + (state.teamNeedMet ? 5 : 0);
+    const teamScr = effectiveScr(team.abbr) + (state.teamNeedMet ? 5 : 0);
     const scrThisYear = clamp(teamScr + randInt(-5, 5), 15, 99);
     const result = simSeason(seasonOVR, scrThisYear, varianceRange, f.Defense);
     careerWins += result.wins;
@@ -1995,7 +2077,9 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, fmtSalary, capPct, budgetRemaining, uncappedMode, inputCeiling, baseOVRDisplay, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
-    checkPositionFit, TEAM_NEEDS, simSeason, simCareer, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
+    checkPositionFit, TEAM_NEEDS, teamNeedPosition, simSeason, simCareer,
+    hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
+    SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,

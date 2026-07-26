@@ -789,6 +789,84 @@ check("excepting the filled slot WOULD re-admit it (why Classic must not)",
 S6.height = null; S6.athleticism = null; S6.skills = {};
 S6.pickOrder = []; S6.autoPick = false; // leave global state clean
 
+// ############################################################################
+console.log("\n=== STARTING FIVES -> SUPPORTING CAST RATING ===");
+//
+// The career-team screen shows a concrete starting five instead of an opaque SCR.
+// effectiveScr() is the ONLY bridge between the two, so these cases pin (a) the
+// arithmetic the player can verify by eye off the five rows, and (b) that every
+// un-migrated team is byte-for-byte untouched — the migration ships one division
+// at a time and a regression there breaks 25 teams silently.
+// ############################################################################
+
+const MIGRATED = ["LAL", "LAC", "GSW", "PHX", "SAC"];   // Phase 1: Pacific only
+
+MIGRATED.forEach(abbr => {
+  check(`${abbr} has a starting five`, G.hasStartingFive(abbr), true);
+  const five = G.teamFive(abbr);
+  check(`${abbr} five has exactly 5 rows`, five.length, 5);
+  check(`${abbr} five covers PG..C exactly once`,
+    five.map(p => p.pos).join(","), Object.keys(G.POSITIONS).join(","));
+  // Plain mean, rounded — the transparent definition, recomputed here independently.
+  const mean = Math.round(five.reduce((a, p) => a + p.rating, 0) / 5);
+  check(`${abbr} team rating is the plain rounded mean of the five`,
+    G.teamRatingFromFive(abbr), mean);
+  check(`${abbr} weakest slot is its lowest-rated starter`,
+    G.weakestSlot(abbr),
+    five.reduce((lo, p) => (p.rating < lo.rating ? p : lo)).pos);
+  check(`${abbr} effectiveScr is inside the 25-90 SCR scale`,
+    G.effectiveScr(abbr), v => v >= 25 && v <= 90);
+  check(`${abbr} need position comes from the visible lineup, not history`,
+    G.teamNeedPosition(abbr), G.weakestSlot(abbr));
+});
+
+// The 25 un-migrated teams MUST be untouched on every axis.
+const unmigrated = G.TEAMS.filter(t => !MIGRATED.includes(t.abbr));
+check("exactly 25 teams still on the placeholder path", unmigrated.length, 25);
+check("no un-migrated team reports a starting five",
+  unmigrated.every(t => G.hasStartingFive(t.abbr) === false), true);
+check("teamFive is null for every un-migrated team",
+  unmigrated.every(t => G.teamFive(t.abbr) === null), true);
+check("effectiveScr returns the hand-authored scr for all 25 un-migrated teams",
+  unmigrated.every(t => G.effectiveScr(t.abbr) === t.scr), true);
+check("teamNeedPosition falls back to TEAM_NEEDS for all 25",
+  unmigrated.every(t => G.teamNeedPosition(t.abbr) === G.TEAM_NEEDS[t.abbr]), true);
+
+// projectedRatingWith must move ONE slot. This is the number the screen promises.
+const lalFive = G.teamFive("LAL");
+const lalBase = G.teamRatingFromFive("LAL");
+check("projectedRatingWith swaps only the target slot",
+  G.projectedRatingWith("LAL", "PF", 99),
+  Math.round(lalFive.reduce((a, p) => a + (p.pos === "PF" ? 99 : p.rating), 0) / 5));
+check("swapping a starter for his own rating is a no-op",
+  G.projectedRatingWith("LAL", "PF", G.starterAt("LAL", "PF").rating), lalBase);
+check("a worse player at the slot LOWERS the projection",
+  G.projectedRatingWith("LAL", "PG", 40), v => v < lalBase);
+check("projectedRatingWith is null for un-migrated teams",
+  G.projectedRatingWith("WAS", "PG", 99), null);
+check("starterAt returns the named starter at that slot",
+  G.starterAt("SAC", "C").name, "Domantas Sabonis");
+check("starterAt is null for a team with no five", G.starterAt("WAS", "C"), null);
+
+// The mapping itself: monotone, centred, and anchored to league-wide constants
+// (not fitted to the Pacific five) so later divisions need no recalibration.
+check("an average five maps to the league-mean SCR",
+  Math.round(G.SCR_BASE + (G.FIVE_ANCHOR - G.FIVE_ANCHOR) * G.SCR_SLOPE), G.SCR_BASE);
+const scrOrder = MIGRATED.map(a => [G.teamRatingFromFive(a), G.effectiveScr(a)])
+  .sort((x, y) => x[0] - y[0]);
+check("effectiveScr is monotone in team rating across the migrated teams",
+  scrOrder.every((p, i) => i === 0 || p[1] >= scrOrder[i - 1][1]), true);
+
+// simCareer must read SCR through effectiveScr. Pin it behaviourally: a migrated
+// team whose five maps ABOVE its old hand-authored scr has to win more games.
+check("LAL's five maps above its legacy scr (so the swap below is observable)",
+  G.effectiveScr("LAL") > G.TEAMS_BY_ABBR["LAL"].scr, true);
+{
+  const winsWith = scr => { G.seedRng(4242); return G.simSeason(80, scr, 0).wins; };
+  check("simSeason still pays 0.35 wins per SCR point",
+    winsWith(80) - winsWith(60), Math.round(20 * 0.35));
+}
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);
