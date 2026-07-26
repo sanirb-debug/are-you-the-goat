@@ -1624,14 +1624,15 @@ const TEAMS = [
 // under 70 a hole in the lineup.
 //
 // MIGRATION STATUS — MIGRATED: PACIFIC (1), SOUTHWEST (2), NORTHWEST (3),
-// ATLANTIC (4). 20 of 30.
+// ATLANTIC (4), CENTRAL (5). 25 of 30.
 // A team ABSENT from this map falls back to its TEAMS[].scr and TEAM_NEEDS entry
 // and renders the old placeholder panel (see hasStartingFive / effectiveScr in
 // game.js). Nothing else keys off migration status, so adding a division is a
 // pure fill-in here: append its 5 keys and it goes live. No other file changes.
 //
-// STILL ON PLACEHOLDER: Southeast (ATL CHA MIA ORL WAS), Central (CHI CLE DET
-// IND MIL).
+// STILL ON PLACEHOLDER: Southeast only (ATL CHA MIA ORL WAS). One phase left,
+// after which SCR_SLOPE / FIVE_ANCHOR get their one-time recalibration — see the
+// tracker in the phase 3-5 commits.
 //
 // A starting five cannot express bench depth, so a deep team (Houston) reads a
 // little low and a top-heavy one reads a little high. That is a property of the
@@ -1786,6 +1787,46 @@ const TEAM_FIVE_ROWS = {
     ["Brandon Ingram", "SF", 80],      // 24 PPG scorer at his peak, marked down for availability
     ["Scottie Barnes", "PF", 80],      // fills every column, still not efficient enough to be a star
     ["Jakob Poeltl", "C", 77],         // 14/10 two-way centre, the steadiest thing here
+  ],
+  // ---- CENTRAL ----
+  // Two more one-injury teardowns, handled the same way as Boston in phase 4:
+  // Haliburton's Achilles and the loss of Turner gutted a Finals team, and
+  // Lillard's Achilles plus his waiver left Giannis without a second star.
+  // Both stars keep long-run ability ratings with a durability markdown.
+  CHI: [
+    ["Josh Giddey", "PG", 79],         // near a nightly triple-double after the break; shooting finally caught up
+    ["Coby White", "SG", 79],          // 20 PPG on real volume shooting, the offence's other engine
+    ["Matas Buzelis", "SF", 74],       // athletic sophomore wing trending up, still streaky
+    ["Patrick Williams", "PF", 70],    // the contract has long outrun the production
+    ["Nikola Vucevic", "C", 78],       // 18/10 with range; the defence is the standing problem
+  ],
+  CLE: [
+    ["Darius Garland", "PG", 84],      // All-Star lead guard, elite shooter and handler, small on defence
+    ["Donovan Mitchell", "SG", 88],    // 24 PPG All-NBA scorer and the closer on a 64-win team
+    ["De'Andre Hunter", "SF", 77],     // sturdy scoring wing, the fifth option by design
+    ["Evan Mobley", "PF", 86],         // Defensive Player of the Year and Most Improved in the same season
+    ["Jarrett Allen", "C", 80],        // hyper-efficient finisher and rim protector
+  ],
+  DET: [
+    ["Cade Cunningham", "PG", 87],     // All-NBA 3rd at 26/6/9 — the whole offence runs through him
+    ["Jaden Ivey", "SG", 76],          // 17.6 PPG before the broken fibula, explosive downhill
+    ["Ausar Thompson", "SF", 75],      // elite point-of-attack defender with no jumper to speak of
+    ["Tobias Harris", "PF", 74],       // steady veteran filler, past his best years
+    ["Jalen Duren", "C", 79],          // 12/10 athletic centre still adding to his game
+  ],
+  IND: [
+    ["Tyrese Haliburton", "PG", 84],   // All-NBA playmaker, marked down from 88 for the Achilles
+    ["Bennedict Mathurin", "SG", 76],  // 16 PPG shot-maker, thin efficiency and defence
+    ["Aaron Nesmith", "SF", 76],       // 3-and-D wing who was enormous in the 2025 playoff run
+    ["Pascal Siakam", "PF", 84],       // 2x All-NBA, ECF MVP, 20 PPG — the steady one
+    ["Jay Huff", "C", 72],             // the centre spot after Turner walked: shot-blocking, little else
+  ],
+  MIL: [
+    ["Ryan Rollins", "PG", 74],        // inherited the job when Lillard was waived; a real leap, not a star
+    ["Gary Trent Jr.", "SG", 73],      // catch-and-shoot specialist, little else on the ball
+    ["Giannis Antetokounmpo", "SF", 95], // 2x MVP at 30/12/6 — carrying more of this roster than ever
+    ["Kyle Kuzma", "PF", 74],          // volume without efficiency, a starter by default
+    ["Myles Turner", "C", 80],         // stretch five and shot-blocker prised away from Indiana
   ],
 };
 
