@@ -799,7 +799,11 @@ console.log("\n=== STARTING FIVES -> SUPPORTING CAST RATING ===");
 // at a time and a regression there breaks 25 teams silently.
 // ############################################################################
 
-const MIGRATED = ["LAL", "LAC", "GSW", "PHX", "SAC"];   // Phase 1: Pacific only
+// Phase 1 Pacific + Phase 2 Southwest. Adding a division means extending this
+// list and the un-migrated count below — the per-team cases below are generated,
+// so a new division is covered automatically.
+const MIGRATED = ["LAL", "LAC", "GSW", "PHX", "SAC", "HOU", "DAL", "MEM", "NOP", "SAS"];
+const UNMIGRATED_COUNT = 30 - MIGRATED.length;
 
 MIGRATED.forEach(abbr => {
   check(`${abbr} has a starting five`, G.hasStartingFive(abbr), true);
@@ -820,17 +824,34 @@ MIGRATED.forEach(abbr => {
     G.teamNeedPosition(abbr), G.weakestSlot(abbr));
 });
 
-// The 25 un-migrated teams MUST be untouched on every axis.
+// Every migrated team must be listed above — a five added to data.js without
+// extending MIGRATED would leave the fallback assertions checking nothing.
+check("MIGRATED lists every team that actually has a five",
+  G.TEAMS.filter(t => G.hasStartingFive(t.abbr)).map(t => t.abbr).sort().join(","),
+  [...MIGRATED].sort().join(","));
+
+// The un-migrated teams MUST be untouched on every axis.
 const unmigrated = G.TEAMS.filter(t => !MIGRATED.includes(t.abbr));
-check("exactly 25 teams still on the placeholder path", unmigrated.length, 25);
+check(`exactly ${UNMIGRATED_COUNT} teams still on the placeholder path`,
+  unmigrated.length, UNMIGRATED_COUNT);
 check("no un-migrated team reports a starting five",
   unmigrated.every(t => G.hasStartingFive(t.abbr) === false), true);
 check("teamFive is null for every un-migrated team",
   unmigrated.every(t => G.teamFive(t.abbr) === null), true);
-check("effectiveScr returns the hand-authored scr for all 25 un-migrated teams",
+check("effectiveScr returns the hand-authored scr for every un-migrated team",
   unmigrated.every(t => G.effectiveScr(t.abbr) === t.scr), true);
-check("teamNeedPosition falls back to TEAM_NEEDS for all 25",
+check("teamNeedPosition falls back to TEAM_NEEDS for every un-migrated team",
   unmigrated.every(t => G.teamNeedPosition(t.abbr) === G.TEAM_NEEDS[t.abbr]), true);
+// No duplicate players across fives — the same starter on two teams would be a
+// copy/paste slip in the data, and this catches it the moment a division lands.
+{
+  const all = MIGRATED.flatMap(a => G.teamFive(a).map(p => p.name));
+  const dupes = all.filter((n, i) => all.indexOf(n) !== i);
+  check("no player appears in two teams' starting fives", dupes.join(",") || "none", "none");
+  check("every rating is a sane integer on the 0-99 scale",
+    MIGRATED.every(a => G.teamFive(a).every(p =>
+      Number.isInteger(p.rating) && p.rating >= 40 && p.rating <= 99)), true);
+}
 
 // projectedRatingWith must move ONE slot. This is the number the screen promises.
 const lalFive = G.teamFive("LAL");

@@ -1623,15 +1623,19 @@ const TEAMS = [
 // 85-89 All-NBA, 80-84 quality starter, 75-79 solid starter, 70-74 replaceable,
 // under 70 a hole in the lineup.
 //
-// MIGRATION STATUS — PHASE 1: PACIFIC DIVISION ONLY.
+// MIGRATION STATUS — MIGRATED: PACIFIC (phase 1), SOUTHWEST (phase 2). 10 of 30.
 // A team ABSENT from this map falls back to its TEAMS[].scr and TEAM_NEEDS entry
 // and renders the old placeholder panel (see hasStartingFive / effectiveScr in
 // game.js). Nothing else keys off migration status, so adding a division is a
 // pure fill-in here: append its 5 keys and it goes live. No other file changes.
 //
-// STILL ON PLACEHOLDER: Northwest (MIN DEN OKC POR UTA), Southwest (HOU DAL MEM
-// NOP SAS), Southeast (ATL CHA MIA ORL WAS), Atlantic (BOS BKN NYK PHI TOR),
-// Central (CHI CLE DET IND MIL).
+// STILL ON PLACEHOLDER: Northwest (MIN DEN OKC POR UTA), Southeast (ATL CHA MIA
+// ORL WAS), Atlantic (BOS BKN NYK PHI TOR), Central (CHI CLE DET IND MIL).
+//
+// A starting five cannot express bench depth, so a deep team (Houston) reads a
+// little low and a top-heavy one reads a little high. That is a property of the
+// model, applied evenly to all 30 — it is NOT a licence to inflate a five to
+// recover a team's old SCR.
 const TEAM_FIVE_ROWS = {
   // ---- PACIFIC ----
   LAL: [
@@ -1668,6 +1672,42 @@ const TEAM_FIVE_ROWS = {
     ["DeMar DeRozan", "SF", 78],
     ["Keegan Murray", "PF", 76],
     ["Domantas Sabonis", "C", 85],
+  ],
+  // ---- SOUTHWEST ----
+  HOU: [
+    ["Amen Thompson", "PG", 81],       // All-Defensive 1st Team; defence and athleticism carry him, jumper doesn't
+    ["Reed Sheppard", "SG", 76],       // took the starting job with VanVleet out; shooter, still slight defensively
+    ["Kevin Durant", "SF", 88],        // 37 and still one of the league's purest scorers
+    ["Jabari Smith Jr.", "PF", 77],    // reliable stretch-four starter, not a focal point
+    ["Alperen Sengun", "C", 86],       // All-Star offensive hub, 19/10/5 — level with Sabonis
+  ],
+  DAL: [
+    ["Kyrie Irving", "PG", 83],        // elite shotmaker, discounted for age 33 and the ACL
+    ["Klay Thompson", "SG", 75],       // 35, a spot-up shooter now and a defensive target
+    ["Cooper Flagg", "SF", 79],        // #1 pick playing real minutes; already a starter, not yet a star
+    ["Anthony Davis", "PF", 85],       // All-NBA two-way big when available, which is the caveat
+    ["Dereck Lively II", "C", 76],     // athletic rim-runner, offence is all lobs and putbacks
+  ],
+  MEM: [
+    ["Ja Morant", "PG", 83],           // 23/7 but 44% shooting, poor defence, chronic availability issues
+    ["Ty Jerome", "SG", 76],           // hyper-efficient scoring guard off Cleveland's 6th-man season
+    ["Jaylen Wells", "SF", 73],        // All-Rookie wing, defends, offence still thin
+    ["Jaren Jackson Jr.", "PF", 85],   // former DPOY, All-Star, 22 PPG — the actual best player here
+    ["Zach Edey", "C", 75],            // real rim protection and rebounding, limited mobility
+  ],
+  NOP: [
+    ["Jordan Poole", "PG", 75],        // volume scorer, inefficient, gives it back on defence
+    ["Trey Murphy III", "SG", 80],     // 21 PPG breakout, size and shooting on the wing
+    ["Herb Jones", "SF", 77],          // All-Defensive stopper whose offence caps his ceiling
+    ["Zion Williamson", "PF", 84],     // unstoppable in a vacuum; conditioning and games played are part of the rating
+    ["Yves Missi", "C", 73],           // athletic young centre, raw on both ends
+  ],
+  SAS: [
+    ["De'Aaron Fox", "PG", 85],        // 25 PPG downhill guard, a notch under Booker
+    ["Stephon Castle", "SG", 78],      // Rookie of the Year, big defensive guard, jumper unfinished
+    ["Devin Vassell", "SF", 76],       // solid two-way wing, streaky as a scorer
+    ["Jeremy Sochan", "PF", 73],       // defensive versatility, no reliable shot
+    ["Victor Wembanyama", "C", 92],    // MVP-tier: DPOY-level rim protection with 24 PPG
   ],
 };
 
