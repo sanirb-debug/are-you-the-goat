@@ -1375,12 +1375,16 @@ function generateScoutingReport(career, ovr, tier) {
   const name = state.name || "The Mystery Player";
   const pos = POSITIONS[state.position].label.toLowerCase();
   const adj = ATH_ADJ[state.athleticism.label] || "unorthodox";
-  const attr = topAttribute().toLowerCase();
+  const sig = signatureAttribute();
   const b = career.bestSeason;
   const team = state.team.name;
 
   const buildArticle = /^[aeiou]/i.test(adj) ? "an" : "a";
-  const s1 = `${name} was ${buildArticle} ${adj} ${state.height.label} ${pos} whose game ran through his ${attr}.`;
+  // Same rule as the headline: don't claim a game "ran through" one skill unless
+  // that skill actually separates from the rest.
+  const s1 = sig.distinctive
+    ? `${name} was ${buildArticle} ${adj} ${state.height.label} ${pos} whose game ran through his ${sig.attr.toLowerCase()}.`
+    : `${name} was ${buildArticle} ${adj} ${state.height.label} ${pos} whose game was built on balance rather than one standout skill.`;
 
   let s2 = `At his Year ${b.year} peak he put up ${b.ppg} points, ${b.rpg} boards, and ${b.apg} assists a night`;
   if (career.rings > 0) {
@@ -1410,17 +1414,46 @@ function topAttribute() {
   return best;
 }
 
+// A build's signature skill AND whether that skill is actually distinctive.
+//
+// topAttribute() is a bare argmax, which OVERCLAIMS. A two-way big at Finishing 87
+// / Defense 85 / Rebounding 85 got the headline "CARRIES ... ON FINISHING ALONE"
+// because Finishing won by TWO points — while the comp system, which reads the
+// whole profile shape rather than one argmax, correctly matched a defensive anchor
+// (Alonzo Mourning, shades Gobert/Ewing). That read as the comp being broken when
+// in fact the NARRATIVE was: nothing was drifting, since topAttribute() and
+// buildProfile() both read the same finalSkills() values.
+//
+// So a skill only counts as the signature when it clears the next-best skill by
+// SIGNATURE_MARGIN. Below that the build genuinely has no one standout, and the
+// headline/report say so instead of inventing one. `attr` reuses topAttribute() so
+// the two can never disagree on which skill is highest.
+const SIGNATURE_MARGIN = 6;
+function signatureAttribute() {
+  const f = finalSkills();
+  const attr = topAttribute();
+  const runnerUp = Math.max(...SKILL_ORDER.filter(s => s !== attr).map(s => f[s]));
+  const margin = f[attr] - runnerUp;
+  return { attr, margin, distinctive: margin >= SIGNATURE_MARGIN };
+}
+
 function generateHeadline(career, tier) {
   const name = state.name || "The Mystery Player";
   const team = state.team.name;
-  const attr = topAttribute();
+  // Only name a single skill when it is genuinely the build's standout; a build
+  // that is evenly strong across several gets balance phrasing instead of a
+  // fabricated "on X alone" claim that the comp system would then contradict.
+  const sig = signatureAttribute();
   if (career.rings > 0) {
-    return `${name.toUpperCase()} STUNS THE LEAGUE: ${team.toUpperCase()} RIDE ELITE ${attr.toUpperCase()} TO ${career.rings > 1 ? `${career.rings} RINGS` : "A RING"}`;
+    const engine = sig.distinctive ? `ELITE ${sig.attr.toUpperCase()}` : "A COMPLETE TWO-WAY GAME";
+    return `${name.toUpperCase()} STUNS THE LEAGUE: ${team.toUpperCase()} RIDE ${engine} TO ${career.rings > 1 ? `${career.rings} RINGS` : "A RING"}`;
   }
   if (tier.name === "Draft Bust") {
     return `${name.toUpperCase()} FLAMES OUT IN ${team.toUpperCase()}: A CAUTIONARY TALE`;
   }
-  return `${name.toUpperCase()} CARRIES ${team.toUpperCase()} ON ${attr.toUpperCase()} ALONE, FALLS SHORT OF A RING`;
+  return sig.distinctive
+    ? `${name.toUpperCase()} CARRIES ${team.toUpperCase()} ON ${sig.attr.toUpperCase()} ALONE, FALLS SHORT OF A RING`
+    : `${name.toUpperCase()} DOES EVERYTHING FOR ${team.toUpperCase()}, FALLS SHORT OF A RING`;
 }
 
 // ===== "CHASING THE SHADOW" =====
@@ -1776,7 +1809,7 @@ if (typeof module !== "undefined") {
     seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, TEAM_NEEDS, simSeason, simCareer, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
-    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
+    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
     TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, isHallOfFame,
