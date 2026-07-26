@@ -146,6 +146,19 @@ function renderTopBar() {
   bar.appendChild(el("div", "brand", "🏀 ARE YOU THE GOAT?"));
 
   const right = el("div", "topbar-side right");
+  // Who you're building toward, kept in view for the whole build so the target
+  // doesn't vanish between the shadow pick and the verdict. Initials show alone on
+  // narrow screens (see .sp-name in style.css) so it never crowds the bar.
+  if (state.shadowTarget && inPickingPhase() && !state.sharedView) {
+    const parts = state.shadowTarget.split(" ").filter(Boolean);
+    const initials = ((parts[0] || "")[0] || "") + ((parts[parts.length - 1] || "")[0] || "");
+    const pill = el("div", "shadow-pill",
+      `<span class="shp-ini">${initials.toUpperCase()}</span>` +
+      `<span class="shp-chase">Chasing</span>` +
+      `<span class="shp-name">${state.shadowTarget}</span>`);
+    pill.title = `Chasing the Shadow: ${state.shadowTarget}`;
+    right.appendChild(pill);
+  }
   if (!state.sandbox && !state.autoPick && (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step))) {
     right.appendChild(el("div", "budget-pill", budgetPillHTML()));
   }
@@ -1588,6 +1601,28 @@ function buildCareerRun(car) {
   active.forEach(b => { byPlayer[b.player] = (byPlayer[b.player] || 0) + 1; });
   const fullStack = active.length >= 2 && Object.values(byPlayer).some(n => n >= 2);
   const sh = compareToShadow(car);
+
+  // Two ACTIVE badges whose players really shared a franchise. Team membership is
+  // derived from TEAM_ROSTERS (the same source usedTeamAbbrs reads) rather than
+  // stored on the badge, so it can't drift from the roster data.
+  const teamsOf = name => {
+    const out = new Set();
+    for (const [abbr, roster] of Object.entries(TEAM_ROSTERS)) {
+      if (roster.some(p => p.name === name)) out.add(abbr);
+    }
+    return out;
+  };
+  const players = [...new Set(active.map(b => b.player))];
+  let badgeSameTeam = false;
+  for (let i = 0; i < players.length && !badgeSameTeam; i++) {
+    for (let j = i + 1; j < players.length && !badgeSameTeam; j++) {
+      const a = teamsOf(players[i]), b = teamsOf(players[j]);
+      for (const t of a) if (b.has(t)) { badgeSameTeam = true; break; }
+    }
+  }
+  const catCount = c => active.filter(b => b.category === c).length;
+  const best = car.bestSeason || { ppg: 0, rpg: 0, apg: 0 };
+
   return {
     // Which pool this run credits. Sandbox never reaches recordCareerRun.
     mode: state.autoPick ? "classic" : "cap",
@@ -1604,6 +1639,26 @@ function buildCareerRun(car) {
     budgetExact: state.budgetSpent === BUDGET_CAP,
     // "Unanimous": an MVP won in a 99-caliber peak season.
     unanimous: car.mvps >= 1 && car.bestMVPOVR >= 95,
+
+    // ---- Fields the expanded achievement set reads ----
+    allStars: car.allStars, allNBAs: car.allNBAs, allDefensives: car.allDefensives,
+    numSeasons: car.numSeasons,
+    baseOVR: computeOVR(),           // raw axis, so the Classic threshold means one thing
+    peakOVR: car.peakOVR,
+    budgetSpent: state.budgetSpent,  // internal hundredths of $M (8000 = $80M)
+    heightRating: state.height.rating,
+    athleticismRating: state.athleticism.rating,
+    position: state.position,
+    teamAbbr: state.team ? state.team.abbr : null,
+    positionFit: !!state.positionFit,
+    teamNeedMet: !!state.teamNeedMet,
+    // Classic's "Purist" reads both pools; Salary Cap uses only the team pool.
+    rerollsUsed: state.teamRerollsUsed + state.playerRerollsUsed,
+    activeBadgeCount: active.length,
+    badgeSameTeam,
+    badgeDefensivePair: catCount("Defense") >= 2,
+    badgeScoringPair: catCount("Shooting") + catCount("Finishing") >= 2,
+    peakPPG: best.ppg, peakRPG: best.rpg, peakAPG: best.apg,
   };
 }
 

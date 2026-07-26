@@ -71,6 +71,52 @@ body {
 }
 .budget-num { color: var(--gold-bright); font-weight: 700; font-size: 15px; }
 
+/* "Chasing the Shadow" target, persistent through the build. Deliberately cooler
+   and quieter than the gold CAP pill — it is a reminder, not a live metric. */
+.shadow-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-family: var(--font-cond);
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+  /* Fits the longest legend name ("Giannis Antetokounmpo") without ellipsis. */
+  max-width: 275px;
+}
+.shp-ini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line-gold);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--gold-bright);
+}
+.shp-chase { color: var(--text-dim); }
+.shp-name {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Tight bars keep the initials badge only — the tooltip still carries the name. */
+@media (max-width: 900px) {
+  .shadow-pill { padding: 4px 6px; gap: 0; }
+  .shp-chase, .shp-name { display: none; }
+}
+
 /* ---- Broadcast panel (replaces the soft card everywhere) ---- */
 .card {
   position: relative;

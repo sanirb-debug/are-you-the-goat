@@ -1679,14 +1679,19 @@ const normMode = m => (MODE_KEYS.includes(m) ? m : DEFAULT_MODE);
 
 // One mode's accumulator. Shape is unchanged from the pre-split version — only
 // where it lives changed, so every field and every consumer still reads the same.
+// New fields are backfilled for existing saves by the Object.assign in
+// loadAllProgress(), so adding an accumulator here needs no version bump.
 function blankProgress() {
   return {
     careersPlayed: 0,
     bestScore: 0,
     bestTierIdx: -1,       // index into TIERS; -1 = no career yet
     totalRings: 0, totalMVPs: 0, totalDPOYs: 0, totalROTYs: 0,
+    totalAllStars: 0, totalAllNBAs: 0,
     activatedBadges: [],   // unique "Player|Category" keys ever activated
     dethronedTargets: [],  // shadow target names ever dethroned (majority cleared)
+    positionsPlayed: [],   // unique position keys ever taken to a verdict
+    teamsPlayed: [],       // unique career-team abbrs ever taken to a verdict
     unlocked: {},          // { achievementId: true } — sticky once earned
   };
 }
@@ -1765,6 +1770,71 @@ const ACHIEVEMENTS = [
   { id: "life_rings",  name: "Ring Dynasty",      desc: "Win 20 rings across all your careers.",              check: (r, L) => L.totalRings >= 20 },
   { id: "life_mvps",   name: "MVP Machine",       desc: "Win 10 MVPs across all your careers.",               check: (r, L) => L.totalMVPs >= 10 },
   { id: "life_traits", name: "Trait Collector",   desc: "Activate 25 different trait badges across all careers.", check: (r, L) => L.activatedBadges.length >= 25 },
+
+  // ===== EXPANSION =====
+  // Every entry below follows the same contract as the originals: check(run,
+  // lifetime) against facts the run fact-sheet already carries, sticky once
+  // earned, and stored per mode (unlock state lives in modes[mode].unlocked), so
+  // the Salary Cap / Classic split applies to these automatically. Sandbox never
+  // reaches recordCareerRun, so it is excluded here as everywhere else.
+
+  // ---- Shadow-chasing granularity ----
+  { id: "dethrone_first", name: "Prodigy",         desc: "Dethrone a legend on your very first career in this mode.", check: (r, L) => !!r.dethroned && L.careersPlayed === 1 },
+  { id: "dethrone_3",   name: "Shadow Hunter",     desc: "Dethrone 3 different shadow legends.",               check: (r, L) => L.dethronedTargets.length >= 3 },
+  { id: "dethrone_8",   name: "Halfway to Immortal", desc: "Dethrone 8 different shadow legends.",             check: (r, L) => L.dethronedTargets.length >= 8 },
+  { id: "dethrone_clean", name: "No Contest",      desc: "Dethrone a legend while reaching the Legend tier or higher.", check: (r) => !!r.dethroned && r.tierIdx >= TIERS.findIndex(t => t.name === "Legend") },
+
+  // ---- Mode-specific: Classic (no cap, spin-driven) ----
+  { id: "classic_rough",  name: "Diamond in the Rough", desc: "Classic: reach Superstar or higher with a base OVR under 70.", check: (r) => r.mode === "classic" && r.baseOVR < 70 && r.tierIdx >= TIERS.findIndex(t => t.name === "Superstar") },
+  { id: "classic_legend", name: "Wheel of Fortune",     desc: "Classic: reach the Legend tier — no-repeat teams and all.", check: (r) => r.mode === "classic" && r.tierIdx >= TIERS.findIndex(t => t.name === "Legend") },
+  { id: "classic_purist", name: "Purist",               desc: "Classic: finish a build without using a single re-spin.", check: (r) => r.mode === "classic" && r.rerollsUsed === 0 },
+  { id: "classic_trio",   name: "Triple Threat",        desc: "Classic: take all three trait badge slots into one career.", check: (r) => r.mode === "classic" && r.activeBadgeCount >= 3 },
+
+  // ---- Mode-specific: Salary Cap Edition ----
+  { id: "cap_thrifty", name: "Cap Wizard",         desc: "Salary Cap: reach Superstar or higher spending under $80M.", check: (r) => r.mode === "cap" && r.budgetSpent < 8000 && r.tierIdx >= TIERS.findIndex(t => t.name === "Superstar") },
+  { id: "cap_bargain", name: "Bargain Bin Legend", desc: "Salary Cap: reach Legend or higher spending under $85M.", check: (r) => r.mode === "cap" && r.budgetSpent < 8500 && r.tierIdx >= TIERS.findIndex(t => t.name === "Legend") },
+  { id: "cap_minimum", name: "Minimum Deal",       desc: "Salary Cap: reach All-Star or higher spending under $60M.", check: (r) => r.mode === "cap" && r.budgetSpent < 6000 && r.tierIdx >= TIERS.findIndex(t => t.name === "All-Star") },
+
+  // ---- Badge combinations ----
+  { id: "badge_same_team", name: "Franchise Chemistry", desc: "Activate badges from two players who really shared a franchise.", check: (r) => r.badgeSameTeam },
+  { id: "badge_defense",   name: "Lockdown Duo",        desc: "Activate two Defense trait badges in one build.",     check: (r) => r.badgeDefensivePair },
+  { id: "badge_offense",   name: "Bucket Brigade",      desc: "Activate two Shooting or Finishing badges in one build.", check: (r) => r.badgeScoringPair },
+  { id: "life_badges_50",  name: "Badge Baron",         desc: "Activate 50 different trait badges across all careers.", check: (r, L) => L.activatedBadges.length >= 50 },
+
+  // ---- Completionist ----
+  { id: "all_positions", name: "Positional Chameleon", desc: "Take a career to the verdict at all five positions.", check: (r, L) => L.positionsPlayed.length >= Object.keys(POSITIONS).length },
+  { id: "teams_10",      name: "Well Travelled",       desc: "Play career teams for 10 different franchises.",      check: (r, L) => L.teamsPlayed.length >= 10 },
+  { id: "all_teams",     name: "League Tour",          desc: "Play a career with all 30 franchises.",               check: (r, L) => L.teamsPlayed.length >= 30 },
+
+  // ---- Flavor / extreme builds ----
+  { id: "bust_ring",   name: "Right Place, Right Time", desc: "Win a ring with a Draft Bust build.",                check: (r) => r.tierName === "Draft Bust" && r.rings >= 1 },
+  { id: "tall_tale",   name: "Tallest Tale",         desc: "Reach Superstar or higher with a 7'4\" or taller build.", check: (r) => r.heightRating >= 99 && r.tierIdx >= TIERS.findIndex(t => t.name === "Superstar") },
+  { id: "small_ball",  name: "Giant Slayer",         desc: "Reach Superstar or higher with a build 5'11\" or shorter.", check: (r) => r.heightRating <= 28 && r.tierIdx >= TIERS.findIndex(t => t.name === "Superstar") },
+  { id: "ringless",    name: "The Ringless Great",   desc: "Reach the Legend tier without ever winning a ring.",   check: (r) => r.rings === 0 && r.tierIdx >= TIERS.findIndex(t => t.name === "Legend") },
+  { id: "iron_man",    name: "Iron Man",             desc: "Play a full 20-season career.",                        check: (r) => r.numSeasons >= 20 },
+  { id: "perfect_fit", name: "Perfect Fit",          desc: "Finish a career fitting your position AND your team's need.", check: (r) => r.positionFit && r.teamNeedMet },
+
+  // ---- Career milestones ----
+  { id: "stat_stuffer", name: "Stat Sheet Stuffer", desc: "Post a season averaging 25 points, 10 boards and 5 assists.", check: (r) => r.peakPPG >= 25 && r.peakRPG >= 10 && r.peakAPG >= 5 },
+  { id: "triple_dbl",   name: "Averaged a Triple-Double", desc: "Post a season averaging 10+ boards and 10+ assists.", check: (r) => r.peakRPG >= 10 && r.peakAPG >= 10 },
+  { id: "def_dynasty",  name: "Defensive Dynasty",  desc: "Win 3 or more DPOYs in one career.",                    check: (r) => r.dpoys >= 3 },
+  { id: "rise_rise",    name: "Rise and Rise",      desc: "Win Rookie of the Year and an MVP in the same career.",  check: (r) => r.rotys >= 1 && r.mvps >= 1 },
+  { id: "allstar_15",   name: "Perennial",          desc: "Make 15 All-Star teams in one career.",                 check: (r) => r.allStars >= 15 },
+
+  // ---- Lifetime cumulative ----
+  { id: "careers_50",   name: "Lifer",              desc: "Play 50 careers.",                                      check: (r, L) => L.careersPlayed >= 50 },
+  { id: "life_dpoys",   name: "Defensive Legacy",   desc: "Win 10 DPOYs across all your careers.",                 check: (r, L) => L.totalDPOYs >= 10 },
+  { id: "life_allnba",  name: "All-NBA Fixture",    desc: "Collect 50 All-NBA selections across all careers.",      check: (r, L) => L.totalAllNBAs >= 50 },
+
+  // ---- One per shadow legend ----
+  // Generated from SHADOW_ORDER so the set can never drift from the legend roster
+  // when a target is added or renamed — same reasoning as dethrone_all's desc.
+  ...SHADOW_ORDER.map(legend => ({
+    id: "dethrone_" + legend.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+    name: `Dethroned ${legend}`,
+    desc: `Dethrone ${legend} in a career.`,
+    check: (r) => r.dethroned === legend,
+  })),
 ];
 
 // Fold a finished career into lifetime progress and unlock anything newly
@@ -1782,12 +1852,16 @@ function recordCareerRun(run) {
   p.totalMVPs += run.mvps;
   p.totalDPOYs += run.dpoys;
   p.totalROTYs += run.rotys;
+  p.totalAllStars += run.allStars || 0;
+  p.totalAllNBAs += run.allNBAs || 0;
   for (const key of run.activatedBadgeKeys) {
     if (!p.activatedBadges.includes(key)) p.activatedBadges.push(key);
   }
   if (run.dethroned && !p.dethronedTargets.includes(run.dethroned)) {
     p.dethronedTargets.push(run.dethroned);
   }
+  if (run.position && !p.positionsPlayed.includes(run.position)) p.positionsPlayed.push(run.position);
+  if (run.teamAbbr && !p.teamsPlayed.includes(run.teamAbbr)) p.teamsPlayed.push(run.teamAbbr);
 
   const newlyUnlocked = [];
   for (const a of ACHIEVEMENTS) {
