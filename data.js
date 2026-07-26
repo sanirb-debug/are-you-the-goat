@@ -1701,6 +1701,7 @@ const TRAIT_BADGES = {
   "Chauncey Billups|Shooting": { name: "Mr. Big Shot", effect: "Clutch, high-volume shot-making", mods: { tptPct: 4, ppg: 1 } },
   "Kemba Walker|Shooting": { name: "All-Star Scorer", effect: "Elite shot creation from deep range", mods: { tptPct: 4, ppg: 1 } },
   // ---- Finishing ----
+  "Shai Gilgeous-Alexander|Finishing": { name: "Master of Craft", effect: "Change-of-pace craft finishes through contact at the rim", mods: { fgPct: 3, ppg: 2 } },
   "LeBron James|Finishing": { name: "Downhill Merchant", effect: "Overpowers defenders driving to the rim", mods: { fgPct: 4, ppg: 1.5 } },
   "Shaquille O'Neal|Finishing": { name: "Immovable Force", effect: "Impossible to stop once he gets deep post position", mods: { fgPct: 6, ppg: 1.5 } },
   "Giannis Antetokounmpo|Finishing": { name: "Greek Freak Gather", effect: "Covers ground in two dribbles for powerful finishes", mods: { fgPct: 5, ppg: 1.5 } },
@@ -1769,6 +1770,7 @@ const TRAIT_BADGES = {
   "Jason Williams|Playmaking": { name: "White Chocolate Vision", effect: "Flashy, unpredictable passing creativity", mods: { apg: 0.9 } },
   "Elgin Baylor|Playmaking": { name: "Do-It-All Forward", effect: "Playmaking ahead of his era's forwards", mods: { apg: 0.8 } },
   // ---- Handles ----
+  "Jalen Brunson|Handles": { name: "Footwork Clinic", effect: "Relentless pivots and footwork create space in tight windows", mods: { ppg: 1.5, apg: 0.4 } },
   "Kyrie Irving|Handles": { name: "Ankle Breaker", effect: "Elite one-on-one shot creation off the dribble", mods: { ppg: 1.5, apg: 0.5 } },
   "Allen Iverson|Handles": { name: "Crossover King", effect: "Relentless isolation shot creation", mods: { ppg: 1.5, fgPct: 1 } },
   "Muggsy Bogues|Handles": { name: "Pocket Rocket", effect: "Elite tight-space ball security", mods: { apg: 0.8, spg: 0.3 } },
@@ -1802,6 +1804,7 @@ const TRAIT_BADGES = {
   "De'Aaron Fox|Handles": { name: "Blur Speed", effect: "Elite straight-line speed off the bounce", mods: { ppg: 1 } },
   "Ja Morant|Handles": { name: "Explosive Downhill Attacker", effect: "Elite explosiveness attacking the paint", mods: { ppg: 1 } },
   // ---- Defense ----
+  "Victor Wembanyama|Defense": { name: "Impossible Length", effect: "Historic length erases shots from anywhere in the paint", mods: { bpg: 1.3, rpg: 0.5 } },
   "Bill Russell|Defense": { name: "Anchor of Titletown", effect: "Historically dominant rim protection and IQ", mods: { bpg: 1, rpg: 0.8 } },
   "Dikembe Mutombo|Defense": { name: "Paint Patrol", effect: "Shot-blocking presence alters shots at the rim", mods: { bpg: 1.2 } },
   "Ben Wallace|Defense": { name: "Undrafted Wall", effect: "Elite interior defense despite giving up size", mods: { bpg: 0.8, rpg: 1 } },
