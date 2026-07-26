@@ -1178,6 +1178,43 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
   .legend-row { grid-template-columns: 70px 1fr 40px; }
   .legend-cost { display: none; }
   .step-title { font-size: 20px; }
+
+  /* ---- Mobile audit fixes (375px reference) ---- */
+
+  /* Roster and team rows were 92-93px tall at 375px: the 1fr name column got
+     squeezed to ~80px by the two fixed columns beside it, so names like
+     "Kareem Abdul-Jabbar '80s" wrapped over three lines. Give the name the full
+     width and drop the rating/cost onto a second line instead. */
+  .roster-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "name name" "rating cost";
+    row-gap: 2px;
+    padding: 10px 14px;
+  }
+  .roster-name { grid-area: name; }
+  .roster-rating { grid-area: rating; text-align: left; }
+  .roster-cost { grid-area: cost; }
+  /* With the cost on its own line there's room to inline the cap share. */
+  .roster-cost-pct { display: inline; margin-top: 0; }
+  .roster-cost-pct::before { content: " · "; opacity: 0.6; }
+  .roster-row.no-cost {
+    grid-template-columns: 1fr;
+    grid-template-areas: "name" "rating";
+  }
+  /* .team-row IS a .roster-row but its middle child is the positional need, not a
+     cost — so it needs its own areas. Selectors match the real markup
+     (.roster-name / .team-need / .roster-rating), and being more specific they
+     override the generic .roster-row areas above. */
+  .team-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "name name" "need scr";
+    row-gap: 2px;
+  }
+  .team-row .roster-name { grid-area: name; }
+  .team-row .team-need { grid-area: need; white-space: normal; }
+  .team-row .roster-rating { grid-area: scr; text-align: right; }
+
+  .picks-title { padding-top: 10px; padding-bottom: 10px; }
 }
 
 /* ===== "Chasing the Shadow" ===== */
@@ -2499,3 +2536,38 @@ body.modal-open { overflow: hidden; }
 .trophy-mode:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) { .trophy-mode { transition: none; } }
+
+/* ===== MOBILE TOUCH TARGETS =====
+   Kept at the END of the file on purpose. These override base control styles that
+   are declared further down than the main 480px block, and at equal specificity
+   the later rule wins — an earlier attempt at this inside that block was silently
+   overridden by .nav-btn / .trait-pill / .pa-info / .trophy-mode.
+
+   Hover-sized 29-30px controls are fine with a mouse but cramped under a
+   fingertip, so the persistent chrome moves toward the ~44px guidance. Only the
+   tappable box grows; type sizes are left alone apart from the "?" pills, which
+   were unreadably small. */
+@media (max-width: 480px) {
+  /* PRE-EXISTING OVERFLOW, found in this audit: .topbar sets flex-wrap but
+     .topbar-side does not, so the right group (shadow pill + CAP pill + three nav
+     buttons ~426px) stayed on one line inside a 375px app and pushed "How to Play"
+     ~69px off-screen. Earlier passes missed it because the probe compared against
+     window.innerWidth, which over-reports on this pane. Let each group wrap and
+     centre so the bar stacks tidily instead of running off the edge. */
+  .topbar { justify-content: center; }
+  .topbar-side { flex-wrap: wrap; justify-content: center; }
+  .topbar-side.right { justify-content: center; }
+
+  .nav-btn { padding: 9px 12px; }
+  .trophy-mode { padding: 9px 15px; }
+  .trophy-tab { padding-top: 11px; padding-bottom: 11px; }
+  .home-link { padding: 11px 18px; }
+  .shadow-more-toggle { padding-top: 11px; padding-bottom: 11px; }
+  /* The sidebar's "?" explainers were 15x14px — the smallest targets in the app. */
+  .pa-info { font-size: 11px; padding: 4px 8px; margin-left: 5px; }
+  /* Trait pills are the tap target for their own tooltip, so they need real area. */
+  .trait-pill { padding: 4px 7px; font-size: 10.5px; }
+  .sc-star-pill { padding: 4px 9px; }
+  /* Modal dismiss control. */
+  .modal-x { min-width: 40px; min-height: 40px; }
+}
