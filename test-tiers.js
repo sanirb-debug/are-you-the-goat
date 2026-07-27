@@ -990,6 +990,71 @@ check("a zero-accolade journeyman is still caliber 1", caliberOfName("Jason Smit
 G.state.height = null; G.state.athleticism = null; G.state.skills = {}; G.state.autoPick = false;
 
 // ############################################################################
+console.log("\n=== ALL-STAR THRESHOLD: SOLID STARTERS MUST NOT CLEAR ===");
+//
+// REPORTED TWICE. First: a build averaging under 10 PPG made All-Star in 11 of 14
+// seasons. Second (this suite's reason for existing): 14.8 PPG / 9.1 RPG / 3 APG /
+// 0.8 SPG / 0.3 BPG cleared it. Both came through the SAME door, which is why the
+// second read as a recurrence rather than a new bug.
+//
+// The first fix moved eligibility off raw OVR onto a scoring-weighted box-score
+// case, and that held — the scoring path gives both lines ~0%. What it left open
+// was the DEFENSIVE SIGNATURE: All-Defensive is decided in simSeason from the
+// build's CONSTANT Defense rating, never the box score, and the All-Star check
+// then paid a flat 0.45 for a 1st-team nod. So any build with Defense 93+ drew a
+// 45% All-Star roll every season regardless of production.
+//
+// These cases are deterministic — they assert allStarCase().odds, not a roll — so
+// they cannot flake and cannot be "fixed" by reseeding.
+// ############################################################################
+{
+  const line = o => Object.assign({ ppg: 0, apg: 0, rpg: 0, spg: 0, bpg: 0, tpg: 0, fgPct: 50, tptPct: 33 }, o);
+  const odds = (stats, wins, allD) => G.allStarCase(stats, wins, allD).odds;
+
+  // --- the exact reported season, through every door it could take ---
+  const REPORTED = line({ ppg: 14.8, rpg: 9.1, apg: 3, spg: 0.8, bpg: 0.3 });
+  check("14.8/9.1/3 on a 45-win team is not an All-Star", odds(REPORTED, 45, null), v => v <= 0.02);
+  check("14.8/9.1/3 on a 55-win team is not an All-Star", odds(REPORTED, 55, null), v => v <= 0.02);
+  check("14.8/9.1/3 + All-Defensive 2nd is still not an All-Star",
+    odds(REPORTED, 50, "2nd"), v => v <= 0.05);
+  check("14.8/9.1/3 + All-Defensive 1st is still not an All-Star — THE LEAK",
+    odds(REPORTED, 50, "1st"), v => v <= 0.05,
+    "a 1st-team All-D nod off the constant Defense rating used to pay a flat 45%");
+
+  // --- the earlier report, kept so the first bug cannot come back either ---
+  const EARLIER = line({ ppg: 9.5, rpg: 8.7, apg: 7, spg: 1.1, bpg: 0.6 });
+  check("sub-10 PPG all-rounder is not an All-Star", odds(EARLIER, 50, null), v => v <= 0.02);
+  check("sub-10 PPG all-rounder + All-Defensive 1st is not an All-Star",
+    odds(EARLIER, 50, "1st"), v => v <= 0.05);
+
+  // --- a solid starter is a solid starter ---
+  check("16 PPG / 7 RPG solid starter is not an All-Star",
+    odds(line({ ppg: 16, rpg: 7, apg: 3 }), 48, null), v => v <= 0.05);
+
+  // --- DO NOT OVERCORRECT: genuine stars must still clear comfortably ---
+  check("a 25 PPG scorer is comfortably an All-Star",
+    odds(line({ ppg: 25, rpg: 6, apg: 4 }), 50, null), v => v >= 0.75);
+  check("a 20 PPG / 5 APG season is a coin-flip All-Star or better",
+    odds(line({ ppg: 20, rpg: 6, apg: 5 }), 50, null), v => v >= 0.40);
+  check("18 PPG with REAL elite defence (2.4 BPG / 1.7 SPG) clears on the signature",
+    odds(line({ ppg: 18, rpg: 11, apg: 2, spg: 1.7, bpg: 2.4 }), 50, "1st"), v => v >= 0.30);
+  check("a 14 RPG dominant rebounder clears without scoring",
+    odds(line({ ppg: 9, rpg: 14, apg: 1.5, spg: 0.8, bpg: 1.4 }), 45, null), v => v >= 0.25);
+  check("an 11 APG lead playmaker clears without scoring",
+    odds(line({ ppg: 11, rpg: 4, apg: 11, spg: 1.4 }), 45, null), v => v >= 0.45);
+
+  // --- the mechanism itself: production, not the nod, drives the defence case ---
+  check("defensive production is 0 for a 0.3 BPG / 0.8 SPG season",
+    G.allStarDefProduction(REPORTED), 0);
+  check("defensive production is substantial for a 2.4 BPG / 1.7 SPG season",
+    G.allStarDefProduction(line({ ppg: 18, rpg: 11, spg: 1.7, bpg: 2.4 })), v => v >= 0.6);
+  check("two seasons with the same All-D nod but different production score differently",
+    odds(line({ ppg: 14, rpg: 11, spg: 1.8, bpg: 2.6 }), 50, "1st") >
+    odds(line({ ppg: 14, rpg: 11, spg: 0.6, bpg: 0.2 }), 50, "1st"), true);
+  check("the scoring floor is the live constant", G.ALLSTAR_Q_FLOOR, v => v >= 16);
+}
+
+// ############################################################################
 console.log("\n=== AWARD EXPLANATIONS TRACK THE LIVE TUNING ===");
 //
 // awardReasons() renders the "why" line under each honor in Career Stats by Year.

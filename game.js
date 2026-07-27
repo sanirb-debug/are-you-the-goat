@@ -572,7 +572,17 @@ const FINALS_MVP_OVR = 78;
 const ALLDEF_1ST = 93, ALLDEF_2ND = 85;
 const ALLNBA_1ST_SCORE = 38, ALLNBA_2ND_SCORE = 31;
 const ALLNBA_Q_FLOOR = 18, ALLNBA_Q_SPAN = 17;
-const ALLSTAR_Q_FLOOR = 15, ALLSTAR_Q_SPAN = 12;
+// Raised from 15/12. At the old line a 14.8 PPG / 9.1 RPG season on a 55-win team
+// still carried an 11% scoring case, and 16 PPG carried 12% — a solid starter's
+// line, which the tier system already has a name for. 16.5/11 puts a 25 PPG
+// season at ~85%, 20-21 PPG at ~50%, and anything at or under 16.5 PPG at zero.
+const ALLSTAR_Q_FLOOR = 16.5, ALLSTAR_Q_SPAN = 11;
+// The defensive signature must be backed by DEFENSIVE PRODUCTION, not just by the
+// All-Defensive nod. See allStarDefProduction — this is the leak that made the
+// All-Star threshold look like it kept "coming back".
+const ALLSTAR_DEF_BPG = { floor: 0.8, span: 1.6, w: 0.40 };
+const ALLSTAR_DEF_SPG = { floor: 1.0, span: 1.0, w: 0.40 };
+const ALLSTAR_DEF_RPG = { floor: 8.0, span: 5.0, w: 0.20 };
 const ROTY_PPG = { floor: 14, span: 8 }, ROTY_APG = { floor: 7.5, span: 3.5 }, ROTY_RPG = { floor: 9.5, span: 3.5 };
 const ROTY_BASE_ODDS = 0.05, ROTY_RAMP = 0.82;
 const DPOY_BPG = { floor: 2.0, span: 1.8, w: 0.45 };
@@ -733,10 +743,29 @@ function allNbaSelection(stats, wins, mvp, allDefensive) {
 // allStarCase exposes BOTH paths and which one is carrying the season, so the
 // explanation on the verdict screen names the real reason ("13.1 RPG signature
 // case") instead of always claiming it was scoring.
+// THE LEAK THAT MADE THIS THRESHOLD LOOK LIKE IT KEPT REGRESSING. All-Defensive
+// is decided in simSeason from the build's CONSTANT Defense rating (seasonDef =
+// defRating +/- 5), never from the box score. The All-Star defensive signature
+// then paid a FLAT 0.45 for a 1st-team nod, so a build with Defense 93+ collected
+// a 45% All-Star roll every single season no matter what it actually did — a
+// 14.8 PPG / 9.1 RPG / 0.8 SPG / 0.3 BPG line scored identically to a 2.4 BPG /
+// 1.7 SPG anchor. Both reports of "All-Star is too loose" came through this door;
+// the earlier fix closed the SCORING path and left this one open, which is why it
+// read as a recurrence rather than a second bug.
+//
+// A signature only counts when the production backs it. Same shape as
+// dpoyDominance, on a gentler scale — this is All-Star, not DPOY.
+function allStarDefProduction(stats) {
+  return clamp(
+    (stats.bpg - ALLSTAR_DEF_BPG.floor) / ALLSTAR_DEF_BPG.span * ALLSTAR_DEF_BPG.w +
+    (stats.spg - ALLSTAR_DEF_SPG.floor) / ALLSTAR_DEF_SPG.span * ALLSTAR_DEF_SPG.w +
+    (stats.rpg - ALLSTAR_DEF_RPG.floor) / ALLSTAR_DEF_RPG.span * ALLSTAR_DEF_RPG.w, 0, 1);
+}
 function allStarCase(stats, wins, allDefensive) {
   const { score } = offensiveCase(stats, wins);
-  const scoringCase = clamp((score - ALLSTAR_Q_FLOOR) / ALLSTAR_Q_SPAN, 0, 1); // ~15 -> 0%, ~27+ -> ~100%
-  const defCase = allDefensive === "1st" ? 0.45 : allDefensive === "2nd" ? 0.18 : 0;
+  const scoringCase = clamp((score - ALLSTAR_Q_FLOOR) / ALLSTAR_Q_SPAN, 0, 1); // 16.5 -> 0%, ~27.5+ -> 100%
+  const defCap = allDefensive === "1st" ? 0.45 : allDefensive === "2nd" ? 0.18 : 0;
+  const defCase = defCap * allStarDefProduction(stats);
   const passCase = clamp((stats.apg - 7.5) / 3, 0, 1) * 0.6;
   const rebCase = clamp((stats.rpg - 12) / 3, 0, 1) * 0.45;
   const signature = Math.max(defCase, passCase, rebCase);
@@ -2300,7 +2329,7 @@ if (typeof module !== "undefined") {
     checkPositionFit, teamNeedPosition, simSeason, simCareer,
     awardReasons, offensiveCase, allStarCase, rotyCase, dpoyOdds, mvpOdds, dpoyDominance,
     MVP_OVR_GATE, MVP_WIN_GATE, FINALS_MVP_OVR, ALLDEF_1ST, ALLDEF_2ND,
-    ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ROTY_PPG,
+    ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ALLSTAR_Q_SPAN, allStarDefProduction, ROTY_PPG,
     hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
     SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
