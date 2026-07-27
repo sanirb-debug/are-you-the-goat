@@ -396,68 +396,39 @@ function checkPositionFit(posKey) {
   return h >= pos.hMin && h <= pos.hMax;
 }
 
-// ---- Team positional needs (for the Career Team pick) ----
-// Each team's "need" is the position where its roster is weakest RELATIVE to
-// the rest of the league. Per position, score a team by the top skill-total
-// among players who physically fit it (height in range), then
-// z-score that against all 30 teams so a position's inherent difficulty (e.g.
-// C is hard to fill everywhere) doesn't bias every team toward the same need.
-// The need is the position with the lowest z-score. Data-driven; spreads
-// needs across all five positions.
-function bestFitScore(abbr, posKey) {
-  const pos = POSITIONS[posKey];
-  let best = 0;
-  (TEAM_ROSTERS[abbr] || []).forEach(p => {
-    const fits = p.height.rating >= pos.hMin && p.height.rating <= pos.hMax;
-    if (fits) { const total = Object.values(p.skills).reduce((a, b) => a + b, 0); if (total > best) best = total; }
-  });
-  return best;
-}
-function computeTeamNeeds() {
-  const positions = Object.keys(POSITIONS);
-  const fit = {};
-  TEAMS.forEach(t => { fit[t.abbr] = {}; positions.forEach(pos => { fit[t.abbr][pos] = bestFitScore(t.abbr, pos); }); });
-  const stat = {};
-  positions.forEach(pos => {
-    const vals = TEAMS.map(t => fit[t.abbr][pos]);
-    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-    const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) || 1;
-    stat[pos] = { mean, sd };
-  });
-  const needs = {};
-  TEAMS.forEach(t => {
-    let need = null, lowZ = Infinity;
-    positions.forEach(pos => {
-      const z = (fit[t.abbr][pos] - stat[pos].mean) / stat[pos].sd;
-      if (z < lowZ) { lowZ = z; need = pos; } // ties -> earliest position (PG..C)
-    });
-    needs[t.abbr] = need;
-  });
-  return needs;
-}
-const TEAM_NEEDS = computeTeamNeeds();
+// REMOVED WHEN THE MIGRATION COMPLETED (all 30 teams now have a starting five):
+// computeTeamNeeds() / bestFitScore(), which derived each team's positional
+// "need" as a z-score over its HISTORICAL roster in TEAM_ROSTERS. That was the
+// placeholder while divisions were being migrated one at a time. It answered a
+// different question from the one the screen now asks — it said "which position
+// has this franchise historically been thin at", not "who is the weak link in
+// the lineup you would join" — and once every team had a five it was unreachable.
+// weakestSlot() is the answer now. See teamNeedPosition below.
 
 // ---- Starting fives -> Supporting Cast Rating ----
-// TEAM_FIVES (data.js) is the migrated, player-visible source of team quality.
-// It does NOT create a second team-strength axis: everything downstream still
-// consumes ONE number, SCR, and effectiveScr() is the single place the five is
-// converted into it. Un-migrated teams return their hand-authored TEAMS[].scr
-// unchanged, so the sim, the playoff odds and the UI all keep working during the
-// division-by-division migration.
+// TEAM_FIVES (data.js) is the player-visible source of team quality, and as of
+// the completed migration it covers ALL 30 teams. It does NOT create a second
+// team-strength axis: everything downstream still consumes ONE number, SCR, and
+// effectiveScr() is the single place a five is converted into it.
 //
-// THE MAPPING. simSeason pays 0.35 wins per SCR point. Two league-wide anchors,
-// deliberately NOT fitted to the migrated teams so later divisions drop in
-// without recalibration:
-//   SCR_BASE    64 — the league mean of the existing 30 SCR values (64.1).
+// THE MAPPING. simSeason pays 0.35 wins per SCR point. Two league-wide anchors:
+//   SCR_BASE    64 — the league mean of the ORIGINAL 30 hand-authored SCRs (64.1).
 //                    An average five must map to an average supporting cast, so
-//                    the pivot is the DATA's mean, not simSeason's 60 pivot;
-//                    using 60 would quietly dock every migrated team ~1.4 wins.
-//   FIVE_ANCHOR 79 — the rating an average NBA starting five averages on this scale.
-//   SCR_SLOPE  4.4 — SCR's spread is sd 17.5; starting-five averages spread about
-//                    sd 4. 17.5/4 keeps team choice worth as many wins as it is
-//                    today instead of compressing all 30 teams into ±2 wins.
-// Truly elite (85+ average) and truly gutted (sub-70) fives hit the 25-90 clamp;
-// that is intended — those are the ends of the existing scale, not new territory.
+//                    the pivot is the data's mean, not simSeason's 60 pivot;
+//                    using 60 would quietly dock every team ~1.4 wins.
+//   FIVE_ANCHOR 79 — the rating an average NBA starting five averages on this
+//                    scale. Measured across all 30 authored fives: 79.20. Good.
+//   SCR_SLOPE  4.4 — chosen when only 5 teams existed, assuming five-averages
+//                    would spread about sd 4.0 (SCR's own spread, 17.5, over 4).
+//
+// KNOWN AND DELIBERATE, NOT A BUG — read before touching SCR_SLOPE. That sd 4.0
+// assumption was wrong. All 30 fives measure sd 2.69 and span only 74-84, because
+// no real NBA team fields a starting five below ~74. So the mapping compresses:
+// SCR now spans 42-86 (sd 11.9) against the legacy 25-90 (sd 17.5), i.e. team
+// choice is worth ~15 wins end to end instead of ~23, and nothing reaches the
+// clamps. Restoring the legacy spread needs SCR_SLOPE ~6.5. That is a live
+// product decision, deliberately NOT taken unilaterally, because it re-tunes all
+// 30 teams at once. The per-team before/after tables are in the phase 1-6 commits.
 const SCR_BASE = 64;
 const FIVE_ANCHOR = 79;
 const SCR_SLOPE = 4.4;
@@ -467,56 +438,72 @@ TEAMS.forEach(t => { TEAMS_BY_ABBR[t.abbr] = t; });
 
 const POSITION_ORDER = Object.keys(POSITIONS); // PG..C
 
-// The ONE migration check. Everything that branches on "does this team have a
-// real lineup yet" asks this, so no caller has to know about TEAM_FIVES.
 function hasStartingFive(abbr) {
   return Array.isArray(TEAM_FIVES[abbr]) && TEAM_FIVES[abbr].length === POSITION_ORDER.length;
 }
+
+// THE INVARIANT THAT REPLACED THE FALLBACK PATH. Every function below assumes a
+// team has a five, because every team does. That assumption is only safe if it is
+// enforced, so it is enforced HERE, loudly, at load — not re-checked in six
+// callers that would each have to invent a sensible answer for a team without a
+// lineup. test-tiers.js is a pre-commit gate, so a malformed TEAM_FIVES fails the
+// commit rather than reaching a player.
+(function assertEveryTeamHasAFive() {
+  const bad = TEAMS.filter(t => !hasStartingFive(t.abbr)).map(t => t.abbr);
+  if (bad.length) {
+    throw new Error(
+      `TEAM_FIVES is incomplete: ${bad.join(", ")} have no starting five. ` +
+      `Every team in TEAMS needs exactly ${POSITION_ORDER.length} rows (PG..C) in data.js.`);
+  }
+})();
+
 function teamFive(abbr) {
-  return hasStartingFive(abbr) ? TEAM_FIVES[abbr] : null;
+  return TEAM_FIVES[abbr];
 }
 // Plain mean, rounded — the player can verify it by eye off the five rows on
 // screen. A positional weighting would be defensible but not checkable, and the
 // whole point of this screen is that the number is legible.
+//
+// The cost of that choice, measured once all 30 existed: a plain mean cannot tell
+// a star-plus-holes team from a balanced-but-starless one. Milwaukee (Giannis 95
+// alongside four 73-80s) reads 79; Toronto (five 75-80s, no star) reads 78.
+// Best-starter-minus-mean runs +16 (MIL) down to +2 (TOR). Flagged, not fixed.
 function teamRatingFromFive(abbr) {
   const five = teamFive(abbr);
-  if (!five) return null;
   return Math.round(five.reduce((a, p) => a + p.rating, 0) / five.length);
 }
 // The slot a signing would most obviously improve: lowest-rated starter.
-// Ties resolve to the earlier position (PG..C), matching computeTeamNeeds.
+// Ties resolve to the earlier position (PG..C).
 function weakestSlot(abbr) {
   const five = teamFive(abbr);
-  if (!five) return null;
   let best = null;
   POSITION_ORDER.forEach(pos => {
     const p = five.find(s => s.pos === pos);
     if (p && (best === null || p.rating < best.rating)) best = p;
   });
-  return best ? best.pos : null;
+  return best.pos;
 }
 function starterAt(abbr, pos) {
-  const five = teamFive(abbr);
-  return five ? five.find(p => p.pos === pos) || null : null;
+  return teamFive(abbr).find(p => p.pos === pos) || null;
 }
 // Team rating if buildRating replaced the current starter at `pos`. Only that
 // slot changes; the other four are the cast the build actually plays alongside.
 function projectedRatingWith(abbr, pos, buildRating) {
-  const five = teamFive(abbr);
-  if (!five) return null;
-  const swapped = five.map(p => (p.pos === pos ? buildRating : p.rating));
+  const swapped = teamFive(abbr).map(p => (p.pos === pos ? buildRating : p.rating));
   return Math.round(swapped.reduce((a, r) => a + r, 0) / swapped.length);
 }
 // The ORIGINAL five, never the projected-with-you version: SCR is the cast
 // AROUND the build, and simSeason already adds the build's own OVR separately.
 function effectiveScr(abbr) {
-  if (!hasStartingFive(abbr)) return TEAMS_BY_ABBR[abbr] ? TEAMS_BY_ABBR[abbr].scr : 60;
   return clamp(Math.round(SCR_BASE + (teamRatingFromFive(abbr) - FIVE_ANCHOR) * SCR_SLOPE), 25, 90);
 }
-// The position a team most needs filled. Migrated teams answer from the visible
-// lineup; the rest keep the historical-roster z-score. Same +5 SCR semantics.
+// The position a team most needs filled, answered from the visible lineup.
+// Kept as a named function rather than inlining weakestSlot at every call site:
+// callers mean "what does this team need", which is a question the UI, the sim
+// harness and the share decoder all ask, and only this file should decide that
+// the answer happens to be "its worst starter". Same +5 SCR semantics as before.
 function teamNeedPosition(abbr) {
-  return hasStartingFive(abbr) ? weakestSlot(abbr) : TEAM_NEEDS[abbr];
+  return weakestSlot(abbr);
 }
 
 // ---- Per-season box score ----
@@ -2077,7 +2064,7 @@ if (typeof module !== "undefined") {
     state, STEPS, SKILL_ORDER, CATEGORIES, TIERS, wheelCost, fmtSalary, capPct, budgetRemaining, uncappedMode, inputCeiling, baseOVRDisplay, categoryRating, getRosterOptions,
     seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
-    checkPositionFit, TEAM_NEEDS, teamNeedPosition, simSeason, simCareer,
+    checkPositionFit, teamNeedPosition, simSeason, simCareer,
     hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
     SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,

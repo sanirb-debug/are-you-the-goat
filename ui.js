@@ -1446,9 +1446,7 @@ function renderRosterStep(category, title, sub, onLock) {
        <div class="scout-head-text">
          <div class="scout-kicker">● Scouting Report</div>
          <div class="scout-teamname">${team.name}</div>
-         <div class="scout-scr">${hasStartingFive(team.abbr)
-           ? `Starting Five Rating ${teamRatingFromFive(team.abbr)}`
-           : `Supporting Cast Rating ${team.scr}`}</div>
+         <div class="scout-scr">Starting Five Rating ${teamRatingFromFive(team.abbr)}</div>
        </div>`));
     // No-budget mode: a player spinner + free stat choice instead of the list.
     if (state.autoPick) {
@@ -1822,21 +1820,12 @@ function renderCareerTeamStep() {
 
   const list = el("div", "roster-list team-list");
 
-  // Sort: migrated teams by how much the build would improve them (the most
-  // meaningful signal on this screen), then by team quality.
-  const upgradeOf = t => {
-    if (!hasStartingFive(t.abbr)) return null;
-    return projectedRatingWith(t.abbr, state.position, buildRating) - teamRatingFromFive(t.abbr);
-  };
-  const sorted = [...TEAMS].sort((a, b) => {
-    const au = upgradeOf(a), bu = upgradeOf(b);
-    if (au !== null && bu !== null) return bu - au || teamRatingFromFive(b.abbr) - teamRatingFromFive(a.abbr);
-    if (au !== null) return -1;              // migrated teams first — they're the informative ones
-    if (bu !== null) return 1;
-    const am = teamNeedPosition(a.abbr) === state.position ? 0 : 1;
-    const bm = teamNeedPosition(b.abbr) === state.position ? 0 : 1;
-    return am - bm || b.scr - a.scr;
-  });
+  // Sort by how much the build would improve each team — the most meaningful
+  // signal on this screen — then by team quality. Every team has a five now, so
+  // there is no second ordering rule for un-scouted teams to fall back to.
+  const upgradeOf = t => projectedRatingWith(t.abbr, state.position, buildRating) - teamRatingFromFive(t.abbr);
+  const sorted = [...TEAMS].sort((a, b) =>
+    upgradeOf(b) - upgradeOf(a) || teamRatingFromFive(b.abbr) - teamRatingFromFive(a.abbr));
 
   const sections = [];
   const setOpen = (sec, open) => {
@@ -1852,49 +1841,35 @@ function renderCareerTeamStep() {
   };
 
   sorted.forEach(team => {
-    const migrated = hasStartingFive(team.abbr);
-    const need = teamNeedPosition(team.abbr);
-    const match = need === state.position;
-    const rating = migrated ? teamRatingFromFive(team.abbr) : team.scr;
+    const match = teamNeedPosition(team.abbr) === state.position;
+    const rating = teamRatingFromFive(team.abbr);
+    const projected = projectedRatingWith(team.abbr, state.position, buildRating);
+    const delta = projected - rating;
+    const sign = delta > 0 ? "▲ +" + delta : delta < 0 ? "▼ " + delta : "— 0";
 
     const head = el("button", "roster-row team-row" + (match ? " need-match" : ""));
     head.type = "button";
-    let headMeta;
-    if (migrated) {
-      const delta = projectedRatingWith(team.abbr, state.position, buildRating) - rating;
-      const sign = delta > 0 ? "▲ +" + delta : delta < 0 ? "▼ " + delta : "— 0";
-      headMeta = `<span class="team-swing ${delta > 0 ? "up" : delta < 0 ? "down" : "flat"}">${sign}</span>`;
-    } else {
-      headMeta = `<span class="team-need${match ? " match" : ""}">need a ${POSITIONS[need].label}${match ? " ✓" : ""}</span>`;
-    }
     head.innerHTML =
       `<span class="roster-name">${team.name} <span class="era-tag">${team.abbr}</span></span>
-       ${headMeta}
+       <span class="team-swing ${delta > 0 ? "up" : delta < 0 ? "down" : "flat"}">${sign}</span>
        <span class="roster-rating">${rating}</span>
        <span class="tf-caret" aria-hidden="true">▾</span>`;
 
     const panel = el("div", "team-five-panel");
-    if (migrated) {
-      const projected = projectedRatingWith(team.abbr, state.position, buildRating);
-      const rows = teamFive(team.abbr).map(p => {
-        const taken = p.pos === state.position;
-        return `<div class="tf-row${taken ? " taken" : ""}">
-           <span class="tf-pos">${p.pos}</span>
-           <span class="tf-player">${p.name}</span>
-           <span class="tf-rating">${p.rating}</span>
-           ${taken ? `<span class="tf-you">→ you ${buildRating}</span>` : ""}
-         </div>`;
-      }).join("");
-      panel.innerHTML =
-        `<div class="tf-rows">${rows}</div>
-         <div class="tf-summary">Team rating <strong>${rating}</strong> <span class="tf-arrow">→</span> <strong class="${projected > rating ? "up" : projected < rating ? "down" : ""}">${projected}</strong>
-           ${match ? `<span class="tf-needpill">✓ fills their weakest slot</span>` : ""}</div>`;
-    } else {
-      panel.innerHTML =
-        `<div class="tf-placeholder">Starting five not scouted yet for this team — signing here uses their
-           <strong>Supporting Cast Rating ${team.scr}</strong> and their standing need at
-           <strong>${POSITIONS[need].label}</strong>.${match ? " Your position fills it. ✓" : ""}</div>`;
-    }
+    const rows = teamFive(team.abbr).map(p => {
+      const taken = p.pos === state.position;
+      return `<div class="tf-row${taken ? " taken" : ""}">
+         <span class="tf-pos">${p.pos}</span>
+         <span class="tf-player">${p.name}</span>
+         <span class="tf-rating">${p.rating}</span>
+         ${taken ? `<span class="tf-you">→ you ${buildRating}</span>` : ""}
+       </div>`;
+    }).join("");
+    panel.innerHTML =
+      `<div class="tf-rows">${rows}</div>
+       <div class="tf-summary">Team rating <strong>${rating}</strong> <span class="tf-arrow">→</span> <strong class="${projected > rating ? "up" : projected < rating ? "down" : ""}">${projected}</strong>
+         ${match ? `<span class="tf-needpill">✓ fills their weakest slot</span>` : ""}</div>`;
+
     const confirm = el("button", "btn btn-primary tf-confirm", `Sign with ${team.name} →`);
     confirm.type = "button";
     confirm.onclick = () => {
@@ -2337,7 +2312,12 @@ function decodeBuild(str) {
   state.activeBadges = Array.isArray(data.ab) ? data.ab.slice(0, 2) : [];
   state.position = data.p;
   state.positionFit = checkPositionFit(data.p);
-  state.teamNeedMet = TEAM_NEEDS[state.team.abbr] === data.p;
+  // BUG FIXED WHEN THE MIGRATION COMPLETED: this recomputed teamNeedMet from the
+  // old historical-roster TEAM_NEEDS while the picker had been using the visible
+  // weakest slot since phase 1. The two disagree for most teams, and since the
+  // result feeds the +5 SCR bonus straight into simCareer below, a shared link
+  // could simulate a different career from the one its author actually saw.
+  state.teamNeedMet = teamNeedPosition(state.team.abbr) === data.p;
   state.budgetSpent = CATEGORIES.reduce((a, c) => a + currentPick(c).cost, 0);
   state.seed = data.s >>> 0;
   seedRng(state.seed);

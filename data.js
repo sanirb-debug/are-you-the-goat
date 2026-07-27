@@ -1579,6 +1579,12 @@ const BUDGET_BIN = [
   { name: "Hustle Guy", rating: 49 },
 ];
 
+// `scr` is the ORIGINAL hand-authored Supporting Cast Rating. Since the
+// starting-five migration completed, NOTHING IN THE GAME READS IT — team strength
+// comes from TEAM_FIVES via effectiveScr(). It is kept deliberately, not by
+// oversight: it is the only record of what the game's difficulty curve used to
+// be, and the open decision on whether to raise SCR_SLOPE (see game.js) is
+// measured against it. Delete it only once that decision is made.
 const TEAMS = [
   { abbr: "BOS", name: "Boston Celtics", scr: 88 },
   { abbr: "OKC", name: "Oklahoma City Thunder", scr: 87 },
@@ -1623,16 +1629,11 @@ const TEAMS = [
 // 85-89 All-NBA, 80-84 quality starter, 75-79 solid starter, 70-74 replaceable,
 // under 70 a hole in the lineup.
 //
-// MIGRATION STATUS — MIGRATED: PACIFIC (1), SOUTHWEST (2), NORTHWEST (3),
-// ATLANTIC (4), CENTRAL (5). 25 of 30.
-// A team ABSENT from this map falls back to its TEAMS[].scr and TEAM_NEEDS entry
-// and renders the old placeholder panel (see hasStartingFive / effectiveScr in
-// game.js). Nothing else keys off migration status, so adding a division is a
-// pure fill-in here: append its 5 keys and it goes live. No other file changes.
-//
-// STILL ON PLACEHOLDER: Southeast only (ATL CHA MIA ORL WAS). One phase left,
-// after which SCR_SLOPE / FIVE_ANCHOR get their one-time recalibration — see the
-// tracker in the phase 3-5 commits.
+// MIGRATION COMPLETE — ALL 30 TEAMS, across six phases: Pacific, Southwest,
+// Northwest, Atlantic, Central, Southeast. There is no longer a placeholder path;
+// game.js throws at load if any team in TEAMS is missing from this map, so an
+// incomplete edit here fails the pre-commit gate rather than reaching a player.
+// Every team needs exactly five rows, one per position, in PG->C order.
 //
 // A starting five cannot express bench depth, so a deep team (Houston) reads a
 // little low and a top-heavy one reads a little high. That is a property of the
@@ -1827,6 +1828,42 @@ const TEAM_FIVE_ROWS = {
     ["Giannis Antetokounmpo", "SF", 95], // 2x MVP at 30/12/6 — carrying more of this roster than ever
     ["Kyle Kuzma", "PF", 74],          // volume without efficiency, a starter by default
     ["Myles Turner", "C", 80],         // stretch five and shot-blocker prised away from Indiana
+  ],
+  // ---- SOUTHEAST ----
+  ATL: [
+    ["Trae Young", "PG", 84],          // led the league in assists at 24 PPG; the defence is the standing cost
+    ["Dyson Daniels", "SG", 80],       // led the NBA in steals, All-Defensive 1st and Most Improved
+    ["Zaccharie Risacher", "SF", 75],  // former #1 pick, All-Rookie, still filling in the scoring
+    ["Jalen Johnson", "PF", 83],       // 19/10/5 breakout forward before the shoulder ended his season
+    ["Kristaps Porzingis", "C", 80],   // a 19 PPG stretch five when upright, which is the whole question
+  ],
+  CHA: [
+    ["LaMelo Ball", "PG", 79],         // 25 PPG of highlight creation on poor efficiency and worse defence
+    ["Kon Knueppel", "SG", 75],        // top-5 pick shooting it well immediately, high feel
+    ["Brandon Miller", "SF", 77],      // 21 PPG scoring wing whose wrist cut the season short
+    ["Miles Bridges", "PF", 75],       // 20 PPG on heavy usage and thin efficiency
+    ["Ryan Kalkbrenner", "C", 71],     // rookie rim protector, offence limited to what is set up for him
+  ],
+  MIA: [
+    ["Davion Mitchell", "PG", 74],     // pest defender who finally shot it well enough to start
+    ["Tyler Herro", "SG", 82],         // All-Star at 24 PPG, elite shotmaking, a target defensively
+    ["Norman Powell", "SF", 79],       // 22 PPG on outstanding efficiency, the cleanest scorer here
+    ["Andrew Wiggins", "PF", 76],      // athletic two-way wing whose motor decides the night
+    ["Bam Adebayo", "C", 84],          // 5x All-Defensive hub, 18/10, switches onto anyone
+  ],
+  ORL: [
+    ["Jalen Suggs", "PG", 78],         // the best on-ball defender at the position, when his knee allows
+    ["Desmond Bane", "SG", 82],        // 19/5/5 two-way guard bought from Memphis to fix the shooting
+    ["Franz Wagner", "SF", 84],        // 24 PPG creating forward, All-Star level
+    ["Paolo Banchero", "PF", 85],      // All-Star cornerstone at 26 PPG
+    ["Wendell Carter Jr.", "C", 74],   // steady but limited, the one soft spot in a good lineup
+  ],
+  WAS: [
+    ["CJ McCollum", "PG", 76],         // 21 PPG veteran scorer, 34 and giving it back defensively
+    ["Bilal Coulibaly", "SG", 73],     // long, disruptive wing defender; the jumper is unfinished
+    ["Kyshawn George", "SF", 72],      // sophomore wing taking a real leap from a small rookie role
+    ["Khris Middleton", "PF", 73],     // 3x All-Star whose knees and ankles have taken most of it
+    ["Alex Sarr", "C", 75],            // #2 pick blending rim protection with range, still raw
   ],
 };
 

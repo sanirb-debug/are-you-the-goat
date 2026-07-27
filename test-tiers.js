@@ -340,7 +340,8 @@ console.log("\n=== MVP RATE SCALES WITH DOMINANCE ===");
 // Build a dominant player and run real careers. A historically great season
 // should convert to MVP most years, not lose a flat 65% coin flip every time.
 function simN(skill, def, runs) {
-  const T = G.TEAMS.reduce((a, t) => (t.scr > a.scr ? t : a));
+  // Strongest team by the LIVE axis (effectiveScr), not the retired TEAMS[].scr.
+  const T = G.TEAMS.reduce((a, t) => (G.effectiveScr(t.abbr) > G.effectiveScr(a.abbr) ? t : a));
   G.state.shadowTarget = "Michael Jordan";
   G.state.name = "T"; G.state.position = "SF"; G.state.positionFit = true;
   G.state.team = T; G.state.teamNeedMet = true;
@@ -793,20 +794,17 @@ S6.pickOrder = []; S6.autoPick = false; // leave global state clean
 console.log("\n=== STARTING FIVES -> SUPPORTING CAST RATING ===");
 //
 // The career-team screen shows a concrete starting five instead of an opaque SCR.
-// effectiveScr() is the ONLY bridge between the two, so these cases pin (a) the
-// arithmetic the player can verify by eye off the five rows, and (b) that every
-// un-migrated team is byte-for-byte untouched — the migration ships one division
-// at a time and a regression there breaks 25 teams silently.
+// effectiveScr() is the ONLY bridge between the two, so these cases pin the
+// arithmetic the player can verify by eye off the five rows.
+//
+// THE MIGRATION IS COMPLETE — all 30 teams have a five and the placeholder path
+// is gone. These used to assert that un-migrated teams kept their hand-authored
+// TEAMS[].scr; that set is now empty, so those cases were REPLACED (not deleted)
+// with the completeness invariant below. Do not reintroduce a "some teams have no
+// five" branch without also restoring a real check that it behaves.
 // ############################################################################
 
-// Phase 1 Pacific + Phase 2 Southwest. Adding a division means extending this
-// list and the un-migrated count below — the per-team cases below are generated,
-// so a new division is covered automatically.
-const MIGRATED = ["LAL", "LAC", "GSW", "PHX", "SAC", "HOU", "DAL", "MEM", "NOP", "SAS",
-                  "MIN", "DEN", "OKC", "POR", "UTA",
-                  "BOS", "BKN", "NYK", "PHI", "TOR",
-                  "CHI", "CLE", "DET", "IND", "MIL"];
-const UNMIGRATED_COUNT = 30 - MIGRATED.length;
+const MIGRATED = G.TEAMS.map(t => t.abbr);   // all 30, by construction
 
 MIGRATED.forEach(abbr => {
   check(`${abbr} has a starting five`, G.hasStartingFive(abbr), true);
@@ -827,24 +825,20 @@ MIGRATED.forEach(abbr => {
     G.teamNeedPosition(abbr), G.weakestSlot(abbr));
 });
 
-// Every migrated team must be listed above — a five added to data.js without
-// extending MIGRATED would leave the fallback assertions checking nothing.
-check("MIGRATED lists every team that actually has a five",
-  G.TEAMS.filter(t => G.hasStartingFive(t.abbr)).map(t => t.abbr).sort().join(","),
-  [...MIGRATED].sort().join(","));
-
-// The un-migrated teams MUST be untouched on every axis.
-const unmigrated = G.TEAMS.filter(t => !MIGRATED.includes(t.abbr));
-check(`exactly ${UNMIGRATED_COUNT} teams still on the placeholder path`,
-  unmigrated.length, UNMIGRATED_COUNT);
-check("no un-migrated team reports a starting five",
-  unmigrated.every(t => G.hasStartingFive(t.abbr) === false), true);
-check("teamFive is null for every un-migrated team",
-  unmigrated.every(t => G.teamFive(t.abbr) === null), true);
-check("effectiveScr returns the hand-authored scr for every un-migrated team",
-  unmigrated.every(t => G.effectiveScr(t.abbr) === t.scr), true);
-check("teamNeedPosition falls back to TEAM_NEEDS for every un-migrated team",
-  unmigrated.every(t => G.teamNeedPosition(t.abbr) === G.TEAM_NEEDS[t.abbr]), true);
+// THE COMPLETENESS INVARIANT. game.js throws at load if this is violated, so a
+// failure here means the module did not even load — but assert it explicitly so
+// the reason is named rather than surfacing as a mystery stack trace.
+check("all 30 teams have a starting five (no placeholder path remains)",
+  G.TEAMS.filter(t => G.hasStartingFive(t.abbr)).length, 30);
+check("TEAM_NEEDS is gone from the public surface", G.TEAM_NEEDS, undefined);
+// The removed fallback must not creep back as a silent default: every team's SCR
+// has to be derivable from its five, and must NOT coincidentally equal the legacy
+// hand-authored value everywhere (which would mean the five is being ignored).
+check("every team's SCR is the mapped value, not its legacy scr",
+  G.TEAMS.every(t => G.effectiveScr(t.abbr) ===
+    Math.max(25, Math.min(90, Math.round(G.SCR_BASE + (G.teamRatingFromFive(t.abbr) - G.FIVE_ANCHOR) * G.SCR_SLOPE)))), true);
+check("the mapping actually moved most teams off their legacy scr",
+  G.TEAMS.filter(t => G.effectiveScr(t.abbr) !== t.scr).length, n => n >= 20);
 // No duplicate players across fives — the same starter on two teams would be a
 // copy/paste slip in the data, and this catches it the moment a division lands.
 {
@@ -866,11 +860,15 @@ check("swapping a starter for his own rating is a no-op",
   G.projectedRatingWith("LAL", "PF", G.starterAt("LAL", "PF").rating), lalBase);
 check("a worse player at the slot LOWERS the projection",
   G.projectedRatingWith("LAL", "PG", 40), v => v < lalBase);
-check("projectedRatingWith is null for un-migrated teams",
-  G.projectedRatingWith("WAS", "PG", 99), null);
+// WAS used to be the standing example of a team with no five. It has one now, so
+// these assert the real behaviour instead of the removed null path.
+check("projectedRatingWith works for every team, including the weakest",
+  G.projectedRatingWith("WAS", "PG", 99),
+  Math.round(G.teamFive("WAS").reduce((a, p) => a + (p.pos === "PG" ? 99 : p.rating), 0) / 5));
 check("starterAt returns the named starter at that slot",
   G.starterAt("SAC", "C").name, "Domantas Sabonis");
-check("starterAt is null for a team with no five", G.starterAt("WAS", "C"), null);
+check("starterAt returns null only for a position that does not exist",
+  G.starterAt("WAS", "XX"), null);
 
 // The mapping itself: monotone, centred, and anchored to league-wide constants
 // (not fitted to the Pacific five) so later divisions need no recalibration.
