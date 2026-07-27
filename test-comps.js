@@ -208,6 +208,53 @@ console.log("\n=== REPORTS 1 & 2: FINISHING-DRIVEN BUILD (was Amar'e / Alonzo Mo
   });
 }
 
+console.log("\n=== REPORT 5: BALANCED STARTER, NO STANDOUT SKILL (was Karl-Anthony Towns) ===");
+//
+// THIS SUITE PASSED 37/37 WHILE THIS BUG WAS LIVE. Every case above uses a build
+// with a DISTINCTIVE signature — rebounding-first, finishing-first — and
+// archetypePenalty only charged a signature mismatch when the BUILD was
+// distinctive. A balanced build (the game's own narrative calls these "built on
+// balance rather than one standout skill") therefore paid nothing for matching a
+// specialist. The cases did not match real conditions; that is why they passed.
+//
+// Two fixes, both asserted below: the mismatch now fires in BOTH directions
+// (balanced vs specialist is an archetype clash either way), and Towns' comp row
+// was corrected. His Shooting 86 TIED his Rebounding 86, so signatureOfDims read
+// margin 0 and called the man whose own reasoning text says "elite shooting"
+// balanced — which let him escape every signature penalty. 67 of 103 comps had no
+// distinctive signature for this reason.
+const BALANCED_BIG = { pos: "C", h: 88, a: 74,
+  sk: { Shooting: 72, Finishing: 78, Playmaking: 66, Handles: 64, Defense: 74, Rebounding: 80 } };
+{
+  const r = runCase(Object.assign({}, BALANCED_BIG, { tier: "Starter" }));
+  check("produced balanced Starter careers to test", r.runs.length, v => v > 0);
+  check("the build really is balanced (no distinctive signature)",
+    G.signatureOfDims(r.profile).distinctive, false);
+  const bad = r.runs.filter(x => caliberOf(x.primary) > x.rank + 1);
+  check("balanced Starter: primary never exceeds the tier band", bad.length, 0);
+  check("balanced Starter: primary is NOT an All-Star-calibre specialist",
+    r.runs.every(x => !(caliberOf(x.primary) >= 3 && G.signatureOfDims(comp(x.primary).dims).distinctive)), true,
+    [...new Set(r.runs.map(x => x.primary + "(cal" + caliberOf(x.primary) +
+      (G.signatureOfDims(comp(x.primary).dims).distinctive ? ",specialist" : ",balanced") + ")"))].join(", "));
+  check("balanced Starter: Towns is never the primary", r.runs.every(x => x.primary !== "Karl-Anthony Towns"), true);
+}
+// Towns and Gobert are described in their own reasoning text as specialists; the
+// dims must agree, or they slip the archetype gate for every build.
+check("Towns' profile reads as the shooting specialist his text describes",
+  G.signatureOfDims(comp("Karl-Anthony Towns").dims).attr, "Shooting");
+check("Towns is flagged distinctive, not balanced",
+  G.signatureOfDims(comp("Karl-Anthony Towns").dims).distinctive, true);
+check("Gobert reads as the defensive specialist his text describes",
+  G.signatureOfDims(comp("Rudy Gobert").dims).distinctive, true);
+// The mismatch must fire in BOTH directions — this is the branch that was missing.
+{
+  const balanced = { height: 88, athleticism: 74, Shooting: 72, Finishing: 78, Playmaking: 66, Handles: 64, Defense: 74, Rebounding: 80 };
+  const specialist = comp("Karl-Anthony Towns"), rounded = comp("JaVale McGee");
+  check("a balanced build is penalised for matching a specialist",
+    G.archetypePenalty(balanced, specialist) > G.archetypePenalty(balanced, rounded), true,
+    "specialist " + G.archetypePenalty(balanced, specialist).toFixed(1) + " vs balanced " + G.archetypePenalty(balanced, rounded).toFixed(1));
+}
+
 console.log("\n=== POSITIVE CASE: A REAL STAR MUST STILL GET A STAR ===");
 // The gate is one-directional, so tightening it must not strand elite builds on
 // journeymen. This is the assertion that stops an over-correction.

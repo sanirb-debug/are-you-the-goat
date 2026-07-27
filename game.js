@@ -761,7 +761,30 @@ function allStarDefProduction(stats) {
     (stats.spg - ALLSTAR_DEF_SPG.floor) / ALLSTAR_DEF_SPG.span * ALLSTAR_DEF_SPG.w +
     (stats.rpg - ALLSTAR_DEF_RPG.floor) / ALLSTAR_DEF_RPG.span * ALLSTAR_DEF_RPG.w, 0, 1);
 }
-function allStarCase(stats, wins, allDefensive) {
+// CROSS-SYSTEM CONSISTENCY. The tier ladder and the awards were free to disagree
+// about what a player is: a build peaking at 76-79 — capped at Starter by the
+// published band, correctly — posted 19.5 PPG / 7.8 RPG / 6.8 APG seasons and
+// collected 8-16 All-Star selections. Measured before this: 22 of 22 Starter-tier
+// careers earned more than 3.
+//
+// That was NOT the All-Star threshold being loose. A 19.5/7.8/6.8 line genuinely
+// is All-Star-calibre, and the box score is on-curve for the OVR — the two
+// systems were simply reading different axes, so the awards never learned that
+// the tier ladder had already called this player a Starter.
+//
+// A season below the All-Star band can still be selected — borderline players do
+// make the team — but it has to be an outlier rather than routine. Anchored on
+// the SAME TIER_OVR_FLOORS the tier system uses, so retuning the band moves both
+// together and they cannot drift apart again.
+const ALLSTAR_SUB_BAND_CAP = 0.06;
+function allStarBandFactor(scaledPeak) {
+  if (scaledPeak == null) return 1;                    // callers without an OVR (tests, tools)
+  const floor = TIER_OVR_FLOORS["All-Star"];           // 80
+  if (scaledPeak >= floor) return 1;
+  const starter = TIER_OVR_FLOORS["Starter"];          // 70
+  return ALLSTAR_SUB_BAND_CAP * clamp((scaledPeak - starter) / (floor - starter), 0, 1);
+}
+function allStarCase(stats, wins, allDefensive, scaledPeak = null) {
   const { score } = offensiveCase(stats, wins);
   const scoringCase = clamp((score - ALLSTAR_Q_FLOOR) / ALLSTAR_Q_SPAN, 0, 1); // 16.5 -> 0%, ~27.5+ -> 100%
   const defCap = allDefensive === "1st" ? 0.45 : allDefensive === "2nd" ? 0.18 : 0;
@@ -771,10 +794,12 @@ function allStarCase(stats, wins, allDefensive) {
   const signature = Math.max(defCase, passCase, rebCase);
   const sigDriver = signature === 0 ? null
     : signature === defCase ? "defense" : signature === passCase ? "passing" : "rebounding";
-  return { score, scoringCase, signature, sigDriver, odds: Math.max(scoringCase, signature) };
+  const band = allStarBandFactor(scaledPeak);
+  return { score, scoringCase, signature, sigDriver, band,
+           odds: Math.max(scoringCase, signature) * band };
 }
-function allStarSelection(stats, wins, allDefensive) {
-  return rng() < allStarCase(stats, wins, allDefensive).odds;
+function allStarSelection(stats, wins, allDefensive, scaledPeak = null) {
+  return rng() < allStarCase(stats, wins, allDefensive, scaledPeak).odds;
 }
 
 // Rookie of the Year, resolved in simCareer for the debut season only. ROTY is
@@ -863,7 +888,7 @@ function awardReasons(season) {
     }
   }
   if (season.allStar) {
-    const c = allStarCase(s, season.wins, season.allDefensive);
+    const c = allStarCase(s, season.wins, season.allDefensive, scaleOVR(season.seasonOVR));
     if (c.signature > c.scoringCase && c.sigDriver) {
       const stat = c.sigDriver === "passing" ? `${s.apg} APG` : c.sigDriver === "rebounding" ? `${s.rpg} RPG` : `1st-team All-Defensive`;
       out.allStar = `${stat} — made it on the ${c.sigDriver} case, not scoring (${pct(c.signature)} odds)`;
@@ -950,6 +975,12 @@ function simCareer(ovr, team, mods = {}) {
     const result = simSeason(seasonOVR, scrThisYear, varianceRange, f.Defense);
     careerWins += result.wins;
     if (result.ring) rings++;
+    // CROSS-SYSTEM GATE, same principle as allStarBandFactor: MVP is a
+    // Superstar-band honour and the tier ladder already says where that band
+    // starts. Without this a career peaking at 80-84 — an All-Star by the
+    // published band — could collect 4 MVPs. simSeason's own gate is on the RAW
+    // ovr axis; this one is on the SCALED peak, the same axis the tier uses.
+    if (result.mvp && scaleOVR(seasonOVR) < TIER_OVR_FLOORS["Superstar"]) result.mvp = false;
     if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, scaleOVR(seasonOVR)); }
     if (result.finalsMVP) finalsMVPs++;
     if (result.allDefensive) allDefensives++;
@@ -957,7 +988,7 @@ function simCareer(ovr, team, mods = {}) {
     const stats = generateSeasonStats(seasonOVR, f, state.height.rating, state.athleticism.rating, mods);
     // All-Star needs the box score for the same reason All-NBA does: overall OVR
     // can't tell a 24-PPG scorer from a 9-PPG build rated the same.
-    result.allStar = allStarSelection(stats, result.wins, result.allDefensive);
+    result.allStar = allStarSelection(stats, result.wins, result.allDefensive, scaleOVR(seasonOVR));
     if (result.allStar) allStars++;
     // ROTY is the debut season only, and now keys on what the rookie actually did.
     result.roty = i === 0 && rotyRoll(stats, result.allDefensive);
@@ -1634,7 +1665,18 @@ function archetypePenalty(profile, ref) {
   // lead with different skills are different archetypes even if the rest of the
   // shape rhymes — that is precisely "rebounding-first" vs "post-scoring-first".
   const bs = signatureOfDims(profile), cs = signatureOfDims(ref.dims);
-  if (bs.distinctive && bs.attr !== cs.attr) pen += ARCHETYPE_SIGNATURE_MISMATCH;
+  if (bs.distinctive && cs.distinctive && bs.attr !== cs.attr) {
+    pen += ARCHETYPE_SIGNATURE_MISMATCH;            // two specialists, different specialities
+  } else if (bs.distinctive !== cs.distinctive) {
+    // THE FIFTH COMP REPORT. This branch did not exist: the mismatch only fired
+    // when the BUILD had a distinctive signature, so a BALANCED build — the game
+    // itself calls these "built on balance rather than one standout skill" — paid
+    // nothing for matching a specialist. That is how a balanced Starter landed on
+    // Karl-Anthony Towns, whose whole profile is elite shooting. "Balanced" and
+    // "specialist" are different archetypes in both directions; charge it either
+    // way. Slightly under a speciality clash, which is the sharper mismatch.
+    pen += ARCHETYPE_SIGNATURE_MISMATCH * 0.8;
+  }
   return pen;
 }
 // Sized against measured attribute distances, which run 55-120 for a specialist
@@ -2329,7 +2371,7 @@ if (typeof module !== "undefined") {
     checkPositionFit, teamNeedPosition, simSeason, simCareer,
     awardReasons, offensiveCase, allStarCase, rotyCase, dpoyOdds, mvpOdds, dpoyDominance,
     MVP_OVR_GATE, MVP_WIN_GATE, FINALS_MVP_OVR, ALLDEF_1ST, ALLDEF_2ND,
-    ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ALLSTAR_Q_SPAN, allStarDefProduction, ROTY_PPG,
+    ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ALLSTAR_Q_SPAN, allStarDefProduction, allStarBandFactor, ALLSTAR_SUB_BAND_CAP, ROTY_PPG,
     hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
     SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,

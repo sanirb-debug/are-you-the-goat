@@ -1055,6 +1055,76 @@ console.log("\n=== ALL-STAR THRESHOLD: SOLID STARTERS MUST NOT CLEAR ===");
 }
 
 // ############################################################################
+console.log("\n=== CROSS-SYSTEM: AWARD COUNTS MUST AGREE WITH THE PEAK-OVR BAND ===");
+//
+// REPORTED: a build with Peak OVR 76 — correctly capped at Starter by the
+// published band — collected 10 All-Star selections. The tier ladder and the
+// awards were reading different axes and never had to agree.
+//
+// This was NOT the All-Star threshold being loose again. Those seasons averaged
+// 19.5 PPG / 7.8 RPG / 6.8 APG, which genuinely is All-Star-calibre, and the box
+// score is on-curve for the OVR. The awards simply never learned that the tier
+// ladder had already called this player a Starter. allStarBandFactor now damps
+// selection for any season below TIER_OVR_FLOORS["All-Star"], anchored on the
+// SAME constants the tier system uses so the two cannot drift apart again.
+//
+// NOTE the axis: this asserts on PEAK-OVR BAND, not on tier NAME. A career can be
+// tiered Starter while peaking at 80+ (the band is a ceiling, not a guarantee) —
+// conditioning on the tier name would fold those in and test the wrong thing.
+// ############################################################################
+function careersFor({ pos, h, a, sk, team = "IND", seeds = 400 }) {
+  const S = G.state;
+  S.sandbox = false; S.autoPick = true; S.activeBadges = [];
+  S.position = pos; S.positionFit = true;
+  S.height = { rating: h, label: "x" }; S.athleticism = { rating: a, label: "y" };
+  S.skills = {}; Object.keys(sk).forEach(k => (S.skills[k] = { rating: sk[k] }));
+  const t = G.TEAMS_BY_ABBR[team]; S.team = t; S.teamNeedMet = true;
+  const ovr = G.computeOVR(); const out = [];
+  for (let s = 1; s <= seeds; s++) { G.seedRng(s); out.push(G.simCareer(ovr, t, {})); }
+  return out;
+}
+{
+  const BALANCED_WING = { pos: "SF", h: 62, a: 78, sk: { Shooting: 76, Finishing: 78, Playmaking: 70, Handles: 74, Defense: 72, Rebounding: 66 } };
+  const BALANCED_BIG = { pos: "C", h: 88, a: 74, sk: { Shooting: 72, Finishing: 78, Playmaking: 66, Handles: 64, Defense: 74, Rebounding: 80 } };
+  const ELITE = { pos: "SG", h: 52, a: 88, team: "OKC", sk: { Shooting: 92, Finishing: 93, Playmaking: 76, Handles: 92, Defense: 74, Rebounding: 56 } };
+  const inBand = (cs, lo, hi) => cs.filter(c => c.peakOVR >= lo && c.peakOVR < hi);
+
+  const wing = careersFor(BALANCED_WING), big = careersFor(BALANCED_BIG), elite = careersFor(ELITE);
+  const starterBand = inBand(wing, 0, 80).concat(inBand(big, 0, 80));
+  check("produced Starter-band (peak < 80) careers to test", starterBand.length, v => v > 0);
+  check("a Starter-band career NEVER earns 10 All-Stars — the reported case",
+    Math.max(...starterBand.map(c => c.allStars)), v => v < 10);
+  check("a Starter-band career earns at most 3 All-Stars",
+    Math.max(...starterBand.map(c => c.allStars)), v => v <= 3);
+  check("most Starter-band careers earn 0-1 All-Stars",
+    starterBand.filter(c => c.allStars <= 1).length / starterBand.length, v => v >= 0.5);
+
+  // An All-Star-band build must not post MVP-calibre hardware.
+  const asBand = inBand(wing, 80, 85).concat(inBand(big, 80, 85));
+  check("produced All-Star-band (peak 80-84) careers to test", asBand.length, v => v > 0);
+  check("an All-Star-band career never wins an MVP", Math.max(...asBand.map(c => c.mvps)), 0);
+  // allNBAs counts every tier, not just 1st team — an All-Star-band player making
+  // All-NBA 3rd most years is correct, so this bounds the total rather than
+  // pretending selections should be rare.
+  check("an All-Star-band career does not post a Superstar All-NBA haul",
+    Math.max(...asBand.map(c => c.allNBAs)), v => v <= 16);
+
+  // DO NOT OVERCORRECT — a genuine star must still collect selections.
+  const eliteBand = elite.filter(c => c.peakOVR >= 85);
+  check("produced Superstar-band careers to test", eliteBand.length, v => v > 0);
+  check("a Superstar-band career still earns double-digit All-Stars",
+    Math.min(...eliteBand.map(c => c.allStars)), v => v >= 8);
+
+  // The mechanism, pinned to the tier system's own constants.
+  check("the band factor is full inside the All-Star band",
+    G.allStarBandFactor(G.TIER_OVR_FLOORS["All-Star"]), 1);
+  check("the band factor damps hard below it",
+    G.allStarBandFactor(G.TIER_OVR_FLOORS["All-Star"] - 1), v => v <= 0.06);
+  check("the band factor is anchored on TIER_OVR_FLOORS, not a private constant",
+    G.allStarBandFactor(G.TIER_OVR_FLOORS["Starter"]), 0);
+}
+
+// ############################################################################
 console.log("\n=== AWARD EXPLANATIONS TRACK THE LIVE TUNING ===");
 //
 // awardReasons() renders the "why" line under each honor in Career Stats by Year.
