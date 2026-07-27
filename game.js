@@ -518,6 +518,17 @@ function teamNeedPosition(abbr) {
 // tptPct}), applied INSIDE each stat's clamp so boosts still respect the sim's
 // realistic ceilings. Applied every season, so Best Season and Career Totals
 // both reflect the active badges.
+// How much of a NON-signature category a build actually converts, by how elite it
+// is. Anchored on the published bands: replacement level at the Starter floor,
+// full breadth only for a genuinely all-time build. This is the knob that decides
+// whether "good at everything" reads as a stat-sheet monster or as a good player.
+const BREADTH_MIN = 0.70, BREADTH_MAX = 0.82;
+function breadthFactor(ovr) {
+  const lo = TIER_OVR_FLOORS["Starter"], hi = 95;
+  return clamp(BREADTH_MIN + (BREADTH_MAX - BREADTH_MIN) * (ovr - lo) / (hi - lo), BREADTH_MIN, BREADTH_MAX);
+}
+const PPG_KNEE = 30, PPG_KNEE_SLOPE = 0.5;
+
 function generateSeasonStats(ovr, f, h, fr, mods = {}) {
   const m = k => mods[k] || 0;
   const jitter = () => 1 + randInt(-8, 8) / 100;
@@ -539,16 +550,32 @@ function generateSeasonStats(ovr, f, h, fr, mods = {}) {
   // hot in the middle — a scoring-75 build hit ~25 PPG, all-star-averages for
   // a merely-good scorer — so it's re-anchored to make the top end mean
   // something. oppFactor (0.85-1.0) is a light team-role dampener only.
-  const ppg = clamp(0.63 * (scoring - 45) * oppFactor * jitter() + m("ppg"), 3, 35);
-  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * oppFactor * jitter() + m("apg"), 0.5, 11.5);
-  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * oppFactor * jitter() + m("rpg"), 1, 15);
+  // BREADTH GOVERNOR — the calibration reconciliation. Each stat stays anchored to
+  // its OWN driving skill (see above; governing everything by OVR crushed
+  // specialists and that must not come back), but a build with every skill at 85
+  // has a MID overall OVR while posting elite output in EVERY category at once.
+  // No real player does that, and the awards then correctly reward a line that
+  // should not exist — which is how a Peak-83 build reached 27.8/11.2/9.3 with 14
+  // All-NBA. So the build's SIGNATURE category is left at full output, protecting
+  // the specialist, and every OTHER volume category is scaled by how elite the
+  // build actually is. Anchored on TIER_OVR_FLOORS so the bands stay the one
+  // source of truth. Calibrated so only a genuinely elite (95+) build reaches the
+  // 11 RPG / 9 APG territory that used to arrive at 85.
+  const sigAttr = topAttribute(f);
+  const secondary = key => (key === sigAttr ? 1 : breadthFactor(ovr));
+  const ppgRaw = 0.63 * (scoring - 45) * oppFactor * jitter() + m("ppg");
+  // Diminishing returns at the very top: the published Legend band is 28-32 PPG,
+  // and an unchecked slope put a 95 build at 34.4. Nobody averages 40.
+  const ppg = clamp(ppgRaw <= PPG_KNEE ? ppgRaw : PPG_KNEE + (ppgRaw - PPG_KNEE) * PPG_KNEE_SLOPE, 3, 35);
+  const apg = clamp((0.5 + (f.Playmaking - 25) * 0.15) * oppFactor * secondary("Playmaking") * jitter() + m("apg"), 0.5, 11.5);
+  const rpg = clamp((1 + (f.Rebounding - 25) * 0.155 + (h - 50) * 0.05) * oppFactor * secondary("Rebounding") * jitter() + m("rpg"), 1, 15);
   // smaller, leaner builds poke more passing lanes; bigger builds protect the rim
-  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * oppFactor * jitter() + m("spg"), 0.2, 3.6);
-  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * oppFactor * jitter() + m("bpg"), 0.2, 3.6);
+  const spg = clamp((0.2 + (f.Defense - 25) * 0.03 + (60 - h) * 0.008 + (60 - fr) * 0.004) * oppFactor * secondary("Defense") * jitter() + m("spg"), 0.2, 3.6);
+  const bpg = clamp((0.1 + (f.Defense - 25) * 0.022 + (h - 60) * 0.03 + (fr - 60) * 0.008) * oppFactor * secondary("Defense") * jitter() + m("bpg"), 0.2, 3.6);
   // threes come from Shooting alone; very tall or Powerful builds live closer to the rim
   const tallPenalty = h >= 85 ? (h - 85) * 0.03 : 0;
   const bulkPenalty = fr >= 90 ? 0.6 : 0;
-  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * oppFactor * jitter() + m("tpg"), 0, 5.2);
+  const tpg = clamp(((f.Shooting - 40) * 0.08 - tallPenalty - bulkPenalty) * oppFactor * secondary("Shooting") * jitter() + m("tpg"), 0, 5.2);
   // Shooting percentages are efficiency, not volume — derived from the scoring
   // skills, NOT scaled by ovrFactor, with a small per-season wobble.
   const jPct = () => randInt(-2, 2);
@@ -699,8 +726,9 @@ function simSeason(ovr, scr, varianceRange, defRating = 0) {
 // the bottom), while a genuine scorer earns it at a normal high rate. The old
 // version qualified on overall OVR, which bakes in Defense (0.18) and Rebounding
 // (0.14), so a 5.5-PPG rim protector made All-NBA nearly every season — the bug.
-function allNbaSelection(stats, wins, mvp, allDefensive) {
+function allNbaSelection(stats, wins, mvp, allDefensive, scaledPeak = null) {
   const { score } = offensiveCase(stats, wins);
+  const band = allNbaBandFactor(scaledPeak);
   // Selection is a PROBABILITY RAMP on the offensive case (same shape as the MVP
   // and DPOY rolls), not a hard cutoff: a season's odds grade with how much it
   // scores, so a build's career All-NBA count scales smoothly with its scoring
@@ -708,7 +736,7 @@ function allNbaSelection(stats, wins, mvp, allDefensive) {
   // swung the tier distribution). Calibrated so a strong ~24-PPG scorer averages
   // the same ~7-8 selections it did under the old OVR gate, an elite scorer makes
   // it nearly every year, and a low-scoring season almost never qualifies here.
-  const q = clamp((score - ALLNBA_Q_FLOOR) / ALLNBA_Q_SPAN, 0, 1); // ~18 -> 0%, ~35+ -> ~100%
+  const q = clamp((score - ALLNBA_Q_FLOOR) / ALLNBA_Q_SPAN, 0, 1) * band; // ~18 -> 0%, ~35+ -> ~100%
   if (mvp || rng() < q) {
     if (mvp || score >= ALLNBA_1ST_SCORE) return "1st";
     if (score >= ALLNBA_2ND_SCORE) return "2nd";
@@ -720,7 +748,7 @@ function allNbaSelection(stats, wins, mvp, allDefensive) {
   // ~2-4 All-NBA across a career instead of 12-14.
   if (allDefensive === "1st") {
     const domD = clamp((stats.bpg - 2.5) / 1.5 * 0.5 + (stats.spg - 1.5) / 1.0 * 0.3 + (stats.rpg - 10) / 4 * 0.2, 0, 1);
-    if (rng() < 0.08 + 0.28 * domD) return "3rd";
+    if (rng() < (0.08 + 0.28 * domD) * band) return "3rd";
   }
   return null;
 }
@@ -776,13 +804,41 @@ function allStarDefProduction(stats) {
 // make the team — but it has to be an outlier rather than routine. Anchored on
 // the SAME TIER_OVR_FLOORS the tier system uses, so retuning the band moves both
 // together and they cannot drift apart again.
-const ALLSTAR_SUB_BAND_CAP = 0.06;
+// BAND SCALERS — the award half of the calibration reconciliation. Selection rate
+// now grades with how deep into the published bands a season sits, instead of
+// saturating the moment the box score clears an absolute line. Every one is
+// anchored on TIER_OVR_FLOORS, so the tier ladder remains the single definition
+// of what an OVR means and the three systems cannot drift apart again.
+//
+// Targets these produce over a ~17-season career:
+//   OVR      80        85        90        95
+//   All-Star  ~3        ~10       ~15       ~16
+//   All-NBA   ~1        ~5        ~12       ~15
+//   MVP        0        ~2        ~7        ~12
+const ALLSTAR_SUB_BAND_CAP = 0.06;   // below the All-Star band: a genuine outlier only
+const ALLSTAR_BAND_BASE = 0.22, ALLSTAR_BAND_SPAN = 12;
+const ALLNBA_BAND_BASE = 0.05, ALLNBA_BAND_SPAN = 15;
+const MVP_BAND_BASE = 0.10, MVP_BAND_SPAN = 10, MVP_BAND_CAP = 0.70;
 function allStarBandFactor(scaledPeak) {
   if (scaledPeak == null) return 1;                    // callers without an OVR (tests, tools)
   const floor = TIER_OVR_FLOORS["All-Star"];           // 80
-  if (scaledPeak >= floor) return 1;
   const starter = TIER_OVR_FLOORS["Starter"];          // 70
-  return ALLSTAR_SUB_BAND_CAP * clamp((scaledPeak - starter) / (floor - starter), 0, 1);
+  if (scaledPeak < floor) return ALLSTAR_SUB_BAND_CAP * clamp((scaledPeak - starter) / (floor - starter), 0, 1);
+  return clamp(ALLSTAR_BAND_BASE + (1 - ALLSTAR_BAND_BASE) * (scaledPeak - floor) / ALLSTAR_BAND_SPAN, ALLSTAR_BAND_BASE, 1);
+}
+// All-NBA is 15 slots against ~24 All-Stars, so it starts lower and climbs slower.
+function allNbaBandFactor(scaledPeak) {
+  if (scaledPeak == null) return 1;
+  const floor = TIER_OVR_FLOORS["All-Star"];
+  if (scaledPeak < floor) return ALLNBA_BAND_BASE * clamp((scaledPeak - TIER_OVR_FLOORS["Starter"]) / 10, 0, 1);
+  return clamp(ALLNBA_BAND_BASE + (1 - ALLNBA_BAND_BASE) * (scaledPeak - floor) / ALLNBA_BAND_SPAN, ALLNBA_BAND_BASE, 1);
+}
+// MVP is one award a year; it belongs to the Superstar band and above.
+function mvpBandFactor(scaledPeak) {
+  if (scaledPeak == null) return 1;
+  const floor = TIER_OVR_FLOORS["Superstar"];          // 85
+  if (scaledPeak < floor) return 0;
+  return clamp(MVP_BAND_BASE + (MVP_BAND_CAP - MVP_BAND_BASE) * (scaledPeak - floor) / MVP_BAND_SPAN, 0, MVP_BAND_CAP);
 }
 function allStarCase(stats, wins, allDefensive, scaledPeak = null) {
   const { score } = offensiveCase(stats, wins);
@@ -858,7 +914,9 @@ function awardReasons(season) {
   if (!s) return out;
 
   if (season.mvp) {
-    out.mvp = `${season.seasonOVR} OVR on ${season.wins} wins — past the ${MVP_OVR_GATE} OVR / ${MVP_WIN_GATE} win gate, ${pct(mvpOdds(season.seasonOVR, season.wins))} odds`;
+    // Must include the band scaler, or the line overstates the roll it explains.
+    const mvpP = mvpOdds(season.seasonOVR, season.wins) * mvpBandFactor(scaleOVR(season.seasonOVR));
+    out.mvp = `${season.seasonOVR} OVR on ${season.wins} wins — past the ${MVP_OVR_GATE} OVR / ${MVP_WIN_GATE} win gate, ${pct(mvpP)} odds`;
   }
   if (season.finalsMVP) {
     out.finalsMVP = `title season at ${season.seasonOVR} OVR — Finals MVP needs ${FINALS_MVP_OVR}+`;
@@ -891,9 +949,9 @@ function awardReasons(season) {
     const c = allStarCase(s, season.wins, season.allDefensive, scaleOVR(season.seasonOVR));
     if (c.signature > c.scoringCase && c.sigDriver) {
       const stat = c.sigDriver === "passing" ? `${s.apg} APG` : c.sigDriver === "rebounding" ? `${s.rpg} RPG` : `1st-team All-Defensive`;
-      out.allStar = `${stat} — made it on the ${c.sigDriver} case, not scoring (${pct(c.signature)} odds)`;
+      out.allStar = `${stat} — made it on the ${c.sigDriver} case, not scoring (${pct(c.odds)} odds)`;
     } else {
-      out.allStar = `${s.ppg} PPG on a ${season.wins}-win team — ${c.score.toFixed(1)} scoring case, ${pct(c.scoringCase)} odds`;
+      out.allStar = `${s.ppg} PPG on a ${season.wins}-win team — ${c.score.toFixed(1)} scoring case, ${pct(c.odds)} odds`;
     }
   }
   if (season.roty) {
@@ -980,7 +1038,7 @@ function simCareer(ovr, team, mods = {}) {
     // starts. Without this a career peaking at 80-84 — an All-Star by the
     // published band — could collect 4 MVPs. simSeason's own gate is on the RAW
     // ovr axis; this one is on the SCALED peak, the same axis the tier uses.
-    if (result.mvp && scaleOVR(seasonOVR) < TIER_OVR_FLOORS["Superstar"]) result.mvp = false;
+    if (result.mvp && rng() >= mvpBandFactor(scaleOVR(seasonOVR))) result.mvp = false;
     if (result.mvp) { mvps++; bestMVPOVR = Math.max(bestMVPOVR, scaleOVR(seasonOVR)); }
     if (result.finalsMVP) finalsMVPs++;
     if (result.allDefensive) allDefensives++;
@@ -1006,7 +1064,7 @@ function simCareer(ovr, team, mods = {}) {
     dStreak = result.allDefensive === "1st" ? dStreak + 1 : 0;
     // All-NBA needs the season's box score + hardware, so it's resolved here.
     // It's OFFENSE-driven (see allNbaSelection) — defense no longer inflates it.
-    result.allNBA = allNbaSelection(stats, result.wins, result.mvp, result.allDefensive);
+    result.allNBA = allNbaSelection(stats, result.wins, result.mvp, result.allDefensive, scaleOVR(seasonOVR));
     if (result.allNBA) allNBAs++;
     totals.pts += stats.ppg * GAMES_PER_SEASON;
     totals.ast += stats.apg * GAMES_PER_SEASON;
@@ -1116,11 +1174,18 @@ const TIER_OVR_FLOORS = {
 // need OVR 70 and All-NBA 71, so the two counts move together (mean gap 1.7) and
 // a 9-All-Star floor left only a 6-8 window mapping to the All-Star tier — 77% of
 // qualifying careers jumped straight to Superstar. 6 -> 11 -> 14 -> 18 spreads it.
+// RESCALED WITH THE AWARD BANDS. These were calibrated when a mid-OVR build
+// collected 10-17 All-Stars a career; once selection was graded by band the same
+// build earns 3, and the old floors locked every build OUT of its own tier —
+// an OVR-80 build scoring 487 (All-Star range) fell to Starter on the 6-All-Star
+// floor. That would have moved the disagreement rather than fixing it. The floors
+// now sit just under what each band actually produces, so score and awards agree
+// about the same player. Measured output per band is in the calibration table.
 const TIER_AWARD_FLOORS = {
-  "All-Star":  { allStars: 6 },
-  "Superstar": { allStars: 11, allNBAs: 7 },
-  "Legend":    { allStars: 14, allNBAs: 12, mvps: 1 },
-  "GOAT":      { allStars: 18, allNBAs: 15, mvps: 4, hardware: 4 },
+  "All-Star":  { allStars: 2 },
+  "Superstar": { allStars: 7, allNBAs: 4 },
+  "Legend":    { allStars: 12, allNBAs: 9, mvps: 1 },
+  "GOAT":      { allStars: 15, allNBAs: 14, mvps: 4, hardware: 4 },
 };
 // FAIL-SAFE: a missing career counts every award as ZERO, so it fails every
 // floor. The old `if (!req || !career) return true` was fail-OPEN — any caller
@@ -1812,8 +1877,10 @@ function generateScoutingReport(career, ovr, tier) {
 }
 
 // ---- Headline generator ----
-function topAttribute() {
-  const f = finalSkills();
+// `skills` is optional: generateSeasonStats already has the resolved skills in
+// hand and must not reach back into global state to re-derive them.
+function topAttribute(skills = null) {
+  const f = skills || finalSkills();
   let best = SKILL_ORDER[0];
   SKILL_ORDER.forEach(s => { if (f[s] > f[best]) best = s; });
   return best;
@@ -1834,9 +1901,9 @@ function topAttribute() {
 // headline/report say so instead of inventing one. `attr` reuses topAttribute() so
 // the two can never disagree on which skill is highest.
 const SIGNATURE_MARGIN = 6;
-function signatureAttribute() {
-  const f = finalSkills();
-  const attr = topAttribute();
+function signatureAttribute(skills = null) {
+  const f = skills || finalSkills();
+  const attr = topAttribute(f);
   const runnerUp = Math.max(...SKILL_ORDER.filter(s => s !== attr).map(s => f[s]));
   const margin = f[attr] - runnerUp;
   return { attr, margin, distinctive: margin >= SIGNATURE_MARGIN };
@@ -2371,7 +2438,8 @@ if (typeof module !== "undefined") {
     checkPositionFit, teamNeedPosition, simSeason, simCareer,
     awardReasons, offensiveCase, allStarCase, rotyCase, dpoyOdds, mvpOdds, dpoyDominance,
     MVP_OVR_GATE, MVP_WIN_GATE, FINALS_MVP_OVR, ALLDEF_1ST, ALLDEF_2ND,
-    ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ALLSTAR_Q_SPAN, allStarDefProduction, allStarBandFactor, ALLSTAR_SUB_BAND_CAP, ROTY_PPG,
+    ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ALLSTAR_Q_SPAN, allStarDefProduction, allStarBandFactor, allNbaBandFactor, mvpBandFactor,
+    ALLSTAR_SUB_BAND_CAP, breadthFactor, PPG_KNEE, ROTY_PPG,
     hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
     SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,

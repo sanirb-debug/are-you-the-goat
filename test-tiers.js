@@ -1112,16 +1112,122 @@ function careersFor({ pos, h, a, sk, team = "IND", seeds = 400 }) {
   // DO NOT OVERCORRECT — a genuine star must still collect selections.
   const eliteBand = elite.filter(c => c.peakOVR >= 85);
   check("produced Superstar-band careers to test", eliteBand.length, v => v > 0);
-  check("a Superstar-band career still earns double-digit All-Stars",
-    Math.min(...eliteBand.map(c => c.allStars)), v => v >= 8);
+  // Median, not min: selection is graded by band depth now, so a career peaking
+  // right AT the Superstar floor legitimately collects far fewer than one peaking
+  // at 95. The min across 400 careers is not the statistic that says "a star still
+  // gets picked".
+  const asCounts = eliteBand.map(c => c.allStars).sort((a, b) => a - b);
+  check("a Superstar-band career still earns All-Stars at a star's rate (median)",
+    asCounts[asCounts.length >> 1], v => v >= 8);
 
   // The mechanism, pinned to the tier system's own constants.
-  check("the band factor is full inside the All-Star band",
-    G.allStarBandFactor(G.TIER_OVR_FLOORS["All-Star"]), 1);
+  // The factor no longer snaps to 1 at the band floor — it RAMPS across the band,
+  // which is the reconciliation. Pin both ends of that ramp.
+  check("the band factor opens at the All-Star floor, it does not saturate",
+    G.allStarBandFactor(G.TIER_OVR_FLOORS["All-Star"]), v => v > 0.15 && v < 0.35);
+  check("the band factor reaches full for a Legend-band season",
+    G.allStarBandFactor(G.TIER_OVR_FLOORS["Legend"] + 2), v => v > 0.999);
+  check("All-NBA opens lower than All-Star at the same OVR (15 slots vs ~24)",
+    G.allNbaBandFactor(G.TIER_OVR_FLOORS["All-Star"]) < G.allStarBandFactor(G.TIER_OVR_FLOORS["All-Star"]), true);
+  check("MVP is zero below the Superstar band",
+    G.mvpBandFactor(G.TIER_OVR_FLOORS["Superstar"] - 1), 0);
   check("the band factor damps hard below it",
     G.allStarBandFactor(G.TIER_OVR_FLOORS["All-Star"] - 1), v => v <= 0.06);
   check("the band factor is anchored on TIER_OVR_FLOORS, not a private constant",
     G.allStarBandFactor(G.TIER_OVR_FLOORS["Starter"]), 0);
+}
+
+// ############################################################################
+console.log("\n=== CALIBRATION: ONE OVR SCALE ACROSS STATS, AWARDS AND TIERS ===");
+//
+// Three systems used to disagree about what an OVR means. A Peak-83 build produced
+// a 27.8/11.2/9.3 peak season, 14x All-NBA and 10x All-Star, yet tiered All-Star —
+// the tier ladder was right and the other two were inflating. Measured before the
+// reconciliation, OVR 85 already produced that all-time line, and All-Star/All-NBA
+// saturated at every season from 85 up.
+//
+// This section is the tripwire. For each OVR it asserts the peak STAT LINE, the
+// career AWARD COUNTS and the resulting TIER all land in the same band. If any one
+// system is retuned in isolation later, the disagreement fails here immediately
+// instead of arriving as another bug report under a new symptom.
+// ############################################################################
+function calibrationRow(targetOvr, seeds = 200) {
+  const S = G.state;
+  const set = sk => {
+    S.sandbox = false; S.autoPick = true; S.activeBadges = [];
+    S.position = "SF"; S.positionFit = true;
+    S.height = { rating: 60, label: "x" }; S.athleticism = { rating: 75, label: "y" };
+    S.skills = {}; G.SKILL_ORDER.forEach(k => (S.skills[k] = { rating: sk }));
+    const t = G.TEAMS_BY_ABBR["OKC"]; S.team = t; S.teamNeedMet = true; return t;
+  };
+  let bestSk = 40, bestD = Infinity;
+  for (let sk = 40; sk <= 99; sk++) { set(sk); const d = Math.abs(G.computeOVR() - targetOvr); if (d < bestD) { bestD = d; bestSk = sk; } }
+  const team = set(bestSk); const ovr = G.computeOVR();
+  const ppg = [], allStars = [], allNBAs = [], mvps = [], tiers = {};
+  for (let s = 1; s <= seeds; s++) {
+    G.seedRng(s); const c = G.simCareer(ovr, team, {});
+    ppg.push(c.bestSeason.ppg); allStars.push(c.allStars); allNBAs.push(c.allNBAs); mvps.push(c.mvps);
+    const n = G.tierForCareer(c).name; tiers[n] = (tiers[n] || 0) + 1;
+  }
+  const med = a => { a = a.slice().sort((x, y) => x - y); return a[a.length >> 1]; };
+  return { ovr, ppg: med(ppg), allStars: med(allStars), allNBAs: med(allNBAs), mvps: med(mvps),
+           tier: Object.entries(tiers).sort((a, b) => b[1] - a[1])[0][0] };
+}
+{
+  // [ovr, peak PPG window, All-Star window, All-NBA window, MVP window, tier]
+  const BANDS = [
+    [75, [14, 20], [0, 1], [0, 1], [0, 0], "Starter"],
+    [80, [20, 24], [2, 5], [0, 3], [0, 0], "All-Star"],
+    [85, [25, 28], [6, 12], [4, 9], [0, 2], "Superstar"],
+    [90, [28, 32], [12, 17], [9, 16], [3, 8], "Legend"],
+  ];
+  BANDS.forEach(([ovr, pw, aw, nw, mw, tier]) => {
+    const r = calibrationRow(ovr);
+    check(`OVR ${ovr}: peak PPG in ${pw[0]}-${pw[1]}`, r.ppg, v => v >= pw[0] && v <= pw[1]);
+    check(`OVR ${ovr}: All-Star count in ${aw[0]}-${aw[1]}`, r.allStars, v => v >= aw[0] && v <= aw[1]);
+    check(`OVR ${ovr}: All-NBA count in ${nw[0]}-${nw[1]}`, r.allNBAs, v => v >= nw[0] && v <= nw[1]);
+    check(`OVR ${ovr}: MVP count in ${mw[0]}-${mw[1]}`, r.mvps, v => v >= mw[0] && v <= mw[1]);
+    check(`OVR ${ovr}: tiers as ${tier}`, r.tier, tier);
+  });
+
+  // THE REPORTED CASE, pinned on PEAK OVR — not base. Those are different numbers
+  // (a base-80 build peaks around 83) and conditioning on the wrong one tests the
+  // wrong population, which has already caused one wrong measurement in this repo.
+  {
+    const S = G.state;
+    S.sandbox = false; S.autoPick = true; S.activeBadges = [];
+    S.position = "SF"; S.positionFit = true;
+    S.height = { rating: 60, label: "x" }; S.athleticism = { rating: 75, label: "y" };
+    S.skills = {}; G.SKILL_ORDER.forEach(k => (S.skills[k] = { rating: 80 }));
+    const team = G.TEAMS_BY_ABBR["OKC"]; S.team = team; S.teamNeedMet = true;
+    const ovr = G.computeOVR();
+    const hits = [];
+    for (let s = 1; s <= 400; s++) {
+      G.seedRng(s); const c = G.simCareer(ovr, team, {});
+      if (c.peakOVR >= 82 && c.peakOVR <= 84) hits.push(c);
+    }
+    check("produced Peak-83 careers to test", hits.length, v => v > 0);
+    const worst = k => Math.max(...hits.map(c => c[k]));
+    check("Peak-83 never produces a 27+ PPG season (reported 27.8)",
+      Math.max(...hits.map(c => c.bestSeason.ppg)), v => v < 27);
+    check("Peak-83 never collects 10 All-Stars (reported 10)", worst("allStars"), v => v < 10);
+    check("Peak-83 never collects 14 All-NBA (reported 14)", worst("allNBAs"), v => v < 14);
+    check("Peak-83 never wins an MVP", worst("mvps"), 0);
+  }
+
+  // The other direction — this must not be "fixed" by flattening everything.
+  const r95 = calibrationRow(95);
+  check("OVR 95 still reaches an all-time peak season", r95.ppg, v => v >= 28);
+  check("OVR 95 still posts a double-digit All-NBA resume", r95.allNBAs, v => v >= 10);
+  check("OVR 95 still wins multiple MVPs", r95.mvps, v => v >= 5);
+
+  // Every scaler must read the published bands, not a private number.
+  check("the breadth governor is anchored on the Starter floor",
+    G.breadthFactor(G.TIER_OVR_FLOORS["Starter"]) < G.breadthFactor(95), true);
+  check("award floors sit under what each band actually produces",
+    G.TIER_AWARD_FLOORS["All-Star"].allStars <= 5 &&
+    G.TIER_AWARD_FLOORS["Superstar"].allStars <= 12 &&
+    G.TIER_AWARD_FLOORS["Legend"].allStars <= 17, true);
 }
 
 // ############################################################################
@@ -1152,8 +1258,11 @@ function season(o) {
     r.mvp.includes(String(G.MVP_WIN_GATE)), true, r.mvp);
   check("MVP line quotes this season's real OVR and wins",
     r.mvp.includes("88") && r.mvp.includes("62"), true, r.mvp);
-  check("MVP odds in the line equal mvpOdds() exactly",
-    r.mvp.includes(Math.round(G.mvpOdds(88, 62) * 100) + "%"), true, r.mvp);
+  // Must match the FULL roll, band scaler included — quoting the raw ramp would
+  // overstate the odds the season actually faced.
+  const trueOdds = G.mvpOdds(88, 62) * G.mvpBandFactor(G.scaleOVR(88));
+  check("MVP odds in the line equal the full roll (ramp x band factor)",
+    r.mvp.includes(Math.round(trueOdds * 100) + "%"), true, r.mvp);
 }
 {
   const r = G.awardReasons(season({ allDefensive: "1st", seasonDef: 96 }));
