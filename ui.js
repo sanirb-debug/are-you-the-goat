@@ -2134,42 +2134,56 @@ function renderVerdict() {
   const yearBtn = el("button", "season-toggle", `Career Stats by Year <span class="st-caret">▾</span>`);
   yearBtn.setAttribute("aria-expanded", "false");
   const yearPanel = el("div", "season-panel");
+  // One hint for the whole panel replaces what used to be one explanation line
+  // per award per season — the affordance stays discoverable, the rows stay clean.
   yearPanel.appendChild(el("div", "season-panel-head",
-    `All ${career.numSeasons} Seasons &nbsp;·&nbsp; ${state.team.name}`));
+    `All ${career.numSeasons} Seasons &nbsp;·&nbsp; ${state.team.name}` +
+    `<span class="sp-hint">tap an award for why it was earned</span>`));
+  // The "why did this season win that" explanations (game.js awardReasons, still
+  // computed from the same constants the rolls use) are CLICK-TO-REVEAL on the
+  // tag itself rather than printed inline. Inline was one line per award per
+  // season — a decorated 19-year career carried ~50 lines and swamped the stat
+  // lines it was meant to annotate. The tag becomes a .tip-target and the shared
+  // controller does the rest, so each tag toggles independently: opening Year 3's
+  // All-NBA closes whatever else was open and leaves every other row untouched.
+  // Not hover-only — the controller's primary path is click/tap, with hover as a
+  // desktop bonus, because hover does not exist on touch.
   career.seasons.forEach((s, i) => {
     const st = s.stats;
-    const honors = [
-      s.mvp ? '<span class="sp-tag mvp">MVP</span>' : "",
-      s.ring ? '<span class="sp-tag ring">CHAMPION</span>' : "",
-      s.roty ? '<span class="sp-tag roty">ROTY</span>' : "",
-      s.dpoy ? '<span class="sp-tag dpoy">DPOY</span>' : "",
-      s.allNBA ? `<span class="sp-tier tier-${s.allNBA.replace(/\D/g, "")}">All-NBA ${s.allNBA}</span>` : "",
-      s.allDefensive ? `<span class="sp-tag alldef">ALL-DEF ${s.allDefensive}</span>` : "",
-      s.allStar ? '<span class="sp-tag allstar">ALL-STAR</span>' : "",
-    ].join("");
-    // WHY each honor landed, one line per award, straight out of the same
-    // constants the rolls used (game.js awardReasons). Rendered inline rather
-    // than as a hover tooltip on the tag: an earlier mobile pass established
-    // that hover does not exist on touch, and these rows are already the widest
-    // thing on the verdict screen, so a hover-only affordance would hide the
-    // explanation from exactly the readers most likely to want it.
     const why = awardReasons(s);
-    const WHY_LABELS = [
-      ["mvp", "MVP"], ["finalsMVP", "Finals MVP"], ["roty", "ROTY"], ["dpoy", "DPOY"],
-      ["allNBA", s.allNBA ? `All-NBA ${s.allNBA}` : "All-NBA"],
-      ["allDefensive", s.allDefensive ? `All-Def ${s.allDefensive}` : "All-Def"],
-      ["allStar", "All-Star"],
-    ];
-    const whyLines = WHY_LABELS
-      .filter(([k]) => why[k])
-      .map(([k, label]) => `<span class="sp-why-line"><span class="sp-why-k">${label}</span>${why[k]}</span>`)
-      .join("");
-    yearPanel.appendChild(el("div", "season-row" + (whyLines ? " has-why" : ""),
+    const row = el("div", "season-row");
+    row.innerHTML =
       `<span class="sp-year">Year ${i + 1}</span>
-       <span class="sp-team">${state.team.abbr}</span>
-       ${honors}
-       <span class="sp-line">${st.ppg} PPG &middot; ${st.rpg} RPG &middot; ${st.apg} APG &middot; ${st.spg} SPG &middot; ${st.bpg} BPG &middot; ${st.tpg} 3PM &middot; ${st.fgPct} FG% &middot; ${st.tptPct} 3PT%</span>
-       ${whyLines ? `<span class="sp-why">${whyLines}</span>` : ""}`));
+       <span class="sp-team">${state.team.abbr}</span>`;
+
+    // [cssClass, label, reason key]. A ring has no threshold of its own — it is
+    // the playoff sim's outcome — so CHAMPION only becomes tappable when that
+    // season also produced a Finals MVP, which does have one.
+    const TAGS = [
+      ["sp-tag mvp", "MVP", s.mvp, "mvp"],
+      ["sp-tag ring", "CHAMPION", s.ring, "finalsMVP"],
+      ["sp-tag roty", "ROTY", s.roty, "roty"],
+      ["sp-tag dpoy", "DPOY", s.dpoy, "dpoy"],
+      [`sp-tier tier-${s.allNBA ? s.allNBA.replace(/\D/g, "") : ""}`, `All-NBA ${s.allNBA}`, s.allNBA, "allNBA"],
+      ["sp-tag alldef", `ALL-DEF ${s.allDefensive}`, s.allDefensive, "allDefensive"],
+      ["sp-tag allstar", "ALL-STAR", s.allStar, "allStar"],
+    ];
+    TAGS.forEach(([cls, label, present, key]) => {
+      if (!present) return;
+      const reason = why[key];
+      const tag = el("span", cls + (reason ? " tip-target" : ""), label);
+      if (reason) {
+        tag.setAttribute("role", "button");
+        tag.setAttribute("tabindex", "0");
+        tag.dataset.tip = reason;
+        tag.setAttribute("aria-label", `${label}, year ${i + 1}. ${reason}`);
+      }
+      row.appendChild(tag);
+    });
+
+    row.appendChild(el("span", "sp-line",
+      `${st.ppg} PPG &middot; ${st.rpg} RPG &middot; ${st.apg} APG &middot; ${st.spg} SPG &middot; ${st.bpg} BPG &middot; ${st.tpg} 3PM &middot; ${st.fgPct} FG% &middot; ${st.tptPct} 3PT%`));
+    yearPanel.appendChild(row);
   });
   yearBtn.onclick = () => {
     const open = yearPanel.classList.toggle("open");
