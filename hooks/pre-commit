@@ -30,3 +30,19 @@ if echo "$STAGED" | grep -qE '^(data\.js|game\.js|ui\.js|test-tiers\.js)$'; then
     echo "COMMIT BLOCKED: name-filter suite failed."; tail -20 /tmp/aytg-name.log; exit 1; }
   echo "test-achievements + test-name-filter: passed"
 fi
+
+# WHY test-comps.js RUNS HERE: the same comp failure was reported four times
+# (Amar'e, Mourning, Towns, Yao) because each fix was verified by hand at one
+# tier and the leak reopened at the next. It gates the comp dataset too — adding
+# or removing a COMP_ROWS entry changes what is reachable, and removing one can
+# leave an archetype with no same-level match, which is how it kept coming back.
+if echo "$STAGED" | grep -qE '^(data\.js|game\.js|test-comps\.js)$'; then
+  echo "test-comps: comp/tier/dataset surface touched — running regression suite..."
+  node test-comps.js > /tmp/aytg-comps.log 2>&1 || {
+    echo "COMMIT BLOCKED: comp regression suite failed."
+    grep -E "FAIL|expected" /tmp/aytg-comps.log | head -20
+    echo "  (full output: /tmp/aytg-comps.log)"
+    exit 1
+  }
+  grep -oE "PASSED  all [0-9]+ checks" /tmp/aytg-comps.log || echo "test-comps: passed"
+fi

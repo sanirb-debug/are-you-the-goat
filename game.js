@@ -1521,6 +1521,24 @@ const ACCOMP_MATCH_WEIGHT = 3.5;
 // (0 Draft Bust .. 6 GOAT), derived from real accolades. Every comp is a real
 // NBA player, so even a decorated-nothing journeyman floors at 1 (Bench/Starter),
 // never 0. Hardware weighs most, All-NBA/All-Star least.
+// THE ROOT CAUSE OF FOUR SEPARATE COMP REPORTS, and the reason each previous fix
+// only held until the next tier was tested. The old score was hardware-first
+// (rings 3, MVP 4, selection 0.4) with floors bolted on, and it produced a
+// two-valued scale in practice: 25 comps at caliber 1, ONE at caliber 2, and 24
+// at caliber 3. That caliber-3 bucket held Carmelo Anthony (10x All-Star), Paul
+// George (9x), Dominique Wilkins (9x), Lillard (8x), Vince Carter (8x), Yao Ming
+// (8x), Mutombo (8x), McGrady (7x), Mourning (7x) and Amar'e (6x) alongside
+// genuine 3x All-Stars — so "caliber 3" meant nothing, and with a one-tier grace
+// a Starter-tier build could freely match ANY star short of Superstar.
+//
+// EVERY REPORTED OFFENDER LIVED IN THAT BUCKET: Amar'e, Alonzo Mourning,
+// Karl-Anthony Towns and Yao Ming. Patching the tier band each time moved the
+// leak; it never closed it.
+//
+// Rebuilt around ACCOLADE COUNTS, which is how a career's standing is actually
+// read, so the six bands are populated and mean what their names say. The
+// weighted score is kept only to promote hardware-heavy resumes (a 4-MVP career
+// outranks a 10x All-Star with none).
 function compCaliber(acc) {
   const s = acc.rings * 3 + acc.mvps * 4 + acc.finalsMVPs * 2 + acc.allNBA * 0.6 + acc.allStar * 0.4;
   let band = s >= 26 ? 6   // GOAT resume
@@ -1529,49 +1547,73 @@ function compCaliber(acc) {
     : s >= 3.5 ? 3         // All-Star
     : s >= 1 ? 2           // solid Starter
     : 1;                   // journeyman / role player
-  // SELECTION FLOORS — the fix for a reported bug where a Bench-Piece build's #1
-  // comp was Karl-Anthony Towns. The weighted score above is HARDWARE-first
-  // (rings 3, MVP 4) and prices a selection at 0.4, so a perennial All-Star with
-  // an empty trophy case scored below the 3.5 All-Star line and came out caliber
-  // 2 — indistinguishable from a journeyman starter. Towns (4 All-Star, 1
-  // All-NBA, no rings) scored 2.2. The caliber GATE therefore never fired for
-  // him: at build rank 1 with a one-tier grace he cost nothing, so he won on raw
-  // attribute proximity. Booker, Beal and Trae Young had the same hole.
-  //
-  // Being selected repeatedly IS an All-Star-caliber career, whatever else the
-  // case holds. Applied as a floor rather than by re-weighting the score, so the
-  // upper bands are untouched — raising the selection weights instead pushed
-  // ring-less high-volume careers like Karl Malone from Legend to GOAT caliber.
-  if (acc.allStar >= 3) band = Math.max(band, 3);
-  if (acc.allStar >= 1 || acc.allNBA >= 1) band = Math.max(band, 2);
+  // Selection-count floors. A career is at least this good however thin the
+  // trophy case — being picked 8 times is a Superstar career whether or not it
+  // ever won anything.
+  if (acc.allStar >= 10 || acc.allNBA >= 9) band = Math.max(band, 5); // perennial all-timer
+  if (acc.allStar >= 6 || acc.allNBA >= 5) band = Math.max(band, 4);  // long-run star
+  if (acc.allStar >= 2 || acc.allNBA >= 2) band = Math.max(band, 3);  // All-Star calibre
+  if (acc.allStar >= 1 || acc.allNBA >= 1 || acc.rings >= 1) band = Math.max(band, 2); // quality starter
+  // CEILING FOR RING-ONLY RESUMES. The weighted score prices a ring at 3, so a
+  // champion ROLE player collected enough to read as a Superstar — JaVale McGee
+  // (3 rings, zero selections) came out calibre 4, the same as Amar'e. Rings are
+  // a team result; with no individual selection behind them the career is a
+  // quality starter's, and rating it higher would put those comps out of reach of
+  // exactly the mid-tier builds they suit.
+  if (acc.allStar === 0 && acc.allNBA === 0 && acc.mvps === 0) band = Math.min(band, 2);
   return band;
 }
 
-// ARCHETYPE GATE. compDistance already emphasises extreme dimensions via
-// sigEmphasis, but that is symmetric point-distance: it cannot express "this
-// player is DEFINED by a skill the build does not have". A rebounding-first
-// centre sits close to Towns on height and rebounding, and the shooting gap
-// alone did not outvote that. This adds an explicit term: when a comp has a
-// distinctive signature skill (clears its runner-up by SIGNATURE_MARGIN, the
-// same rule signatureAttribute() uses for the build) and the build is well
-// short of it, the comp is a worse archetype match than the raw geometry says.
-// Symmetric — it also fires when the BUILD's signature is a skill the comp
-// lacks, which is the reported case in the other direction.
-const ARCHETYPE_MATCH_WEIGHT = 0.9;
+// ARCHETYPE DISTANCE — measured on SHAPE, not on level. This is the second half
+// of the four-report root cause.
+//
+// Every other term compares raw ratings, so they all answer "how GOOD is this
+// player" as much as "how do they PLAY". A 96-Rebounding build is numerically
+// nearer a genuine star (who is high at everything) than a journeyman with the
+// same shape but lower everywhere — measured on the reported Yao case, the
+// correct archetype match (Reggie Evans, a rebounding-first journeyman) sat 34
+// attribute-units FURTHER away than Yao, almost entirely because Evans is worse
+// in absolute terms. The old version of this function made it worse rather than
+// better: it charged the absolute gap on each side's signature skill, which
+// rewarded the higher-rated player, so Yao was charged 11.7 and Evans 6.3 — but
+// Biyombo, also a correct archetype, was charged 43.
+//
+// Subtracting each profile's OWN mean removes level entirely and leaves the
+// distribution of emphasis: "rebounding-first, no jumper" reads the same whether
+// the player is a 96 or a 55. That is the comparison a playstyle comp actually
+// wants, and it is the one thing none of the previous fixes measured.
+const ARCHETYPE_MATCH_WEIGHT = 1.5;
 function signatureOfDims(dims) {
   let attr = SKILL_ORDER[0];
   SKILL_ORDER.forEach(s => { if (dims[s] > dims[attr]) attr = s; });
   const runnerUp = Math.max(...SKILL_ORDER.filter(s => s !== attr).map(s => dims[s]));
   return { attr, distinctive: dims[attr] - runnerUp >= SIGNATURE_MARGIN };
 }
-function archetypePenalty(profile, ref) {
-  let gap = 0;
-  const compSig = signatureOfDims(ref.dims);
-  if (compSig.distinctive) gap += Math.max(0, ref.dims[compSig.attr] - profile[compSig.attr]);
-  const buildSig = signatureOfDims(profile);
-  if (buildSig.distinctive) gap += Math.max(0, profile[buildSig.attr] - ref.dims[buildSig.attr]);
-  return ARCHETYPE_MATCH_WEIGHT * gap;
+// Each skill expressed as its deviation from that profile's own six-skill mean.
+function skillShape(dims) {
+  const mean = SKILL_ORDER.reduce((a, s) => a + dims[s], 0) / SKILL_ORDER.length;
+  const shape = {};
+  SKILL_ORDER.forEach(s => { shape[s] = dims[s] - mean; });
+  return shape;
 }
+function archetypePenalty(profile, ref) {
+  const a = skillShape(profile), b = skillShape(ref.dims);
+  let sum = 0;
+  SKILL_ORDER.forEach(s => { const d = a[s] - b[s]; sum += d * d; });
+  let pen = ARCHETYPE_MATCH_WEIGHT * Math.sqrt(sum);
+  // A distinctive signature is the headline of a playstyle. Two profiles that
+  // lead with different skills are different archetypes even if the rest of the
+  // shape rhymes — that is precisely "rebounding-first" vs "post-scoring-first".
+  const bs = signatureOfDims(profile), cs = signatureOfDims(ref.dims);
+  if (bs.distinctive && bs.attr !== cs.attr) pen += ARCHETYPE_SIGNATURE_MISMATCH;
+  return pen;
+}
+// Sized against measured attribute distances, which run 55-120 for a specialist
+// build. At 18 it lost: Towns (Shooting-first) still beat Reggie Evans
+// (Rebounding-first, the correct archetype) by 2.6 units for a rebounding build.
+// 30 makes leading with the wrong skill decisive without being absolute — a
+// different-signature comp can still win if it is dramatically closer overall.
+const ARCHETYPE_SIGNATURE_MISMATCH = 30;
 // How much a build's OWN career tier gates the comp: a Bench-Piece or Draft-Bust
 // build shouldn't match a multi-time All-Star just because the raw attributes
 // line up (the free-stat mechanic makes lopsided low-tier builds — one huge stat,

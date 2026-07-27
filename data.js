@@ -2261,6 +2261,19 @@ const COMP_ROWS = [
   ["JJ Redick", "SG", 48, 46, 91, 54, 50, 58, 44, 40, 0, 0, 0, 0, 0, "Pure movement shooter who built a long career on elite range and conditioning without creating or defending."],
   ["Andre Miller", "PG", 44, 50, 42, 66, 88, 72, 54, 56, 0, 0, 0, 0, 0, "Old-school pass-first floor general who led the league in assists without ever making an All-Star team or developing a jumper."],
   ["Chuck Hayes", "PF", 62, 48, 38, 48, 56, 46, 82, 68, 0, 0, 0, 0, 0, "Undersized post defender who guarded centers on strength and technique alone, with no scoring range whatsoever."],
+
+  // ---- TRUE 7-FOOTERS WITHOUT THE RESUME ----
+  // Added with the fourth comp report. Height carries the heaviest comp weight
+  // (4x, vs 1x per skill), and EVERY comp at or above 88 height was an All-Star
+  // or better — Mutombo, Gobert, Yao, Robinson, Shaq, Kareem, Wilt. So a 7-foot
+  // build below All-Star tier had no comp that was both its size and its level,
+  // and the nearest low-caliber bigs are 6'8"-6'11". That gap is why the same
+  // bug kept resurfacing with a different star's name on it: the pool could not
+  // answer the question. These are real seven-footers with thin trophy cases.
+  ["Timofey Mozgov", "C", 92, 58, 42, 62, 44, 42, 62, 74, 1, 0, 0, 0, 0, "Rim-running big who rebounded and finished lobs on a title team before the contract outran the production."],
+  ["Hasheem Thabeet", "C", 96, 55, 34, 48, 38, 38, 66, 70, 0, 0, 0, 0, 0, "Towering shot-blocking project taken second overall who never developed an NBA offensive game."],
+  ["JaVale McGee", "C", 92, 82, 40, 74, 42, 44, 70, 74, 3, 0, 0, 0, 0, "Explosive seven-foot athlete whose blocks and lob finishing made him a useful champion role player."],
+  ["Zaza Pachulia", "C", 87, 48, 44, 56, 54, 46, 64, 76, 0, 0, 0, 0, 0, "Bruising positional rebounder who set hard screens and defended the post without scoring."],
 ];
 
 const COMP_PLAYERS = COMP_ROWS.map(([name, pos, height, athleticism, sh, fi, pl, ha, de, re, rings, mvps, finalsMVPs, allNBA, allStar, reasoning]) => ({
