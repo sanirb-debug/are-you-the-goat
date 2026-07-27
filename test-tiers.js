@@ -889,6 +889,106 @@ check("LAL's five maps above its legacy scr (so the swap below is observable)",
     winsWith(80) - winsWith(60), Math.round(20 * 0.35));
 }
 
+// ############################################################################
+console.log("\n=== COMP MATCH: TIER AND ARCHETYPE APPROPRIATENESS ===");
+//
+// REPORTED: a Bench Piece build (rebounding-first 7-foot centre, base OVR 68)
+// matched Karl-Anthony Towns as its PRIMARY comp while its two "Shades of"
+// picks were correctly bench-level, which read as the primary being scored by a
+// different path. It is not — playstyleComp takes [0] and slice(1) of the SAME
+// topComps list. Two real defects produced it, both pinned below:
+//   1. compCaliber() priced a selection at 0.4 with a hardware-first score, so a
+//      ringless 4x All-Star scored 2.2 and came out caliber 2. The caliber gate
+//      then saw nothing to gate.
+//   2. The gate was additive at weight 14 against attribute distances of 80-110.
+// Fixed with selection floors in compCaliber, a hard admissibility partition in
+// topComps, an archetype term, and six low-accolade specialist comps (the
+// caliber<=2 pool was uniformly flat, so no same-level comp shared an elite trait).
+// ############################################################################
+
+function compBuild({ pos, h, a, sk }) {
+  const S = G.state;
+  S.sandbox = false; S.autoPick = true; S.activeBadges = [];
+  S.position = pos; S.positionFit = true;
+  S.height = { rating: h, label: "x" }; S.athleticism = { rating: a, label: "y" };
+  S.skills = {}; Object.keys(sk).forEach(k => (S.skills[k] = { rating: sk[k] }));
+  return G.computeOVR();
+}
+const compByName = n => G.COMP_PLAYERS.find(x => x.name === n);
+const caliberOfName = n => G.compCaliber(G.accompOf(compByName(n)));
+
+// --- the reported case, plus three other tier/archetype combinations ---
+const COMP_CASES = [
+  { label: "rebounding 7ft C", team: "IND", pos: "C", h: 96, a: 70,
+    sk: { Shooting: 44, Finishing: 70, Playmaking: 44, Handles: 40, Defense: 45, Rebounding: 95 },
+    sig: "Rebounding" },
+  { label: "defensive 7ft C", team: "IND", pos: "C", h: 94, a: 66,
+    sk: { Shooting: 40, Finishing: 60, Playmaking: 40, Handles: 38, Defense: 92, Rebounding: 78 },
+    sig: "Defense" },
+  { label: "shooting SG", team: "IND", pos: "SG", h: 48, a: 60,
+    sk: { Shooting: 93, Finishing: 58, Playmaking: 50, Handles: 62, Defense: 44, Rebounding: 38 },
+    sig: "Shooting" },
+  { label: "passing PG", team: "IND", pos: "PG", h: 30, a: 62,
+    sk: { Shooting: 50, Finishing: 56, Playmaking: 94, Handles: 80, Defense: 48, Rebounding: 36 },
+    sig: "Playmaking" },
+];
+
+COMP_CASES.forEach(c => {
+  const ovr = compBuild(c);
+  const team = G.TEAMS_BY_ABBR[c.team];
+  G.state.team = team; G.state.teamNeedMet = false;
+  let tierBad = 0, archBad = 0, runs = 0, sample = null;
+  for (let s = 1; s <= 60; s++) {
+    G.seedRng(s);
+    const career = G.simCareer(ovr, team, {});
+    const rank = G.tierRank(career);
+    const all = [G.playstyleComp(career).name, ...G.playstyleComp(career).shades];
+    runs++;
+    // EVERY returned comp — primary and shades alike — must clear the same gate.
+    all.forEach(n => { if (caliberOfName(n) - rank - 1 > 0) tierBad++; });
+    // Archetype: the primary must not be DEFINED by a skill this build lacks.
+    const primary = compByName(all[0]);
+    const psig = G.signatureOfDims(primary.dims);
+    if (psig.distinctive && primary.dims[psig.attr] - G.buildProfile()[psig.attr] > 30) archBad++;
+    if (!sample) sample = { tier: G.tierForCareer(career).name, primary: all[0], shades: all.slice(1) };
+  }
+  check(`${c.label}: no comp (primary OR shades) exceeds the build's tier band`, tierBad, 0);
+  check(`${c.label}: primary is never defined by a skill the build lacks`, archBad, 0);
+  check(`${c.label}: primary is a real ${c.sig}-first player`,
+    G.signatureOfDims(compByName(sample.primary).dims).attr, c.sig,
+    `${sample.tier} -> ${sample.primary} (shades ${sample.shades.join(", ")})`);
+});
+
+// The specific regression: Towns must be unreachable for a low-tier build, and
+// must STILL be reachable for the build he genuinely fits (an All-Star shooting
+// big). The fix gates him to the right level rather than removing him.
+check("Towns is caliber 3, not the caliber 2 that let him through",
+  caliberOfName("Karl-Anthony Towns"), 3);
+check("selection floors did not disturb the top of the caliber scale",
+  ["Michael Jordan", "Magic Johnson", "Kareem Abdul-Jabbar"].every(n => caliberOfName(n) === 6), true);
+check("a zero-accolade journeyman is still caliber 1", caliberOfName("Jason Smith"), 1);
+{
+  const ovr = compBuild({ pos: "PF", h: 82, a: 70,
+    sk: { Shooting: 93, Finishing: 88, Playmaking: 62, Handles: 64, Defense: 60, Rebounding: 86 } });
+  const team = G.TEAMS_BY_ABBR["OKC"];
+  G.state.team = team; G.state.teamNeedMet = true;
+  G.seedRng(7);
+  const career = G.simCareer(ovr, team, {});
+  check("an All-Star elite-shooting big still comps to Towns (gated, not removed)",
+    G.playstyleComp(career).name, "Karl-Anthony Towns",
+    `tier ${G.tierForCareer(career).name}`);
+}
+// The added specialists must be low-caliber AND carry a genuinely elite trait —
+// that combination is what the pool was missing.
+["Reggie Evans", "Bismack Biyombo", "Tony Allen", "JJ Redick", "Andre Miller", "Chuck Hayes"]
+  .forEach(n => {
+    check(`${n} is an admissible low-tier comp`, caliberOfName(n), v => v <= 2);
+    check(`${n} has a distinctive signature skill`,
+      G.signatureOfDims(compByName(n).dims).distinctive, true);
+  });
+
+G.state.height = null; G.state.athleticism = null; G.state.skills = {}; G.state.autoPick = false;
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);

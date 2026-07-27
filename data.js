@@ -2245,6 +2245,22 @@ const COMP_ROWS = [
   ["Aaron Gray", "C", 87, 52, 46, 52, 47, 47, 52, 55, 0, 0, 0, 0, 0, "Plodding backup center whose size earned him a roster spot despite limited mobility or scoring."],
   ["Ryan Hollins", "C", 87, 55, 46, 52, 47, 47, 52, 52, 0, 0, 0, 0, 0, "Athletic but raw journeyman center — an end-of-bench energy big across many teams."],
   ["Joel Przybilla", "C", 87, 54, 45, 51, 47, 46, 55, 50, 0, 0, 0, 0, 0, "Shot-blocking backup center whose value was purely rebounding and rim protection in limited minutes."],
+
+  // ---- Low-accolade SPECIALISTS ----
+  // Added with the comp tier/archetype fix. The rest of the low-caliber pool is
+  // deliberately flat — every comp at caliber <=2 above sits at 45-55 on every
+  // dimension, the best rebounder among them a 55. That left a real hole: a
+  // Bench-Piece build with one ELITE skill (the free-stat mechanic makes exactly
+  // those) had no same-level comp who shared its defining trait, so the honest
+  // nearest neighbour was always a star. These are real players with a genuinely
+  // elite calling card and an empty or near-empty trophy case, so the caliber
+  // gate and the archetype term can both be satisfied at once.
+  ["Reggie Evans", "PF", 75, 55, 40, 50, 44, 44, 60, 92, 0, 0, 0, 0, 0, "Relentless glass-crasher who led the league in rebound rate on pure effort and positioning, with essentially no offensive game."],
+  ["Bismack Biyombo", "C", 87, 72, 38, 58, 42, 42, 86, 80, 0, 0, 0, 0, 0, "Rim-protecting energy center whose shot-blocking was his calling card, rebounding alongside it and offering nothing on offense."],
+  ["Tony Allen", "SG", 52, 78, 44, 60, 46, 52, 93, 52, 0, 0, 0, 0, 0, "The Grindfather — arguably his era's best perimeter defender, six times All-Defensive, and a total non-threat as a shooter."],
+  ["JJ Redick", "SG", 48, 46, 91, 54, 50, 58, 44, 40, 0, 0, 0, 0, 0, "Pure movement shooter who built a long career on elite range and conditioning without creating or defending."],
+  ["Andre Miller", "PG", 44, 50, 42, 66, 88, 72, 54, 56, 0, 0, 0, 0, 0, "Old-school pass-first floor general who led the league in assists without ever making an All-Star team or developing a jumper."],
+  ["Chuck Hayes", "PF", 62, 48, 38, 48, 56, 46, 82, 68, 0, 0, 0, 0, 0, "Undersized post defender who guarded centers on strength and technique alone, with no scoring range whatsoever."],
 ];
 
 const COMP_PLAYERS = COMP_ROWS.map(([name, pos, height, athleticism, sh, fi, pl, ha, de, re, rings, mvps, finalsMVPs, allNBA, allStar, reasoning]) => ({

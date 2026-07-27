@@ -1405,12 +1405,54 @@ const ACCOMP_MATCH_WEIGHT = 3.5;
 // never 0. Hardware weighs most, All-NBA/All-Star least.
 function compCaliber(acc) {
   const s = acc.rings * 3 + acc.mvps * 4 + acc.finalsMVPs * 2 + acc.allNBA * 0.6 + acc.allStar * 0.4;
-  if (s >= 26) return 6;   // GOAT resume
-  if (s >= 15) return 5;   // Legend
-  if (s >= 8) return 4;    // Superstar
-  if (s >= 3.5) return 3;  // All-Star
-  if (s >= 1) return 2;    // solid Starter
-  return 1;                // journeyman / role player
+  let band = s >= 26 ? 6   // GOAT resume
+    : s >= 15 ? 5          // Legend
+    : s >= 8 ? 4           // Superstar
+    : s >= 3.5 ? 3         // All-Star
+    : s >= 1 ? 2           // solid Starter
+    : 1;                   // journeyman / role player
+  // SELECTION FLOORS — the fix for a reported bug where a Bench-Piece build's #1
+  // comp was Karl-Anthony Towns. The weighted score above is HARDWARE-first
+  // (rings 3, MVP 4) and prices a selection at 0.4, so a perennial All-Star with
+  // an empty trophy case scored below the 3.5 All-Star line and came out caliber
+  // 2 — indistinguishable from a journeyman starter. Towns (4 All-Star, 1
+  // All-NBA, no rings) scored 2.2. The caliber GATE therefore never fired for
+  // him: at build rank 1 with a one-tier grace he cost nothing, so he won on raw
+  // attribute proximity. Booker, Beal and Trae Young had the same hole.
+  //
+  // Being selected repeatedly IS an All-Star-caliber career, whatever else the
+  // case holds. Applied as a floor rather than by re-weighting the score, so the
+  // upper bands are untouched — raising the selection weights instead pushed
+  // ring-less high-volume careers like Karl Malone from Legend to GOAT caliber.
+  if (acc.allStar >= 3) band = Math.max(band, 3);
+  if (acc.allStar >= 1 || acc.allNBA >= 1) band = Math.max(band, 2);
+  return band;
+}
+
+// ARCHETYPE GATE. compDistance already emphasises extreme dimensions via
+// sigEmphasis, but that is symmetric point-distance: it cannot express "this
+// player is DEFINED by a skill the build does not have". A rebounding-first
+// centre sits close to Towns on height and rebounding, and the shooting gap
+// alone did not outvote that. This adds an explicit term: when a comp has a
+// distinctive signature skill (clears its runner-up by SIGNATURE_MARGIN, the
+// same rule signatureAttribute() uses for the build) and the build is well
+// short of it, the comp is a worse archetype match than the raw geometry says.
+// Symmetric — it also fires when the BUILD's signature is a skill the comp
+// lacks, which is the reported case in the other direction.
+const ARCHETYPE_MATCH_WEIGHT = 0.9;
+function signatureOfDims(dims) {
+  let attr = SKILL_ORDER[0];
+  SKILL_ORDER.forEach(s => { if (dims[s] > dims[attr]) attr = s; });
+  const runnerUp = Math.max(...SKILL_ORDER.filter(s => s !== attr).map(s => dims[s]));
+  return { attr, distinctive: dims[attr] - runnerUp >= SIGNATURE_MARGIN };
+}
+function archetypePenalty(profile, ref) {
+  let gap = 0;
+  const compSig = signatureOfDims(ref.dims);
+  if (compSig.distinctive) gap += Math.max(0, ref.dims[compSig.attr] - profile[compSig.attr]);
+  const buildSig = signatureOfDims(profile);
+  if (buildSig.distinctive) gap += Math.max(0, profile[buildSig.attr] - ref.dims[buildSig.attr]);
+  return ARCHETYPE_MATCH_WEIGHT * gap;
 }
 // How much a build's OWN career tier gates the comp: a Bench-Piece or Draft-Bust
 // build shouldn't match a multi-time All-Star just because the raw attributes
@@ -1430,18 +1472,49 @@ function tierRank(career) {
 }
 
 // Full comp pool ranked closest-first: skill distance + accolade proximity +
-// a caliber gate (build tier vs comp caliber). Ties broken alphabetically so the
-// ordering is deterministic. Returns the top `n` refs.
+// archetype alignment, with the caliber gate as a HARD PARTITION rather than a
+// weight. Ties broken alphabetically so the ordering is deterministic.
+//
+// WHY A PARTITION AND NOT A BIGGER PENALTY. The additive penalty was the reported
+// bug's second cause: at CALIBER_MATCH_WEIGHT 14 it added 14 units against
+// attribute distances of 80-110, i.e. noise. Raising it does not converge —
+// measured over 300 low-tier careers, tier-inappropriate primaries only fell
+// 95% -> 28% between weight 14 and 56, because the low-caliber end of the pool is
+// deliberately flat (every comp at caliber <=2 sits at 45-55 across the board,
+// the best rebounder among them being 55). A Rebounding-95 build is therefore
+// ~40 points from every appropriate comp on its defining skill but only ~13 from
+// Gobert, so no finite weight orders them correctly for every build.
+//
+// The level of a career is a CONSTRAINT, not a preference: a Bench Piece build's
+// comp should not be an All-Star at any attribute distance. So admissible comps
+// (within CALIBER_GRACE tiers) are ranked ahead of the rest as a group, and the
+// full distance still orders them within each group. Comps beyond the grace are
+// kept, not dropped, so the list degrades gracefully rather than emptying if a
+// build's tier has nothing near it. The weight survives as a gradient among the
+// inadmissible tail.
+//
+// This partition applies to the WHOLE ranked list, which is the other half of the
+// report: the primary and the "Shades of" pair were never scored differently —
+// playstyleComp takes [0] and slice(1) of THIS list — but the shades only looked
+// right by luck. The same run that produced Towns as primary also produced Yao
+// Ming (8x All-Star) as a shade.
+const CALIBER_GRACE = 1;  // a comp one tier above the build is still fair game
 function topComps(profile, career = null, n = 3) {
   const bRank = tierRank(career);
-  const caliberPenalty = ref => {
-    if (bRank == null) return 0;
-    const over = compCaliber(accompOf(ref)) - bRank - 1; // tiers "too good" beyond a 1-tier grace
-    return over > 0 ? CALIBER_MATCH_WEIGHT * over * over : 0;
-  };
+  const overBy = ref => (bRank == null ? 0 : Math.max(0, compCaliber(accompOf(ref)) - bRank - CALIBER_GRACE));
   return COMP_PLAYERS
-    .map(ref => ({ ref, dist: compDistance(profile, ref) + ACCOMP_MATCH_WEIGHT * accompDistance(career, accompOf(ref)) + caliberPenalty(ref) }))
-    .sort((a, b) => a.dist - b.dist || (a.ref.name < b.ref.name ? -1 : 1))
+    .map(ref => {
+      const over = overBy(ref);
+      return {
+        ref,
+        over,
+        dist: compDistance(profile, ref)
+            + ACCOMP_MATCH_WEIGHT * accompDistance(career, accompOf(ref))
+            + CALIBER_MATCH_WEIGHT * over * over
+            + archetypePenalty(profile, ref),
+      };
+    })
+    .sort((a, b) => (a.over > 0) - (b.over > 0) || a.dist - b.dist || (a.ref.name < b.ref.name ? -1 : 1))
     .slice(0, n)
     .map(x => x.ref);
 }
@@ -2068,6 +2141,8 @@ if (typeof module !== "undefined") {
     hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
     SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
+    compDistance, accompDistance, accompOf, compCaliber, archetypePenalty, signatureOfDims, tierRank,
+    CALIBER_MATCH_WEIGHT, ACCOMP_MATCH_WEIGHT, ARCHETYPE_MATCH_WEIGHT,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
     TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, clampTierToPeak, highestTierIndexForPeak, TIER_OVR_FLOORS, isHallOfFame,
