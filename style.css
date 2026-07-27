@@ -1885,6 +1885,33 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 .sp-tag.alldef { color: #a5b4fc; border: 1px solid #a5b4fc; }
 .sp-tag.roty { color: #f0abfc; border: 1px solid #f0abfc; }
 .sp-tag.allstar { color: var(--text-dim); border: 1px solid var(--line); }
+
+/* "Why did this season win that?" — one line per honor, under the stat line.
+   flex-basis 100% forces it onto its own row inside the wrapping .season-row. */
+.season-row .sp-why {
+  flex: 0 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 3px 0 2px 54px;   /* aligns under the stat line, clear of .sp-year */
+  padding-left: 8px;
+  border-left: 2px solid rgba(242, 201, 76, 0.28);
+}
+.sp-why-line {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.sp-why-k {
+  font-family: var(--font-cond);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.season-row.has-why { padding-bottom: 8px; }
 .season-row .sp-line {
   /* always its own full-width line under the chips — the stat line is too long
      to sit inline beside them at any realistic card width */
@@ -2670,4 +2697,14 @@ body.modal-open { overflow: hidden; }
   .sc-star-pill { padding: 4px 9px; }
   /* Modal dismiss control. */
   .modal-x { min-width: 40px; min-height: 40px; }
+
+  /* The award "why" lines are the longest text on the verdict screen, and the
+     54px desktop indent (which aligns them under the stat line, past .sp-year)
+     costs too much of a 375px row — measured, it left them only 250px wide.
+     THESE LIVE HERE, NOT IN THE MAIN 480px BLOCK, for the reason documented at
+     the top of this section: .season-row .sp-why is declared further down the
+     file, so at equal specificity the desktop rule wins and an override up there
+     silently does nothing. It was verified doing exactly that before this move. */
+  .season-row .sp-why { margin-left: 0; padding-left: 7px; }
+  .sp-why-line { font-size: 11px; line-height: 1.5; }
 }

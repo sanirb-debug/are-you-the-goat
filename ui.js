@@ -2118,11 +2118,29 @@ function renderVerdict() {
       s.allDefensive ? `<span class="sp-tag alldef">ALL-DEF ${s.allDefensive}</span>` : "",
       s.allStar ? '<span class="sp-tag allstar">ALL-STAR</span>' : "",
     ].join("");
-    yearPanel.appendChild(el("div", "season-row",
+    // WHY each honor landed, one line per award, straight out of the same
+    // constants the rolls used (game.js awardReasons). Rendered inline rather
+    // than as a hover tooltip on the tag: an earlier mobile pass established
+    // that hover does not exist on touch, and these rows are already the widest
+    // thing on the verdict screen, so a hover-only affordance would hide the
+    // explanation from exactly the readers most likely to want it.
+    const why = awardReasons(s);
+    const WHY_LABELS = [
+      ["mvp", "MVP"], ["finalsMVP", "Finals MVP"], ["roty", "ROTY"], ["dpoy", "DPOY"],
+      ["allNBA", s.allNBA ? `All-NBA ${s.allNBA}` : "All-NBA"],
+      ["allDefensive", s.allDefensive ? `All-Def ${s.allDefensive}` : "All-Def"],
+      ["allStar", "All-Star"],
+    ];
+    const whyLines = WHY_LABELS
+      .filter(([k]) => why[k])
+      .map(([k, label]) => `<span class="sp-why-line"><span class="sp-why-k">${label}</span>${why[k]}</span>`)
+      .join("");
+    yearPanel.appendChild(el("div", "season-row" + (whyLines ? " has-why" : ""),
       `<span class="sp-year">Year ${i + 1}</span>
        <span class="sp-team">${state.team.abbr}</span>
        ${honors}
-       <span class="sp-line">${st.ppg} PPG &middot; ${st.rpg} RPG &middot; ${st.apg} APG &middot; ${st.spg} SPG &middot; ${st.bpg} BPG &middot; ${st.tpg} 3PM &middot; ${st.fgPct} FG% &middot; ${st.tptPct} 3PT%</span>`));
+       <span class="sp-line">${st.ppg} PPG &middot; ${st.rpg} RPG &middot; ${st.apg} APG &middot; ${st.spg} SPG &middot; ${st.bpg} BPG &middot; ${st.tpg} 3PM &middot; ${st.fgPct} FG% &middot; ${st.tptPct} 3PT%</span>
+       ${whyLines ? `<span class="sp-why">${whyLines}</span>` : ""}`));
   });
   yearBtn.onclick = () => {
     const open = yearPanel.classList.toggle("open");

@@ -558,6 +558,51 @@ function generateSeasonStats(ovr, f, h, fr, mods = {}) {
   return { ppg: r1(ppg), apg: r1(apg), rpg: r1(rpg), spg: r1(spg), bpg: r1(bpg), tpg: r1(tpg), fgPct: r1(fgPct), tptPct: r1(tptPct) };
 }
 
+// ---- Award tuning ----
+// EVERY number that decides an award lives here, and both the roll and the
+// verdict screen's plain-English explanation (awardReasons) read these same
+// bindings. That is the point: this project has retuned award logic repeatedly,
+// and a hand-written blurb saying "cleared the 80-OVR bar" would silently start
+// lying the first time someone edited the gate. Retune here and the explanation
+// on screen follows automatically.
+const MVP_OVR_GATE = 80, MVP_WIN_GATE = 50;
+const MVP_OVR_SPAN = 14, MVP_WIN_SPAN = 18;   // how far past the gate counts as "by a mile"
+const MVP_BASE_ODDS = 0.08, MVP_RAMP = 0.82, MVP_OVR_SHARE = 0.65;
+const FINALS_MVP_OVR = 78;
+const ALLDEF_1ST = 93, ALLDEF_2ND = 85;
+const ALLNBA_1ST_SCORE = 38, ALLNBA_2ND_SCORE = 31;
+const ALLNBA_Q_FLOOR = 18, ALLNBA_Q_SPAN = 17;
+const ALLSTAR_Q_FLOOR = 15, ALLSTAR_Q_SPAN = 12;
+const ROTY_PPG = { floor: 14, span: 8 }, ROTY_APG = { floor: 7.5, span: 3.5 }, ROTY_RPG = { floor: 9.5, span: 3.5 };
+const ROTY_BASE_ODDS = 0.05, ROTY_RAMP = 0.82;
+const DPOY_BPG = { floor: 2.0, span: 1.8, w: 0.45 };
+const DPOY_SPG = { floor: 1.2, span: 1.3, w: 0.30 };
+const DPOY_RPG = { floor: 9.0, span: 5.0, w: 0.25 };
+const DPOY_BASE_ODDS = 0.09, DPOY_RAMP = 0.30, DPOY_STREAK_BONUS = 0.06, DPOY_MAX_ODDS = 0.5;
+
+function mvpOdds(ovr, wins) {
+  const ovrEdge = Math.min(1, (ovr - MVP_OVR_GATE) / MVP_OVR_SPAN);
+  const winEdge = Math.min(1, (wins - MVP_WIN_GATE) / MVP_WIN_SPAN);
+  return MVP_BASE_ODDS + MVP_RAMP * (MVP_OVR_SHARE * ovrEdge + (1 - MVP_OVR_SHARE) * winEdge);
+}
+// The shared OFFENSIVE case behind both All-NBA and All-Star. Extracted so the
+// two rolls and the explanation cannot compute it three different ways.
+function offensiveCase(stats, wins) {
+  const off =
+    stats.ppg +                                   // scoring volume is the spine
+    Math.max(0, stats.apg - 4) * 0.8 +            // playmaking is the clear #2
+    Math.max(0, stats.fgPct - 50) * 0.20 +        // efficiency, lightly
+    Math.max(0, stats.tptPct - 34) * 0.12;
+  const winBonus = Math.max(0, wins - 45) * 0.15; // team success helps the case
+  return { off, winBonus, score: off + winBonus };
+}
+function dpoyDominance(stats) {
+  return clamp(
+    (stats.bpg - DPOY_BPG.floor) / DPOY_BPG.span * DPOY_BPG.w +
+    (stats.spg - DPOY_SPG.floor) / DPOY_SPG.span * DPOY_SPG.w +
+    (stats.rpg - DPOY_RPG.floor) / DPOY_RPG.span * DPOY_RPG.w, 0, 1);
+}
+
 // ---- Season / career sim ----
 function simSeason(ovr, scr, varianceRange, defRating = 0) {
   const variance = randInt(-varianceRange, varianceRange);
@@ -601,13 +646,11 @@ function simSeason(ovr, scr, varianceRange, defRating = 0) {
   // shot (~8%), while a season that clears it by a wide margin on a winning
   // team takes it the large majority of the time.
   let mvp = false;
-  if (ovr >= 80 && wins >= 50) {
-    const ovrEdge = Math.min(1, (ovr - 80) / 14);  // 80 -> 0.0, 94+ -> 1.0
-    const winEdge = Math.min(1, (wins - 50) / 18); // 50 -> 0.0, 68+ -> 1.0
-    mvp = rng() < 0.08 + 0.82 * (0.65 * ovrEdge + 0.35 * winEdge);
+  if (ovr >= MVP_OVR_GATE && wins >= MVP_WIN_GATE) {
+    mvp = rng() < mvpOdds(ovr, wins);
   }
 
-  let finalsMVP = ring && ovr >= 78;
+  let finalsMVP = ring && ovr >= FINALS_MVP_OVR;
 
   // Defensive Player of the Year is resolved in simCareer (dpoyRoll), NOT here:
   // it scales with the season's actual defensive BOX SCORE and compounds over
@@ -628,11 +671,13 @@ function simSeason(ovr, scr, varianceRange, defRating = 0) {
   // same dead-zone trap All-NBA fell into twice.
   const seasonDef = clamp(defRating + randInt(-5, 5), 25, 99);
   let allDefensive = null;
-  if (seasonDef >= 93) allDefensive = "1st";
-  else if (seasonDef >= 85) allDefensive = "2nd";
+  if (seasonDef >= ALLDEF_1ST) allDefensive = "1st";
+  else if (seasonDef >= ALLDEF_2ND) allDefensive = "2nd";
 
   // allStar / allNBA / roty are attached by simCareer once the box score exists.
-  return { wins, madePlayoffs, ring, finalsMVP, mvp, allDefensive, roundsWon };
+  // seasonDef rides along so the verdict screen can EXPLAIN the All-Defensive
+  // selection with the number that actually decided it (see awardReasons).
+  return { wins, madePlayoffs, ring, finalsMVP, mvp, allDefensive, roundsWon, seasonDef };
 }
 
 // All-NBA selection AND 1st/2nd/3rd tier, called from simCareer once the box
@@ -645,13 +690,7 @@ function simSeason(ovr, scr, varianceRange, defRating = 0) {
 // version qualified on overall OVR, which bakes in Defense (0.18) and Rebounding
 // (0.14), so a 5.5-PPG rim protector made All-NBA nearly every season — the bug.
 function allNbaSelection(stats, wins, mvp, allDefensive) {
-  const offScore =
-    stats.ppg +                                   // scoring volume is the spine
-    Math.max(0, stats.apg - 4) * 0.8 +            // playmaking is the clear #2
-    Math.max(0, stats.fgPct - 50) * 0.20 +        // efficiency, lightly
-    Math.max(0, stats.tptPct - 34) * 0.12;
-  const winBonus = Math.max(0, wins - 45) * 0.15; // team success helps the case
-  const score = offScore + winBonus;
+  const { score } = offensiveCase(stats, wins);
   // Selection is a PROBABILITY RAMP on the offensive case (same shape as the MVP
   // and DPOY rolls), not a hard cutoff: a season's odds grade with how much it
   // scores, so a build's career All-NBA count scales smoothly with its scoring
@@ -659,10 +698,10 @@ function allNbaSelection(stats, wins, mvp, allDefensive) {
   // swung the tier distribution). Calibrated so a strong ~24-PPG scorer averages
   // the same ~7-8 selections it did under the old OVR gate, an elite scorer makes
   // it nearly every year, and a low-scoring season almost never qualifies here.
-  const q = clamp((score - 18) / 17, 0, 1); // ~18 -> 0%, ~35+ -> ~100%
+  const q = clamp((score - ALLNBA_Q_FLOOR) / ALLNBA_Q_SPAN, 0, 1); // ~18 -> 0%, ~35+ -> ~100%
   if (mvp || rng() < q) {
-    if (mvp || score >= 38) return "1st";
-    if (score >= 31) return "2nd";
+    if (mvp || score >= ALLNBA_1ST_SCORE) return "1st";
+    if (score >= ALLNBA_2ND_SCORE) return "2nd";
     return "3rd";
   }
   // Generational two-way defender: a capped, occasional 3rd-team nod scaled by how
@@ -691,20 +730,22 @@ function allNbaSelection(stats, wins, mvp, allDefensive) {
 //     a dominant rebounder can make the team without scoring — that's how the
 //     Mutombo/Rodman/Ben-Wallace type of All-Star happened. Capped well below the
 //     scoring path so it grants a few nods across a career, not a permanent seat.
+// allStarCase exposes BOTH paths and which one is carrying the season, so the
+// explanation on the verdict screen names the real reason ("13.1 RPG signature
+// case") instead of always claiming it was scoring.
+function allStarCase(stats, wins, allDefensive) {
+  const { score } = offensiveCase(stats, wins);
+  const scoringCase = clamp((score - ALLSTAR_Q_FLOOR) / ALLSTAR_Q_SPAN, 0, 1); // ~15 -> 0%, ~27+ -> ~100%
+  const defCase = allDefensive === "1st" ? 0.45 : allDefensive === "2nd" ? 0.18 : 0;
+  const passCase = clamp((stats.apg - 7.5) / 3, 0, 1) * 0.6;
+  const rebCase = clamp((stats.rpg - 12) / 3, 0, 1) * 0.45;
+  const signature = Math.max(defCase, passCase, rebCase);
+  const sigDriver = signature === 0 ? null
+    : signature === defCase ? "defense" : signature === passCase ? "passing" : "rebounding";
+  return { score, scoringCase, signature, sigDriver, odds: Math.max(scoringCase, signature) };
+}
 function allStarSelection(stats, wins, allDefensive) {
-  const off =
-    stats.ppg +
-    Math.max(0, stats.apg - 4) * 0.8 +
-    Math.max(0, stats.fgPct - 50) * 0.20 +
-    Math.max(0, stats.tptPct - 34) * 0.12;
-  const winBonus = Math.max(0, wins - 45) * 0.15;
-  const scoringCase = clamp((off + winBonus - 15) / 12, 0, 1); // ~15 -> 0%, ~27+ -> ~100%
-
-  let signature = allDefensive === "1st" ? 0.45 : allDefensive === "2nd" ? 0.18 : 0;
-  signature = Math.max(signature, clamp((stats.apg - 7.5) / 3, 0, 1) * 0.6);
-  signature = Math.max(signature, clamp((stats.rpg - 12) / 3, 0, 1) * 0.45);
-
-  return rng() < Math.max(scoringCase, signature);
+  return rng() < allStarCase(stats, wins, allDefensive).odds;
 }
 
 // Rookie of the Year, resolved in simCareer for the debut season only. ROTY is
@@ -713,14 +754,20 @@ function allStarSelection(stats, wins, allDefensive) {
 // alone (~93% for anything not a bust), which handed the award to a 9.7-PPG rookie
 // with no standout category. Eligibility is now the best of the rookie's actual
 // claims, and a debut that is merely respectable everywhere wins nothing.
-function rotyRoll(stats, allDefensive) {
-  const scoring = clamp((stats.ppg - 14) / 8, 0, 1);      // 14 -> 0, 22+ -> 1
-  const passing = clamp((stats.apg - 7.5) / 3.5, 0, 1);
-  const boards  = clamp((stats.rpg - 9.5) / 3.5, 0, 1);
+function rotyCase(stats, allDefensive) {
+  const scoring = clamp((stats.ppg - ROTY_PPG.floor) / ROTY_PPG.span, 0, 1);   // 14 -> 0, 22+ -> 1
+  const passing = clamp((stats.apg - ROTY_APG.floor) / ROTY_APG.span, 0, 1);
+  const boards  = clamp((stats.rpg - ROTY_RPG.floor) / ROTY_RPG.span, 0, 1);
   const defense = allDefensive === "1st" ? 0.7 : allDefensive === "2nd" ? 0.3 : 0;
   const best = Math.max(scoring, passing, boards, defense);
-  if (best <= 0) return false; // nothing notable in any category -> never ROTY
-  return rng() < 0.05 + 0.82 * best;
+  const driver = best <= 0 ? null
+    : best === scoring ? "scoring" : best === passing ? "passing" : best === boards ? "rebounding" : "defense";
+  return { scoring, passing, boards, defense, best, driver, odds: best <= 0 ? 0 : ROTY_BASE_ODDS + ROTY_RAMP * best };
+}
+function rotyRoll(stats, allDefensive) {
+  const c = rotyCase(stats, allDefensive);
+  if (c.best <= 0) return false; // nothing notable in any category -> never ROTY
+  return rng() < c.odds;
 }
 
 // Defensive Player of the Year roll for one season. Unlike the old flat per-season
@@ -729,15 +776,81 @@ function rotyRoll(stats, allDefensive) {
 // on a 1st-team All-Defensive season, and COMPOUNDS over consecutive elite
 // defensive years (`streak` = prior back-to-back 1st-team All-D seasons). A career
 // of sustained, generational defense now lands ~4-8 DPOYs instead of frequently 0.
+function dpoyOdds(stats, streak) {
+  let p = DPOY_BASE_ODDS + DPOY_RAMP * dpoyDominance(stats); // barely-1st-team ~0.09, dominant ~0.39
+  p *= 1 + DPOY_STREAK_BONUS * streak;  // each consecutive elite-D season compounds the odds
+  return Math.min(p, DPOY_MAX_ODDS);
+}
 function dpoyRoll(allDefensive, stats, streak) {
   if (allDefensive !== "1st") return false;
-  const domD = clamp(
-    (stats.bpg - 2.0) / 1.8 * 0.45 +
-    (stats.spg - 1.2) / 1.3 * 0.30 +
-    (stats.rpg - 9.0) / 5.0 * 0.25, 0, 1);
-  let p = 0.09 + 0.30 * domD;   // barely-1st-team & modest stats ~0.09, dominant ~0.39
-  p *= 1 + 0.06 * streak;       // each consecutive elite-D season compounds the odds
-  return rng() < Math.min(p, 0.5);
+  return rng() < dpoyOdds(stats, streak);
+}
+
+// ---- Why did this season win that award? ----
+// One short line per honor for the Career Stats by Year list, so a tag is not
+// just an unexplained badge. Every number quoted is RECOMPUTED from the same
+// constants and helpers the rolls used (mvpOdds, offensiveCase, allStarCase,
+// rotyCase, dpoyOdds, ALLDEF_*, ALLNBA_*) — nothing here is a static blurb, so
+// retuning an award updates its explanation with it.
+//
+// The rolls are probabilistic, so the honest answer to "why" is the CASE that
+// made the roll likely, not a claim of certainty. Where a roll has competing
+// paths (All-Star scoring vs signature, ROTY's four categories) the explanation
+// names whichever one was actually carrying the season.
+function pct(p) { return Math.round(p * 100) + "%"; }
+function awardReasons(season) {
+  const s = season.stats;
+  const out = {};
+  if (!s) return out;
+
+  if (season.mvp) {
+    out.mvp = `${season.seasonOVR} OVR on ${season.wins} wins — past the ${MVP_OVR_GATE} OVR / ${MVP_WIN_GATE} win gate, ${pct(mvpOdds(season.seasonOVR, season.wins))} odds`;
+  }
+  if (season.finalsMVP) {
+    out.finalsMVP = `title season at ${season.seasonOVR} OVR — Finals MVP needs ${FINALS_MVP_OVR}+`;
+  }
+  if (season.allDefensive) {
+    const line = `${ALLDEF_1ST}+ is 1st team, ${ALLDEF_2ND}+ is 2nd`;
+    out.allDefensive = `${season.seasonDef} defensive rating this season — ${line}`;
+  }
+  if (season.dpoy) {
+    const streak = season.dStreak > 0 ? `, ×${(1 + DPOY_STREAK_BONUS * season.dStreak).toFixed(2)} from ${season.dStreak} straight elite-D year${season.dStreak > 1 ? "s" : ""}` : "";
+    out.dpoy = `${s.bpg} BPG · ${s.spg} SPG · ${s.rpg} RPG off a 1st-team defensive season — ${pct(dpoyOdds(s, season.dStreak))} odds${streak}`;
+  }
+  if (season.allNBA) {
+    const { off, winBonus, score } = offensiveCase(s, season.wins);
+    // q is 0 at or below the floor, so a 3rd-team nod there can ONLY have come
+    // through the capped defensive path — that is deterministic, not a guess.
+    const viaDefense = season.allNBA === "3rd" && score <= ALLNBA_Q_FLOOR;
+    if (viaDefense) {
+      out.allNBA = `defensive path — 1st-team All-D at ${s.bpg} BPG · ${s.spg} SPG, which caps at 3rd team`;
+    } else if (season.mvp) {
+      out.allNBA = `MVP season — an MVP is 1st team automatically`;
+    } else {
+      const bar = season.allNBA === "1st" ? `${ALLNBA_1ST_SCORE}+ makes 1st`
+        : season.allNBA === "2nd" ? `${ALLNBA_2ND_SCORE}+ makes 2nd, ${ALLNBA_1ST_SCORE}+ makes 1st`
+        : `below the ${ALLNBA_2ND_SCORE} line for 2nd team`;
+      out.allNBA = `${score.toFixed(1)} offensive score (${off.toFixed(1)} box score + ${winBonus.toFixed(1)} for ${season.wins} wins) — ${bar}`;
+    }
+  }
+  if (season.allStar) {
+    const c = allStarCase(s, season.wins, season.allDefensive);
+    if (c.signature > c.scoringCase && c.sigDriver) {
+      const stat = c.sigDriver === "passing" ? `${s.apg} APG` : c.sigDriver === "rebounding" ? `${s.rpg} RPG` : `1st-team All-Defensive`;
+      out.allStar = `${stat} — made it on the ${c.sigDriver} case, not scoring (${pct(c.signature)} odds)`;
+    } else {
+      out.allStar = `${s.ppg} PPG on a ${season.wins}-win team — ${c.score.toFixed(1)} scoring case, ${pct(c.scoringCase)} odds`;
+    }
+  }
+  if (season.roty) {
+    const c = rotyCase(s, season.allDefensive);
+    const stat = c.driver === "scoring" ? `${s.ppg} PPG` : c.driver === "passing" ? `${s.apg} APG`
+      : c.driver === "rebounding" ? `${s.rpg} RPG` : `1st-team All-Defensive`;
+    const floor = c.driver === "scoring" ? `${ROTY_PPG.floor} PPG` : c.driver === "passing" ? `${ROTY_APG.floor} APG`
+      : c.driver === "rebounding" ? `${ROTY_RPG.floor} RPG` : "an All-Defensive nod";
+    out.roty = `${stat} debut — cleared the ${floor} rookie bar on ${c.driver}, ${pct(c.odds)} odds`;
+  }
+  return out;
 }
 
 const GAMES_PER_SEASON = 82;
@@ -825,6 +938,11 @@ function simCareer(ovr, team, mods = {}) {
     // the stats exist — not on the flat constant rating inside simSeason.
     result.dpoy = dpoyRoll(result.allDefensive, stats, dStreak);
     if (result.dpoy) dpoys++;
+    // Kept on the season so awardReasons can quote the compounding factor that
+    // actually applied to THIS roll — dStreak advances immediately below.
+    result.dStreak = dStreak;
+    result.seasonOVR = seasonOVR;
+    result.isRookie = i === 0;
     dStreak = result.allDefensive === "1st" ? dStreak + 1 : 0;
     // All-NBA needs the season's box score + hardware, so it's resolved here.
     // It's OFFENSE-driven (see allNbaSelection) — defense no longer inflates it.
@@ -2138,6 +2256,9 @@ if (typeof module !== "undefined") {
     seedRng, currentPick, replacePick, getAllRosterOptions, usedPickNames, usedTeamAbbrs, availableTeams, spinnablePlayers, buildStatPick, physicalBandLabel, lockSkill, lockPhysical, applyModifiers, finalSkills, computeOVR, projectedOVR, scaleOVR,
     unlockPick, backTargetStep, badgeChoiceIsPending, acquiredBadges,
     checkPositionFit, teamNeedPosition, simSeason, simCareer,
+    awardReasons, offensiveCase, allStarCase, rotyCase, dpoyOdds, mvpOdds, dpoyDominance,
+    MVP_OVR_GATE, MVP_WIN_GATE, FINALS_MVP_OVR, ALLDEF_1ST, ALLDEF_2ND,
+    ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ROTY_PPG,
     hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
     SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
     computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,

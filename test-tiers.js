@@ -989,6 +989,106 @@ check("a zero-accolade journeyman is still caliber 1", caliberOfName("Jason Smit
 
 G.state.height = null; G.state.athleticism = null; G.state.skills = {}; G.state.autoPick = false;
 
+// ############################################################################
+console.log("\n=== AWARD EXPLANATIONS TRACK THE LIVE TUNING ===");
+//
+// awardReasons() renders the "why" line under each honor in Career Stats by Year.
+// The whole point is that it recomputes from the SAME constants the rolls use, so
+// retuning an award updates its explanation. These cases assert exactly that: the
+// text must quote the CURRENT exported values, so changing a gate without the
+// explanation following fails here rather than shipping a line that lies.
+// ############################################################################
+
+// A season object shaped like the ones simCareer pushes.
+function season(o) {
+  return Object.assign({
+    wins: 55, seasonOVR: 84, seasonDef: 70, dStreak: 0, isRookie: false,
+    mvp: false, ring: false, finalsMVP: false, roty: false, dpoy: false,
+    allNBA: null, allDefensive: null, allStar: false,
+    stats: { ppg: 25, apg: 5, rpg: 7, spg: 1.2, bpg: 0.8, tpg: 2.5, fgPct: 50, tptPct: 36 },
+  }, o);
+}
+
+{
+  const r = G.awardReasons(season({ mvp: true, seasonOVR: 88, wins: 62 }));
+  check("MVP line quotes the live OVR gate",
+    r.mvp.includes(String(G.MVP_OVR_GATE)), true, r.mvp);
+  check("MVP line quotes the live win gate",
+    r.mvp.includes(String(G.MVP_WIN_GATE)), true, r.mvp);
+  check("MVP line quotes this season's real OVR and wins",
+    r.mvp.includes("88") && r.mvp.includes("62"), true, r.mvp);
+  check("MVP odds in the line equal mvpOdds() exactly",
+    r.mvp.includes(Math.round(G.mvpOdds(88, 62) * 100) + "%"), true, r.mvp);
+}
+{
+  const r = G.awardReasons(season({ allDefensive: "1st", seasonDef: 96 }));
+  check("All-Def line quotes the live 1st/2nd thresholds",
+    r.allDefensive.includes(String(G.ALLDEF_1ST)) && r.allDefensive.includes(String(G.ALLDEF_2ND)), true, r.allDefensive);
+  check("All-Def line quotes the season's actual defensive rating",
+    r.allDefensive.includes("96"), true, r.allDefensive);
+}
+{
+  const s = season({ dpoy: true, allDefensive: "1st", dStreak: 4,
+    stats: { ppg: 8, apg: 1.5, rpg: 13.5, spg: 1.9, bpg: 3.2, tpg: 0.2, fgPct: 58, tptPct: 28 } });
+  const r = G.awardReasons(s);
+  check("DPOY odds in the line equal dpoyOdds() exactly",
+    r.dpoy.includes(Math.round(G.dpoyOdds(s.stats, 4) * 100) + "%"), true, r.dpoy);
+  check("DPOY line surfaces the compounding streak", r.dpoy.includes("4 straight"), true, r.dpoy);
+  check("DPOY line quotes the real defensive box score",
+    r.dpoy.includes("3.2") && r.dpoy.includes("1.9") && r.dpoy.includes("13.5"), true, r.dpoy);
+}
+{
+  const s = season({ allNBA: "1st", wins: 60,
+    stats: { ppg: 31, apg: 6, rpg: 7, spg: 1.2, bpg: 0.5, tpg: 3, fgPct: 52, tptPct: 38 } });
+  const r = G.awardReasons(s);
+  check("All-NBA line quotes the live 1st-team score line",
+    r.allNBA.includes(String(G.ALLNBA_1ST_SCORE)), true, r.allNBA);
+  check("All-NBA line quotes the score offensiveCase() actually computed",
+    r.allNBA.includes(G.offensiveCase(s.stats, s.wins).score.toFixed(1)), true, r.allNBA);
+  check("All-NBA 2nd team names the 2nd-team line",
+    G.awardReasons(season({ allNBA: "2nd", wins: 50,
+      stats: { ppg: 26, apg: 5, rpg: 7, spg: 1, bpg: 0.5, tpg: 2, fgPct: 50, tptPct: 35 } })).allNBA
+      .includes(String(G.ALLNBA_2ND_SCORE)), true);
+}
+{
+  // A 6-PPG rim protector's All-NBA 3rd can ONLY be the capped defensive path,
+  // because the offensive ramp is 0% at or below the floor. Deterministic.
+  const s = season({ allNBA: "3rd", allDefensive: "1st", wins: 44,
+    stats: { ppg: 6, apg: 1.4, rpg: 13, spg: 2, bpg: 2.8, tpg: 0.1, fgPct: 60, tptPct: 28 } });
+  check("All-NBA via the defensive path is named as such, not as a scoring case",
+    /defensive path/.test(G.awardReasons(s).allNBA), true, G.awardReasons(s).allNBA);
+  check("that season's offensive score is genuinely at or below the ramp floor",
+    G.offensiveCase(s.stats, s.wins).score <= G.ALLNBA_Q_FLOOR, true);
+}
+{
+  // All-Star: the line must name whichever case actually carried the season.
+  const scorer = season({ allStar: true, wins: 55,
+    stats: { ppg: 27, apg: 5, rpg: 6, spg: 1.1, bpg: 0.4, tpg: 2.6, fgPct: 50, tptPct: 36 } });
+  check("All-Star scoring season is explained by scoring",
+    /PPG on a 55-win team/.test(G.awardReasons(scorer).allStar), true, G.awardReasons(scorer).allStar);
+  const anchor = season({ allStar: true, allDefensive: "1st", wins: 48,
+    stats: { ppg: 6, apg: 1.5, rpg: 13, spg: 1.8, bpg: 2.9, tpg: 0.1, fgPct: 59, tptPct: 28 } });
+  check("a 6-PPG anchor's All-Star is explained by defense, NOT scoring",
+    /not scoring/.test(G.awardReasons(anchor).allStar), true, G.awardReasons(anchor).allStar);
+  const passer = season({ allStar: true, wins: 44,
+    stats: { ppg: 11, apg: 11.5, rpg: 4, spg: 1.4, bpg: 0.2, tpg: 1.5, fgPct: 47, tptPct: 34 } });
+  check("a pass-first All-Star is explained by passing",
+    /passing case/.test(G.awardReasons(passer).allStar), true, G.awardReasons(passer).allStar);
+}
+{
+  const r = G.awardReasons(season({ roty: true, isRookie: true,
+    stats: { ppg: 21, apg: 4, rpg: 6, spg: 1, bpg: 0.4, tpg: 2, fgPct: 48, tptPct: 35 } }));
+  check("ROTY line quotes the live PPG floor", r.roty.includes(String(G.ROTY_PPG.floor)), true, r.roty);
+  check("ROTY line attributes the debut to the right category", /on scoring/.test(r.roty), true, r.roty);
+  const boards = G.awardReasons(season({ roty: true, isRookie: true,
+    stats: { ppg: 7, apg: 1.4, rpg: 13, spg: 0.8, bpg: 1.9, tpg: 0.1, fgPct: 55, tptPct: 28 } })).roty;
+  check("a rebounding rookie's ROTY is not credited to scoring", /on rebounding/.test(boards), true, boards);
+}
+check("a season with no honors produces no explanations",
+  Object.keys(G.awardReasons(season({}))).length, 0);
+check("awardReasons is safe on a season with no stats",
+  Object.keys(G.awardReasons({ mvp: true })).length, 0);
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);
