@@ -554,13 +554,21 @@ function traitTipAttrs(b) {
   return `role="button" tabindex="0" data-tip="${b.name} — ${b.effect}" data-mods="${mods}" aria-label="Trait ${b.name}. ${b.effect}. ${mods}"`;
 }
 
-// ---- Trait-pill info tooltip: click-to-toggle (primary), hover-preview (bonus) ----
+// ---- Click-to-toggle info tooltip: click (primary), hover-preview (bonus) ----
 // The roster list is a scroll container that would clip a CSS ::after tooltip,
-// so this floats a single element on <body> positioned to the clicked pill.
-// Delegated capture-phase click handling means tapping a pill toggles its info
-// WITHOUT the surrounding roster-row button also selecting that player.
+// so this floats a single element on <body> positioned to the clicked element.
+// Delegated capture-phase click handling means tapping toggles the info WITHOUT
+// the surrounding roster-row button also selecting that player.
+//
+// TIP_SELECTOR is what makes this reusable. It started life driving only
+// .trait-pill; achievements (the verdict toast chips and the Trophy Case grid)
+// now opt in with .tip-target rather than growing a second controller, so they
+// inherit the whole behaviour for free — pinning, hover preview, Enter/Space,
+// Escape, flip-above-or-below positioning and hide-on-scroll. Anything with
+// data-tip and one of these classes is tappable.
+const TIP_SELECTOR = ".trait-pill, .tip-target";
 let traitTipEl = null;
-let pinnedPill = null; // the pill whose tip is "pinned" open by a click/tap
+let pinnedPill = null; // the element whose tip is "pinned" open by a click/tap
 
 function positionTraitTip(pill) {
   const tip = traitTipEl;
@@ -612,22 +620,22 @@ function toggleTraitTip(pill) {
 // button's own bubble-phase onclick (requirement: the pill must not select).
 function initTraitTips() {
   document.addEventListener("click", e => {
-    const pill = e.target.closest && e.target.closest(".trait-pill");
+    const pill = e.target.closest && e.target.closest(TIP_SELECTOR);
     if (pill) { e.preventDefault(); e.stopPropagation(); toggleTraitTip(pill); return; }
     if (!(e.target.closest && e.target.closest(".trait-tip"))) hideTraitTip();
   }, true);
   document.addEventListener("keydown", e => {
-    const pill = e.target.closest && e.target.closest(".trait-pill");
+    const pill = e.target.closest && e.target.closest(TIP_SELECTOR);
     if (pill && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); toggleTraitTip(pill); }
     else if (e.key === "Escape") hideTraitTip();
   }, true);
   // Hover preview (desktop bonus) — only when nothing is pinned by a click.
   document.addEventListener("mouseover", e => {
-    const pill = e.target.closest && e.target.closest(".trait-pill");
+    const pill = e.target.closest && e.target.closest(TIP_SELECTOR);
     if (pill && !pinnedPill) showTraitTip(pill, false);
   });
   document.addEventListener("mouseout", e => {
-    const pill = e.target.closest && e.target.closest(".trait-pill");
+    const pill = e.target.closest && e.target.closest(TIP_SELECTOR);
     if (pill && !pinnedPill) hideTraitTip();
   });
   // The pill moves under a floating tip on scroll/resize; simplest is to hide.
@@ -1005,12 +1013,23 @@ function buildAchievementsPanel(p) {
   const earned = ACHIEVEMENTS.filter(a => p.unlocked[a.id]).length;
   panel.appendChild(el("div", "trophy-sub", `Unlocked &nbsp;·&nbsp; ${earned} of ${ACHIEVEMENTS.length}`));
   const grid = el("div", "ach-grid");
+  // The criteria line was already rendered inline here, so this does NOT hide it
+  // behind the tap — hiding information that was visible would be a regression.
+  // The card becomes a tap target that pins the same criteria plus an explicit
+  // earned/not-earned status, which is what the inline text alone never said.
   ACHIEVEMENTS.forEach(a => {
     const got = !!p.unlocked[a.id];
-    grid.appendChild(el("div", "ach-card" + (got ? " unlocked" : " locked"),
+    const card = el("div", "ach-card tip-target" + (got ? " unlocked" : " locked"),
       `<span class="ach-icon">${got ? "🏆" : "🔒"}</span>
        <span class="ach-name">${a.name}</span>
-       <span class="ach-desc">${a.desc}</span>`));
+       <span class="ach-status">${got ? "✓ Earned" : "Not yet earned"}</span>
+       <span class="ach-desc">${a.desc}</span>`);
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    card.dataset.tip = (got ? "Earned — " : "Not yet earned — ") + a.desc;
+    card.setAttribute("aria-label",
+      `${a.name}. ${got ? "Earned" : "Not yet earned"}. ${a.desc}`);
+    grid.appendChild(card);
   });
   panel.appendChild(grid);
   return panel;
@@ -1948,7 +1967,17 @@ function renderVerdict() {
     toast.appendChild(el("div", "ach-toast-head",
       `🏆 Achievement${runUnlocks.length > 1 ? "s" : ""} Unlocked`));
     const names = el("div", "ach-toast-names");
-    runUnlocks.forEach(a => names.appendChild(el("span", "ach-toast-pill", a.name)));
+    // Tap/click a chip for what was actually accomplished. dataset (not string
+    // interpolation into the markup) so an apostrophe or quote in a desc can
+    // never break the attribute.
+    runUnlocks.forEach(a => {
+      const pill = el("span", "ach-toast-pill tip-target", a.name);
+      pill.setAttribute("role", "button");
+      pill.setAttribute("tabindex", "0");
+      pill.dataset.tip = a.desc;
+      pill.setAttribute("aria-label", `Achievement unlocked: ${a.name}. ${a.desc}`);
+      names.appendChild(pill);
+    });
     toast.appendChild(names);
     wrap.appendChild(toast);
   }

@@ -2403,8 +2403,25 @@ body.modal-open { overflow: hidden; }
   background: rgba(0,0,0,0.25);
   border: 1px solid var(--line-gold);
   border-radius: 4px;
-  padding: 4px 10px;
+  /* 7px vertical (was 4px) so the chip is a real fingertip target — the same
+     ~44px-guidance reasoning as the mobile touch-target block at the end of
+     this file. It is now a button, not a label. */
+  padding: 7px 10px;
+  cursor: pointer;
 }
+.ach-toast-pill::after {
+  content: "?";
+  font-size: 9px;
+  margin-left: 6px;
+  color: var(--gold);
+  border: 1px solid var(--line-gold);
+  border-radius: 50%;
+  padding: 0 4px;
+  vertical-align: 1px;
+}
+.ach-toast-pill:hover,
+.ach-toast-pill:focus-visible { border-color: var(--gold-bright); color: #fff; }
+.ach-toast-pill:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
 
 /* ---- Trophy Case modal ---- */
 .trophy-tabs {
@@ -2497,7 +2514,25 @@ body.modal-open { overflow: hidden; }
   background: linear-gradient(180deg, rgba(242,201,76,0.10), rgba(242,201,76,0.03));
   border-color: var(--line-gold);
 }
-.ach-card.locked { background: #0a1018; opacity: 0.5; }
+/* LOCKED CARDS WERE opacity 0.5, which dimmed the criteria along with everything
+   else — the exact text a player needs in order to know what they are chasing.
+   Dim the CHROME instead of the content: the card stays visually secondary via
+   background and border, the icon and name are muted individually, and the
+   criteria line keeps full contrast. */
+.ach-card.locked { background: #0a1018; border-color: #16202e; }
+.ach-card.locked .ach-icon { opacity: 0.55; }
+.ach-card.locked .ach-name { color: var(--text-dim); }
+.ach-card { cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease; }
+.ach-card:hover, .ach-card:focus-visible { border-color: var(--gold); background: #101c30; }
+.ach-card:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: -2px; }
+.ach-status {
+  font-family: var(--font-cond);
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ach-card.unlocked .ach-status { color: var(--green); }
 .ach-icon { font-size: 18px; }
 .ach-name {
   font-family: var(--font-cond);
