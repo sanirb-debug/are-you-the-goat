@@ -271,7 +271,109 @@ console.log("\n=== POSITIVE CASE: A REAL STAR MUST STILL GET A STAR ===");
     r.runs.every(x => caliberOf(x.primary) > 1), true);
 }
 
+console.log("\n=== REPORT 6: ALL-STAR BALANCED BIG (was Pau Gasol / Webber / Tatum) ===");
+//
+// THIS SUITE PASSED 46/46 WHILE THIS BUG WAS LIVE, for three separate reasons.
+// All three are fixed below, because a suite that cannot fail on a live bug is
+// the reason the bug class keeps coming back.
+//
+//  (1) NO ALL-STAR CASE EXISTED. Cases covered Draft Bust, Bench Piece, Starter
+//      and Superstar. All-Star — rank 3, the reported tier — was never run. The
+//      band with the thinnest pool support was the one band nobody tested.
+//  (2) THE CORE ASSERTION ENCODED THE IMPLEMENTATION, NOT THE PROPERTY. Every
+//      case used `caliberOf(primary) > rank + 1`, i.e. it granted the same
+//      one-tier grace the code granted. Gasol is calibre 4 and the build was
+//      rank 3, so "primary never exceeds the tier band" was SATISFIED by the
+//      reported bug. An assertion derived from the code under test cannot
+//      falsify that code. Below, the band is asserted EXACTLY.
+//  (3) NOTHING WAS EVER ASSERTED ABOUT THE SHADES. playstyleComp returns them,
+//      the verdict screen shows them, and the report was that all three picks
+//      skewed — yet no case looked past [0]. Shades are now checked everywhere.
+//
+// The root cause was the POOL, not another weight. Measured at report time the
+// pool held 27/2/9/23/28/14 across calibres 1-6: of nine calibre-3 comps, six
+// were guards and three were specialists, so BALANCED BIGS AT ALL-STAR CALIBRE
+// NUMBERED ZERO. Gasol sat 98 distance units away and the next admissible option
+// was a 45-55-rated journeyman at 124+. No weighting picks correctly from a set
+// with no correct answer.
+const ALLSTAR_BALANCED_BIG = { pos: "C", h: 85, a: 70, team: "LAL",
+  sk: { Shooting: 80, Finishing: 80, Playmaking: 80, Handles: 80, Defense: 80, Rebounding: 80 } };
+{
+  const r = runCase(Object.assign({}, ALLSTAR_BALANCED_BIG, { tier: "All-Star" }));
+  check("produced All-Star careers to test", r.runs.length, v => v >= 50);
+  check("the build really is balanced (no distinctive signature)",
+    G.signatureOfDims(r.profile).distinctive, false);
+  // EXACT band, not band+grace. This is the assertion the old wording could not make.
+  check("All-Star big: primary sits in the build's OWN calibre band",
+    r.runs.filter(x => caliberOf(x.primary) > x.rank).length, 0,
+    [...new Set(r.runs.map(x => `${x.primary}(cal ${caliberOf(x.primary)} vs rank ${x.rank})`))].join(", "));
+  check("All-Star big: BOTH shades sit in the build's own band too",
+    r.runs.filter(x => x.shades.some(s => caliberOf(s) > x.rank)).length, 0,
+    [...new Set(r.runs.flatMap(x => x.shades.map(s => `${s}(cal ${caliberOf(s)})`)))].join(", "));
+  check("All-Star big: comps are balanced bigs, not specialists",
+    r.runs.every(x => !G.signatureOfDims(comp(x.primary).dims).distinctive), true,
+    [...new Set(r.runs.map(x => x.primary + "(" + sigOf(x.primary) + ")"))].join(", "));
+  // The four names from the report, pinned by name so they cannot creep back.
+  ["Pau Gasol", "Chris Webber", "Jayson Tatum", "Joel Embiid"].forEach(n => {
+    check(`All-Star big: ${n} appears nowhere in the three picks`,
+      r.runs.every(x => x.primary !== n && !x.shades.includes(n)), true);
+  });
+  check("All-Star big: no 6+ time All-Star among the three picks",
+    r.runs.every(x => [x.primary, ...x.shades].every(s => G.accompOf(comp(s)).allStar < 6)), true);
+}
+
+console.log("\n=== EVERY CASE'S SHADES, NOT JUST ITS PRIMARY ===");
+// Defect (3) above, applied retroactively to the five pre-existing archetypes.
+// The partition covers the whole ranked list, so this must hold everywhere.
+{
+  const cases = [
+    ["Bench Piece rebounding big", REBOUNDING_BIG_WEAK, "Bench Piece"],
+    ["Draft Bust finisher", FINISHER_WEAK, "Draft Bust"],
+    ["Starter finisher", FINISHER_STRONG, "Starter"],
+    ["Starter balanced big", BALANCED_BIG, "Starter"],
+    ["Superstar scoring guard", STAR_SCORING_GUARD, "Superstar"],
+  ];
+  cases.forEach(([label, arch, tier]) => {
+    const r = runCase(Object.assign({}, arch, { tier }));
+    // Draft Bust is rank 0 and every comp floors at calibre 1, so an exact-band
+    // match cannot exist there; the pool is real NBA players. Band 1 is the floor.
+    const floor = x => Math.max(x.rank, 1);
+    check(`${label}: shades never exceed the band`,
+      r.runs.filter(x => x.shades.some(s => caliberOf(s) > floor(x))).length, 0,
+      [...new Set(r.runs.flatMap(x => x.shades.map(s => `${s}(${caliberOf(s)})`)))].join(", "));
+    check(`${label}: primary never exceeds the band`,
+      r.runs.filter(x => caliberOf(x.primary) > floor(x)).length, 0,
+      [...new Set(r.runs.map(x => `${x.primary}(${caliberOf(x.primary)})`))].join(", "));
+    // Defect: REPORT 4's Starter case asserted four properties over ONE career
+    // (`v => v > 0` passed with n=1). A sample that small asserts nothing.
+    check(`${label}: sample is big enough to mean something`, r.runs.length, v => v >= 25);
+  });
+}
+
 console.log("\n=== THE POOL MUST BE ABLE TO ANSWER AT EVERY SIZE AND LEVEL ===");
+// Defect (1)'s structural guard. The four earlier reports were all "the pool has
+// no correct answer for this build", and each was found by a user rather than by
+// this file. Assert the SHAPE of the pool so the next hole fails here first.
+{
+  const band = c => G.COMP_PLAYERS.filter(r => G.compCaliber(G.accompOf(r)) === c);
+  const hist = [1, 2, 3, 4, 5, 6].map(c => band(c).length);
+  check("no middle band is hollow (>= 8 comps at every calibre 2-5)",
+    [2, 3, 4, 5].every(c => band(c).length >= 8), true, "1-6: " + hist.join("/"));
+  // The exact hole that produced this report.
+  [2, 3, 4].forEach(c => {
+    check(`calibre ${c} has a BALANCED big (height >= 78) to answer with`,
+      band(c).filter(r => r.dims.height >= 78 && !G.signatureOfDims(r.dims).distinctive).length,
+      v => v >= 1,
+      band(c).filter(r => r.dims.height >= 78 && !G.signatureOfDims(r.dims).distinctive).map(r => r.name).join(", ") || "NONE");
+  });
+  [2, 3].forEach(c => {
+    check(`calibre ${c} covers at least 3 distinct signature skills`,
+      new Set(band(c).map(r => G.signatureOfDims(r.dims)).filter(s => s.distinctive).map(s => s.attr)).size,
+      v => v >= 3,
+      [...new Set(band(c).map(r => G.signatureOfDims(r.dims)).filter(s => s.distinctive).map(s => s.attr))].join(", "));
+  });
+}
+
 // The gap that let this recur: no low-calibre comp was tall enough for a
 // seven-foot build, so the honest nearest neighbour was always a star.
 {

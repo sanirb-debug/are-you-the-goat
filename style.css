@@ -2739,3 +2739,106 @@ body.modal-open { overflow: hidden; }
   .season-row .sp-tag.tip-target,
   .season-row .sp-tier.tip-target { padding-left: 8px; padding-right: 8px; }
 }
+
+/* ===== Persistent active-trait dock (sim + verdict screens) ===== */
+/* Same broadcast treatment as .picks-panel, docked bottom-right instead of
+   top-right so the two never share a corner. z-index 10 matches .picks-panel and
+   stays UNDER .trait-tip (200) and the modal layer (100), so badge tooltips and
+   dialogs still win. */
+.badge-dock {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  width: 210px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--card-border);
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+  z-index: 10;
+  overflow: hidden;
+}
+.bd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 9px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.bd-title {
+  font-family: var(--font-cond);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.bd-count {
+  color: var(--text-dim);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin-left: 6px;
+}
+.bd-caret {
+  color: var(--text-dim);
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+.badge-dock.open .bd-caret { transform: rotate(180deg); }
+.bd-head:hover .bd-title { color: var(--gold-bright); }
+.bd-head:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: -2px; }
+
+/* Collapsed by default in markup terms — .open is what reveals the list, so a
+   dock with no class is just the header pill and cannot cover content. */
+.bd-body { display: none; }
+.badge-dock.open .bd-body {
+  display: block;
+  padding: 0 12px 10px;
+  border-top: 1px solid var(--line-gold);
+  /* Bounded so a Sandbox build with six traits can never run off screen. */
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.bd-row { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.bd-row:last-child { border-bottom: none; }
+.bd-name {
+  display: block;
+  font-family: var(--font-cond);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gold-bright);
+  line-height: 1.25;
+}
+.bd-who {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+
+/* #app is 760px centred, so a 210px dock at right:20px only clears the card
+   while the gutter is wide enough ((1240-760)/2 = 240px). Below that it would sit
+   on top of the content, so it narrows and the JS default flips to collapsed —
+   the same breakpoint .picks-panel uses to go static. */
+@media (max-width: 1240px) {
+  .badge-dock { width: auto; max-width: 62vw; right: 12px; bottom: 12px; }
+  .bd-head { padding: 10px 13px; }        /* touch target */
+}
+@media (max-width: 480px) {
+  .badge-dock { max-width: calc(100vw - 24px); }
+  .badge-dock.open .bd-body { max-height: 34vh; }
+  /* COLLAPSED, DROP TO "★ 2". With the full label the pill was 156px wide at
+     375px and covered the verdict's Playstyle Comp callout; the star and the
+     count say the same thing in ~52px, cutting the footprint about 8x. Expanding
+     restores the words, and #app's 60px bottom padding still exceeds the dock's
+     height + offset, so nothing is ever permanently unreachable underneath it. */
+  .badge-dock:not(.open) .bd-label { display: none; }
+  .badge-dock:not(.open) .bd-count { margin-left: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bd-caret { transition: none; }
+}

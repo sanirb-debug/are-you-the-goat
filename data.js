@@ -2289,6 +2289,51 @@ const COMP_ROWS = [
   ["Hasheem Thabeet", "C", 96, 55, 34, 48, 38, 38, 66, 70, 0, 0, 0, 0, 0, "Towering shot-blocking project taken second overall who never developed an NBA offensive game."],
   ["JaVale McGee", "C", 92, 82, 40, 74, 42, 44, 70, 74, 3, 0, 0, 0, 0, "Explosive seven-foot athlete whose blocks and lob finishing made him a useful champion role player."],
   ["Zaza Pachulia", "C", 87, 48, 44, 56, 54, 46, 64, 76, 0, 0, 0, 0, 0, "Bruising positional rebounder who set hard screens and defended the post without scoring."],
+
+  // ---- THE MIDDLE OF THE LADDER: 2-5x ALL-STARS AND ONE-TIME PICKS ----
+  // Added with the SIXTH comp report, and this one was a POOL hole, not a
+  // weighting bug. An All-Star-tier balanced 6'11" build matched Pau Gasol, with
+  // Chris Webber and Jayson Tatum as shades — all three calibre 4. Measured, the
+  // pool at that moment held:
+  //     calibre 1  27      calibre 4  23
+  //     calibre 2   2      calibre 5  28
+  //     calibre 3   9      calibre 6  14
+  // a barbell. Worse, of those nine calibre-3 comps, SIX were guards and the other
+  // three were specialists (Gobert defence, Towns shooting, Love shooting) — so
+  // calibre-3 BIGS numbered two, and balanced calibre-3 comps of ANY size numbered
+  // three, all guards. Balanced big at All-Star calibre: ZERO. The honest nearest
+  // neighbour was Gasol at 98 distance units; the next admissible option was a
+  // 45-55-rated journeyman at 124+. No finite weighting picks correctly from a set
+  // that contains no correct answer, which is why five previous weighting fixes
+  // each moved the leak instead of closing it.
+  //
+  // These 20 are real players whose resumes land in bands 2 and 3 by the same
+  // compCaliber() arithmetic as everyone else, chosen to cover both SIZE and
+  // ARCHETYPE at that level: balanced bigs (Horford, Adebayo, Vucevic, Allen),
+  // balanced wings and guards (Middleton, Hayward, Brunson, LaVine, Conley),
+  // and mid-level specialists so a distinctive mid-tier build has a peer too
+  // (Sabonis rebounding, Jackson/Holiday/Caruso/Lopez defence, Randle finishing,
+  // Porzingis shooting).
+  ["Al Horford", "C", 78, 62, 76, 74, 72, 62, 80, 76, 1, 0, 0, 0, 5, "Endlessly versatile big who defends, spaces the floor and moves the ball without needing volume. The archetype of a starting centre whose value never shows up in one column."],
+  ["Bam Adebayo", "C", 78, 82, 60, 78, 72, 66, 80, 78, 0, 0, 0, 0, 3, "Switchable two-way centre who guards all five positions and connects the offence as a hub. Impact comes from defence and passing rather than any scoring signature."],
+  ["Nikola Vucevic", "C", 82, 52, 78, 76, 66, 62, 56, 80, 0, 0, 0, 0, 2, "Skilled offensive centre with a reliable jumper, sound footwork and steady rebounding. Produces efficiently on both blocks while giving much of it back defensively."],
+  ["Jarrett Allen", "C", 85, 76, 48, 82, 50, 48, 80, 82, 0, 0, 0, 0, 1, "Athletic seven-footer who finishes lobs, protects the rim and rebounds at a high rate, with no shooting range to speak of."],
+  ["Domantas Sabonis", "C", 85, 58, 66, 82, 80, 64, 60, 88, 0, 0, 0, 1, 3, "Rebounding machine and offensive hub who racks up boards and assists from the post. Wins on skill, positioning and touch rather than rim protection."],
+  ["Jaren Jackson Jr.", "PF", 82, 78, 74, 76, 50, 58, 88, 66, 0, 0, 0, 1, 2, "Rangy shot-blocking big who anchors a defence while stretching the floor. Defence is the calling card and the rebounding never matched the frame."],
+  ["Julius Randle", "PF", 75, 72, 72, 84, 72, 74, 58, 74, 0, 0, 0, 2, 3, "Powerful left-handed forward who bulldozes to the rim and finishes through contact. Scores in volume without the defence to match it."],
+  ["Pascal Siakam", "PF", 75, 82, 68, 80, 68, 76, 74, 68, 1, 0, 0, 2, 3, "Long, mobile forward who scores in transition and the midrange while defending multiple positions. Well-rounded rather than dominant in any single area."],
+  ["Khris Middleton", "SF", 62, 58, 80, 76, 72, 76, 66, 60, 1, 0, 0, 0, 3, "Smooth three-level scorer who gets to his spots without speed or explosiveness. A dependable second option built on shot-making and craft."],
+  ["Gordon Hayward", "SF", 62, 66, 76, 74, 70, 74, 62, 56, 0, 0, 0, 0, 1, "Well-rounded wing who scored, passed and defended competently at every level without a standout trait. The definition of a solid starting forward."],
+  ["P.J. Tucker", "PF", 66, 58, 60, 56, 48, 48, 80, 64, 1, 0, 0, 0, 0, "Undersized bruiser who guarded the biggest forwards in the league on strength and stubbornness, offering only a corner three in return."],
+  ["Jalen Brunson", "PG", 36, 62, 78, 84, 80, 86, 52, 46, 0, 0, 0, 1, 2, "Compact, relentless creator who scores through footwork and shoulder fakes rather than speed. Carries an offence in the half court and closes games."],
+  ["Jrue Holiday", "PG", 44, 74, 70, 74, 76, 74, 86, 52, 1, 0, 0, 0, 2, "Bulldog point-of-attack defender who takes the toughest guard assignment nightly while running an offence competently."],
+  ["Mike Conley", "PG", 36, 62, 74, 66, 78, 74, 70, 46, 0, 0, 0, 0, 1, "Steady, low-mistake floor general who controlled tempo and defended his position for two decades without ever being the story."],
+  ["Zach LaVine", "SG", 48, 90, 84, 86, 62, 80, 48, 48, 0, 0, 0, 0, 2, "Explosive leaping scorer who fills it up from three levels. Efficient volume offence paired with persistent defensive indifference."],
+  ["Derrick White", "SG", 44, 70, 76, 68, 68, 66, 82, 48, 1, 0, 0, 0, 1, "Do-everything guard whose defence and shot-blocking from the perimeter outrun his profile, with enough shooting to stay on the floor."],
+  ["Alex Caruso", "SG", 48, 76, 62, 60, 56, 58, 88, 46, 2, 0, 0, 0, 0, "Elite perimeter defender and championship connective piece whose offence never extended past a spot-up three."],
+  ["Danny Green", "SG", 55, 62, 78, 58, 50, 52, 76, 48, 3, 0, 0, 0, 0, "Prototype 3-and-D wing who won titles on three teams by hitting corner threes and guarding the opponent's best scorer."],
+  ["Brook Lopez", "C", 87, 52, 74, 74, 48, 50, 82, 62, 1, 0, 0, 0, 1, "Seven-foot rim protector who reinvented himself as a stretch five, blocking shots inside and spacing the floor from well behind the arc."],
+  ["Kristaps Porzingis", "C", 90, 66, 80, 72, 50, 54, 72, 66, 1, 0, 0, 0, 1, "Towering shooter who scores over the top of anyone and blocks shots at the other end, when healthy enough to be on the floor."],
 ];
 
 const COMP_PLAYERS = COMP_ROWS.map(([name, pos, height, athleticism, sh, fi, pl, ha, de, re, rings, mvps, finalsMVPs, allNBA, allStar, reasoning]) => ({

@@ -112,6 +112,14 @@ function render() {
   else if (step === "position") renderPositionStep();
   else if (step === "simulating") renderSimulating();
   else if (step === "verdict") renderVerdict();
+
+  // Appended AFTER the step so it is last in the DOM and cannot be clipped by a
+  // card's overflow. Only these two screens: everywhere earlier the picks panel
+  // already shows the badges, and it occupies the same corner below 1240px.
+  if (step === "simulating" || step === "verdict") {
+    const dock = renderBadgeDock();
+    if (dock) app.appendChild(dock);
+  }
 }
 
 function renderTopBar() {
@@ -1706,6 +1714,48 @@ function buildCareerRun(car) {
 }
 
 // ---- Simulating: animated highlight reel from the real career data ----
+// ---- Persistent active-trait dock (sim + verdict) ----
+// The badges are chosen many screens earlier and then only restated near the TOP
+// of the verdict, so during the sim sequence and while reading a long verdict the
+// player cannot see which traits are actually live. This is a small fixed panel
+// that keeps them on screen.
+//
+// null = "not decided yet": the first render picks a default from the viewport
+// (open on desktop, collapsed on narrow screens where an expanded panel would
+// cover content). After that it is whatever the player last set, and it survives
+// re-renders because render() rebuilds #app from scratch.
+let badgeDockOpen = null;
+function renderBadgeDock() {
+  const active = activeBadgeList();
+  if (!active.length) return null;               // no badges acquired -> no dock
+  if (badgeDockOpen === null) {
+    badgeDockOpen = !(window.matchMedia && window.matchMedia("(max-width: 1240px)").matches);
+  }
+  const dock = el("div", "badge-dock" + (badgeDockOpen ? " open" : ""));
+
+  const head = el("button", "bd-head");
+  head.type = "button";
+  head.setAttribute("aria-expanded", badgeDockOpen ? "true" : "false");
+  head.innerHTML =
+    // The words live in their own span so a collapsed dock can drop to "★ 2" on a
+    // narrow screen — measured at 375px, the full label made the pill 156px wide
+    // and it sat on top of the verdict's Playstyle Comp callout.
+    `<span class="bd-title">★<span class="bd-label"> Active Traits</span><span class="bd-count">${active.length}</span></span>` +
+    `<span class="bd-caret" aria-hidden="true">▾</span>`;
+  head.setAttribute("aria-label", `Active traits (${active.length})`);
+  head.onclick = () => { badgeDockOpen = !badgeDockOpen; render(); };
+  dock.appendChild(head);
+
+  const body = el("div", "bd-body");
+  active.forEach(b => {
+    body.appendChild(el("div", "bd-row",
+      `<span class="bd-name">${b.name}</span>` +
+      `<span class="bd-who">${b.player} · ${b.category}</span>`));
+  });
+  dock.appendChild(body);
+  return dock;
+}
+
 function renderSimulating() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Simulating Career..."));

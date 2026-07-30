@@ -1794,10 +1794,31 @@ function tierRank(career) {
 // playstyleComp takes [0] and slice(1) of THIS list — but the shades only looked
 // right by luck. The same run that produced Towns as primary also produced Yao
 // Ming (8x All-Star) as a shade.
-const CALIBER_GRACE = 1;  // a comp one tier above the build is still fair game
+// THE SIXTH REPORT. This was 1 — "a comp one tier above the build is fair game" —
+// and that single tier of slack WAS the reported symptom: an All-Star build (rank
+// 3) admitted calibre 4, so Pau Gasol, Chris Webber and Jayson Tatum were all
+// legal, and because the calibre-4 band is dense and uniformly better-rated they
+// swept the primary AND both shades. Measured over the five suite archetypes,
+// dropping the grace to 0 moves every band to exact: shades above band fall
+// 399->0 (Bench Piece) and 246->0 (Superstar), the Starter balanced big goes from
+// a 5x All-Star (Horford) to a 1x All-Star (Jarrett Allen), and no case regresses.
+//
+// WHY IT WAS 1 AND WHY IT CAN BE 0 NOW. The grace was doing the job the pool
+// could not: with two calibre-2 comps and nine calibre-3 comps, an exact-band
+// match often did not exist, so the slack was the only thing keeping the answer
+// sane. Expanding those bands to 11 and 20 (see data.js) is what makes a hard
+// gate affordable. Order matters — tightening this WITHOUT the pool work would
+// have stranded mid-tier builds on 45-55-rated journeymen.
+const CALIBER_GRACE = 0;  // a comp must sit in the build's own calibre band
 function topComps(profile, career = null, n = 3) {
   const bRank = tierRank(career);
-  const overBy = ref => (bRank == null ? 0 : Math.max(0, compCaliber(accompOf(ref)) - bRank - CALIBER_GRACE));
+  // Every comp is a real NBA player, so compCaliber floors at 1 and NOTHING is
+  // ever calibre 0. Measuring a Draft-Bust build (rank 0) against band 0 would
+  // therefore mark the entire pool inadmissible and collapse the partition into
+  // pure distance. Floor the comparison band at 1 so rank 0 keeps a real
+  // admissible set (the 27 journeymen) instead of a vacuous one.
+  const band = bRank == null ? null : Math.max(bRank, 1) + CALIBER_GRACE;
+  const overBy = ref => (band == null ? 0 : Math.max(0, compCaliber(accompOf(ref)) - band));
   return COMP_PLAYERS
     .map(ref => {
       const over = overBy(ref);
