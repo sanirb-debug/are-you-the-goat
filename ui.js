@@ -2188,7 +2188,7 @@ function renderVerdict() {
   // per award per season — the affordance stays discoverable, the rows stay clean.
   yearPanel.appendChild(el("div", "season-panel-head",
     `All ${career.numSeasons} Seasons &nbsp;·&nbsp; ${state.team.name}` +
-    `<span class="sp-hint">tap an award for why it was earned</span>`));
+    `<span class="sp-hint">tap any tag for why it was earned &mdash; or why it was not</span>`));
   // The "why did this season win that" explanations (game.js awardReasons, still
   // computed from the same constants the rolls use) are CLICK-TO-REVEAL on the
   // tag itself rather than printed inline. Inline was one line per award per
@@ -2228,6 +2228,24 @@ function renderVerdict() {
         tag.dataset.tip = reason;
         tag.setAttribute("aria-label", `${label}, year ${i + 1}. ${reason}`);
       }
+      row.appendChild(tag);
+    });
+
+    // A season with NO honor is the one a player actually questions, and until now
+    // it was the only row with nothing to tap. These use the same click-to-reveal
+    // controller as the earned tags and are muted rather than gold, so a career's
+    // real honors still read at a glance — the misses are there when asked for, not
+    // competing for attention. Text comes from missedAwardReasons (game.js), which
+    // recomputes from the live thresholds, so it cannot drift from the roll.
+    const missed = missedAwardReasons(s);
+    [["allStar", "no All-Star"], ["allNBA", "no All-NBA"]].forEach(([key, label]) => {
+      const reason = missed[key];
+      if (!reason) return;                    // the honor WAS earned this season
+      const tag = el("span", "sp-tag sp-missed tip-target", label);
+      tag.setAttribute("role", "button");
+      tag.setAttribute("tabindex", "0");
+      tag.dataset.tip = reason;
+      tag.setAttribute("aria-label", `${label}, year ${i + 1}. ${reason}`);
       row.appendChild(tag);
     });
 

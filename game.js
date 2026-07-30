@@ -616,6 +616,10 @@ const DPOY_BPG = { floor: 2.0, span: 1.8, w: 0.45 };
 const DPOY_SPG = { floor: 1.2, span: 1.3, w: 0.30 };
 const DPOY_RPG = { floor: 9.0, span: 5.0, w: 0.25 };
 const DPOY_BASE_ODDS = 0.09, DPOY_RAMP = 0.30, DPOY_STREAK_BONUS = 0.06, DPOY_MAX_ODDS = 0.5;
+// goatScore award weights — see the note above the goatScore sum in simCareer.
+// Were 3 and 1; halved when awards moved onto production so the tier ladder did
+// not drift with the recount.
+const GOAT_ALLNBA_W = 1.5, GOAT_ALLSTAR_W = 0.5;
 
 function mvpOdds(ovr, wins) {
   const ovrEdge = Math.min(1, (ovr - MVP_OVR_GATE) / MVP_OVR_SPAN);
@@ -815,23 +819,75 @@ function allStarDefProduction(stats) {
 //   All-Star  ~3        ~10       ~15       ~16
 //   All-NBA   ~1        ~5        ~12       ~15
 //   MVP        0        ~2        ~7        ~12
-const ALLSTAR_SUB_BAND_CAP = 0.06;   // below the All-Star band: a genuine outlier only
-const ALLSTAR_BAND_BASE = 0.22, ALLSTAR_BAND_SPAN = 12;
-const ALLNBA_BAND_BASE = 0.05, ALLNBA_BAND_SPAN = 15;
+// ############################################################################
+// THIRD AWARDS REPORT, AND THE BAND SCALERS ABOVE WERE THE CAUSE. Reported: a
+// 15-season career at 22-25 PPG on 59-64% FG and 38-42% 3PT earned ONE All-Star
+// and ZERO All-NBA. Reproduced exactly and traced season by season:
+//
+//   yr  ppg   fg%   3p%  wins | offScore  prodCase   band     ODDS
+//    1  23.8  63.1  43.2   37 |   27.52     100%    0.0000   0.00%
+//    3  23.4  64.1  40.2   37 |   26.96      95%    0.0060   0.57%
+//    9  26.8  60.1  43.2   34 |   29.92     100%    0.0000   0.00%
+//   ...  expected over the whole career: 0.02 All-Star, 0.01 All-NBA
+//
+// The PRODUCTION case was pegged at 100% in 11 of 14 seasons. The band then
+// multiplied it by 0.006 — or by exactly ZERO, because the sub-band ramp hit 0 at
+// scaledPeak 70 and this build's seasons sat at 70-71. A hard zero cannot be
+// escaped by any production. So the single All-Star the player saw was a coin
+// landing once on a ~0.6% roll; the year it fell in carried no meaning, which is
+// what made the pattern look erratic.
+//
+// WHY OVR IS THE WRONG AXIS FOR THIS. computeOVR averages in Defense (0.18) and
+// Rebounding (0.14) and Playmaking, so a scoring specialist who deliberately
+// bought none of them reads OVR 68 while posting 25 PPG at 62% — a real All-Star
+// season. The band was punishing the build for the stats it chose not to buy.
+//
+// WHY THE BAND IS NOT NEEDED AS A GATE. Measured with the band forced to 1, the
+// production thresholds ALONE still reject every earlier report:
+//   report 1  balanced 9.3/8.7/7.0    ->  0.0% All-Star, 0.0% All-NBA
+//   report 2  5.5 PPG rim protector   -> 14.4% (All-D signature path only), 0.0%
+//   the sub-10-PPG over-generous case ->  0.0% All-Star, 0.0% All-NBA
+//   THIS report 23.8/63%/43%          -> 100% All-Star, 56.0% All-NBA
+// ALLSTAR_Q_FLOOR (16.5), the 7.5 APG / 12 RPG signature bars and ALLNBA_Q_FLOOR
+// (18) are what discriminate. The band was belt-and-braces that became a veto.
+//
+// THE FIX: the band is now an ATTENUATOR WITH A FLOOR, never a veto. Production
+// stays the primary driver — a maxed production case always converts often — while
+// OVR still grades the rate so the tier ladder and the award counts remain
+// related. Continuous across the whole axis: the old form also had a 3.7x CLIFF at
+// scaledPeak 80 (0.059 -> 0.22), so two near-identical seasons either side of the
+// boundary had wildly different odds.
+//
+// The tier ladder is unaffected. clampTierToPeak keeps the peak-OVR band absolute,
+// so this build banking 9 All-Stars still cannot exceed Starter tier — awards now
+// describe what happened on the floor, while the tier still describes the build.
+// Calibrated against the reported career (22-25 PPG / 60%+ FG / 15 seasons), which
+// the report set a target of 8-12 All-Star and several All-NBA for. Measured over
+// 300 careers of exactly that build: floor 0.55 gave a mean of 7.3 All-Star, just
+// under the target, so these are the values that land it inside the window.
+const ALLSTAR_BAND_FLOOR = 0.72;     // a 100%-production season converts >= 72% of the time
+const ALLNBA_BAND_FLOOR = 0.42;      // 15 slots vs ~24 All-Stars, so it starts lower
+// Curvature on the All-Star SCORING case — see allStarCase. All-NBA deliberately
+// stays linear: its floor is already higher (18 vs 16.5) over a wider span (17 vs
+// 11), so it discriminates without help, and curving it dropped the reported
+// career to ~1.8 selections, under the "several All-NBA" the report asked for.
+const ALLSTAR_CASE_CURVE = 1.65;
 const MVP_BAND_BASE = 0.10, MVP_BAND_SPAN = 10, MVP_BAND_CAP = 0.70;
+// Anchored on TIER_OVR_FLOORS at both ends (Starter 70 -> Superstar 85) so the
+// tier ladder is still the single definition of what an OVR means.
+function bandRamp(scaledPeak, bandFloor) {
+  const lo = TIER_OVR_FLOORS["Starter"];               // 70
+  const hi = TIER_OVR_FLOORS["Superstar"];             // 85
+  return clamp(bandFloor + (1 - bandFloor) * (scaledPeak - lo) / (hi - lo), bandFloor, 1);
+}
 function allStarBandFactor(scaledPeak) {
   if (scaledPeak == null) return 1;                    // callers without an OVR (tests, tools)
-  const floor = TIER_OVR_FLOORS["All-Star"];           // 80
-  const starter = TIER_OVR_FLOORS["Starter"];          // 70
-  if (scaledPeak < floor) return ALLSTAR_SUB_BAND_CAP * clamp((scaledPeak - starter) / (floor - starter), 0, 1);
-  return clamp(ALLSTAR_BAND_BASE + (1 - ALLSTAR_BAND_BASE) * (scaledPeak - floor) / ALLSTAR_BAND_SPAN, ALLSTAR_BAND_BASE, 1);
+  return bandRamp(scaledPeak, ALLSTAR_BAND_FLOOR);
 }
 // All-NBA is 15 slots against ~24 All-Stars, so it starts lower and climbs slower.
 function allNbaBandFactor(scaledPeak) {
   if (scaledPeak == null) return 1;
-  const floor = TIER_OVR_FLOORS["All-Star"];
-  if (scaledPeak < floor) return ALLNBA_BAND_BASE * clamp((scaledPeak - TIER_OVR_FLOORS["Starter"]) / 10, 0, 1);
-  return clamp(ALLNBA_BAND_BASE + (1 - ALLNBA_BAND_BASE) * (scaledPeak - floor) / ALLNBA_BAND_SPAN, ALLNBA_BAND_BASE, 1);
+  return bandRamp(scaledPeak, ALLNBA_BAND_FLOOR);
 }
 // MVP is one award a year; it belongs to the Superstar band and above.
 function mvpBandFactor(scaledPeak) {
@@ -842,7 +898,19 @@ function mvpBandFactor(scaledPeak) {
 }
 function allStarCase(stats, wins, allDefensive, scaledPeak = null) {
   const { score } = offensiveCase(stats, wins);
-  const scoringCase = clamp((score - ALLSTAR_Q_FLOOR) / ALLSTAR_Q_SPAN, 0, 1); // 16.5 -> 0%, ~27.5+ -> 100%
+  // CONVEX, not linear. Softening the OVR band (see allStarBandFactor) exposed the
+  // fact that this ramp does not discriminate: a merely-good 19.7 PPG / 23.1-score
+  // wing sat at 60% of the elite case, so it collected a measured 8.2 All-Stars —
+  // and the earlier report that capped Starter-band careers at 3 was RIGHT about
+  // that line, whatever its reasoning. Real 19-20 PPG wings collect 0-3 selections
+  // (Middleton 3, LaVine 2, Ingram 1, McCollum 0) while a 25 PPG / 62% FG season is
+  // an every-year pick. A straight line cannot express both; the exponent puts the
+  // wing at ~4 and leaves the elite case untouched at the cap.
+  //
+  // Applied to the SCORING case only. The signature paths below carry their own
+  // caps (0.45 / 0.6 / 0.45) and already resolve to small numbers, so curving them
+  // too would re-break the defensive path that report 2 was about.
+  const scoringCase = Math.pow(clamp((score - ALLSTAR_Q_FLOOR) / ALLSTAR_Q_SPAN, 0, 1), ALLSTAR_CASE_CURVE);
   const defCap = allDefensive === "1st" ? 0.45 : allDefensive === "2nd" ? 0.18 : 0;
   const defCase = defCap * allStarDefProduction(stats);
   const passCase = clamp((stats.apg - 7.5) / 3, 0, 1) * 0.6;
@@ -961,6 +1029,60 @@ function awardReasons(season) {
     const floor = c.driver === "scoring" ? `${ROTY_PPG.floor} PPG` : c.driver === "passing" ? `${ROTY_APG.floor} APG`
       : c.driver === "rebounding" ? `${ROTY_RPG.floor} RPG` : "an All-Defensive nod";
     out.roty = `${stat} debut — cleared the ${floor} rookie bar on ${c.driver}, ${pct(c.odds)} odds`;
+  }
+  return out;
+}
+
+// ---- Why did this season win NOTHING? ----
+// The counterpart to awardReasons, and the more useful half: a season with no tag
+// is the one a player actually questions. Recomputed from the SAME allStarCase /
+// offensiveCase / band the roll used, so it can never disagree with the roll — and
+// so a retune updates these lines with it.
+//
+// It names WHICH of the three inputs fell short, because they fail for genuinely
+// different reasons and the fix for each is different:
+//   production below the bar   -> the box score was not All-Star calibre
+//   production cleared, no luck -> the odds were real and the roll missed. This is
+//                                 the honest answer for a probabilistic award, and
+//                                 saying it out loud is what makes an erratic-looking
+//                                 pattern legible instead of feeling broken.
+//   OVR band                    -> the build's overall grades the rate
+// Returns {} for a season that DID earn the honor, so callers can just check the key.
+function missedAwardReasons(season) {
+  const s = season.stats;
+  const out = {};
+  if (!s) return out;
+  const scaledPeak = scaleOVR(season.seasonOVR);
+
+  if (!season.allStar) {
+    const c = allStarCase(s, season.wins, season.allDefensive, scaledPeak);
+    const best = Math.max(c.scoringCase, c.signature);
+    if (best <= 0) {
+      // Deterministic: nothing cleared any of the four doors, so no roll happened.
+      const need = (ALLSTAR_Q_FLOOR - c.score).toFixed(1);
+      out.allStar = `${s.ppg} PPG on a ${season.wins}-win team — the case came to ${c.score.toFixed(1)}, ${need} short of the ${ALLSTAR_Q_FLOOR} bar, with no passing (${s.apg} APG), rebounding (${s.rpg} RPG) or defensive claim either`;
+    } else if (c.odds >= 0.5) {
+      out.allStar = `nothing was wrong with the season — ${s.ppg} PPG on ${s.fgPct}% put the case at ${pct(c.odds)}, and the selection simply went elsewhere. ${GAMES_PER_SEASON}-game seasons are not deterministic`;
+    } else {
+      const drag = c.band < 0.999
+        ? ` (a ${season.seasonOVR}-OVR season grades the rate to ${Math.round(c.band * 100)}% of full)`
+        : "";
+      const via = c.signature > c.scoringCase && c.sigDriver ? `${c.sigDriver} case` : `${c.score.toFixed(1)} scoring case`;
+      out.allStar = `a real but outside shot — ${via} put it at ${pct(c.odds)}${drag}`;
+    }
+  }
+
+  if (!season.allNBA) {
+    const { off, winBonus, score } = offensiveCase(s, season.wins);
+    const band = allNbaBandFactor(scaledPeak);
+    const q = clamp((score - ALLNBA_Q_FLOOR) / ALLNBA_Q_SPAN, 0, 1) * band;
+    if (score <= ALLNBA_Q_FLOOR) {
+      out.allNBA = `${score.toFixed(1)} offensive score (${off.toFixed(1)} box score + ${winBonus.toFixed(1)} for ${season.wins} wins) — All-NBA opens at ${ALLNBA_Q_FLOOR}, and only 15 spots exist`;
+    } else if (q >= 0.5) {
+      out.allNBA = `a ${score.toFixed(1)} offensive score was ${pct(q)} to make one of the 15 spots — this year it did not land`;
+    } else {
+      out.allNBA = `${score.toFixed(1)} offensive score against the ${ALLNBA_Q_FLOOR} opening bar — ${pct(q)} for one of 15 spots`;
+    }
   }
   return out;
 }
@@ -1086,13 +1208,27 @@ function simCareer(ovr, team, mods = {}) {
   // bonus, a 4-MVP / 18x All-NBA career (score ~589) capped at Superstar
   // below the Legend line (600), which read as a design gap.
   // DPOY counts like an All-NBA nod per occurrence; ROTY is a small one-time bonus.
+  //
+  // THE AWARD WEIGHTS ARE RESCALED, AND THAT IS PART OF THE THIRD AWARDS REPORT'S
+  // FIX. Awards now key off production, which roughly doubled the counts an
+  // ordinary strong career collects — and because those counts feed straight into
+  // this score, the TIER LADDER moved with them even though nothing about the tier
+  // system changed. Measured on sim-difficulty over 300 greedy-optimal builds,
+  // leaving the old weights in place shifted Salary Cap from All-Star 64.0% /
+  // Superstar 24.7% to All-Star 17.3% / Superstar 76.3% — the game became markedly
+  // easier as a side effect of a bug fix nobody asked to be a difficulty change.
+  //
+  // So the weights absorb the recount: awards describe what happened on the floor,
+  // the ladder keeps describing the build, and the two stay independent. If award
+  // rates are ever retuned again, re-measure sim-difficulty and move these with
+  // them — that coupling is the thing to remember about this score.
   const goatScore = Math.round(
     peakOVR * 4 +
     rings * 15 +
     mvps * 12 + Math.max(0, mvps - 1) * 15 +
     finalsMVPs * 10 +
-    allNBAs * 3 +
-    allStars * 1 +
+    allNBAs * GOAT_ALLNBA_W +
+    allStars * GOAT_ALLSTAR_W +
     dpoys * 3 +
     allDefensives * 2 +
     roty * 2 +
@@ -1181,11 +1317,24 @@ const TIER_OVR_FLOORS = {
 // floor. That would have moved the disagreement rather than fixing it. The floors
 // now sit just under what each band actually produces, so score and awards agree
 // about the same player. Measured output per band is in the calibration table.
+// RESCALED WITH THE THIRD AWARDS REPORT. These are ABSOLUTE AWARD COUNTS, and that
+// report changed the scale awards are counted on — so leaving them alone would have
+// been a silent difficulty change, not a neutral choice. Measured on the greedy
+// optimum over 300 builds, award counts roughly doubled: Salary Cap All-Star
+// 5.8 -> 11.7 and All-NBA 2.7 -> 8.2; Classic 5.9 -> 12.2 and 3.9 -> 9.2. Every
+// floor below therefore became easy to clear, and Salary Cap Superstar went
+// 24.7% -> 76.3% of greedy-optimal builds.
+//
+// Scaled by the measured factor (~2x All-Star, ~2.4-3x All-NBA), which restores the
+// ladder: Salary Cap now reads Starter 6.7 / All-Star 62.3 / Superstar 29.0 /
+// Legend 2.0 against a pre-change baseline of 11.0 / 64.0 / 24.7 / 0.3.
+// The floors mean the same thing they always did — "an All-Star most years, All-NBA
+// often" — counted on the new scale.
 const TIER_AWARD_FLOORS = {
-  "All-Star":  { allStars: 2 },
-  "Superstar": { allStars: 7, allNBAs: 4 },
-  "Legend":    { allStars: 12, allNBAs: 9, mvps: 1 },
-  "GOAT":      { allStars: 15, allNBAs: 14, mvps: 4, hardware: 4 },
+  "All-Star":  { allStars: 4 },
+  "Superstar": { allStars: 14, allNBAs: 10 },
+  "Legend":    { allStars: 17, allNBAs: 14, mvps: 1 },
+  "GOAT":      { allStars: 18, allNBAs: 17, mvps: 4, hardware: 4 },
 };
 // FAIL-SAFE: a missing career counts every award as ZERO, so it fails every
 // floor. The old `if (!req || !career) return true` was fail-OPEN — any caller
@@ -2460,10 +2609,10 @@ if (typeof module !== "undefined") {
     awardReasons, offensiveCase, allStarCase, rotyCase, dpoyOdds, mvpOdds, dpoyDominance,
     MVP_OVR_GATE, MVP_WIN_GATE, FINALS_MVP_OVR, ALLDEF_1ST, ALLDEF_2ND,
     ALLNBA_1ST_SCORE, ALLNBA_2ND_SCORE, ALLNBA_Q_FLOOR, ALLSTAR_Q_FLOOR, ALLSTAR_Q_SPAN, allStarDefProduction, allStarBandFactor, allNbaBandFactor, mvpBandFactor,
-    ALLSTAR_SUB_BAND_CAP, breadthFactor, PPG_KNEE, ROTY_PPG,
+    ALLSTAR_BAND_FLOOR, ALLNBA_BAND_FLOOR, ALLSTAR_CASE_CURVE, bandRamp, GOAT_ALLNBA_W, GOAT_ALLSTAR_W, breadthFactor, PPG_KNEE, ROTY_PPG,
     hasStartingFive, teamFive, teamRatingFromFive, weakestSlot, starterAt, projectedRatingWith, effectiveScr,
     SCR_BASE, FIVE_ANCHOR, SCR_SLOPE, TEAMS_BY_ABBR, allStarSelection, rotyRoll, generateSeasonStats, tierForScore, tierForCareer, percentileForScore,
-    computeBadges, BADGE_INFO, generateHeadline, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
+    computeBadges, BADGE_INFO, generateHeadline, missedAwardReasons, generateScoutingReport, careerHighlights, playstyleComp, closestComp, topComps, buildProfile, topAttribute, signatureAttribute, BUDGET_CAP, TEAM_REROLLS, GAMES_PER_SEASON,
     compDistance, accompDistance, accompOf, compCaliber, archetypePenalty, signatureOfDims, tierRank,
     CALIBER_MATCH_WEIGHT, ACCOMP_MATCH_WEIGHT, ARCHETYPE_MATCH_WEIGHT,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,

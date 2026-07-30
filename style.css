@@ -1885,6 +1885,16 @@ button.picks-row:hover { background: #16233c; border-radius: 4px; }
 .sp-tag.alldef { color: #a5b4fc; border: 1px solid #a5b4fc; }
 .sp-tag.roty { color: #f0abfc; border: 1px solid #f0abfc; }
 .sp-tag.allstar { color: var(--text-dim); border: 1px solid var(--line); }
+/* "no All-Star" / "no All-NBA" — deliberately the quietest tag on the row. A career's
+   real honors have to keep reading at a glance, so these are a dashed hairline with
+   no fill and dimmer-than-dim text: present and tappable when a player wants to know
+   why a season came up empty, invisible to a skim. */
+.sp-tag.sp-missed {
+  color: #6b7280;
+  border: 1px dashed var(--card-border);
+  opacity: 0.85;
+}
+.sp-tag.sp-missed:hover, .sp-tag.sp-missed:focus-visible { color: var(--text-dim); opacity: 1; }
 
 /* The per-award "why" explanations moved from inline text to a click-to-reveal
    tooltip on the tag itself (.tip-target, shared trait-tip controller), so
