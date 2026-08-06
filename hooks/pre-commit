@@ -46,3 +46,21 @@ if echo "$STAGED" | grep -qE '^(data\.js|game\.js|test-comps\.js)$'; then
   }
   grep -oE "PASSED  all [0-9]+ checks" /tmp/aytg-comps.log || echo "test-comps: passed"
 fi
+
+# WHY test-soak.js RUNS HERE: every gate above is unit-shaped — named assertions
+# about named functions on hand-built fixtures. All of them were passing 615
+# checks while three real bugs were live in the shipped game, because none of them
+# ever played a whole game. The soak plays 1200 complete ones in ~1.5s and caught
+# all three immediately (duplicate player in Salary Cap, share links dropping the
+# free-stat choice, share links dropping Classic's 3rd badge). Run it deeper
+# before a release: node test-soak.js 20000
+if echo "$STAGED" | grep -qE '^(data\.js|game\.js|test-soak\.js)$'; then
+  echo "test-soak: playing 1200 full games..."
+  node test-soak.js > /tmp/aytg-soak.log 2>&1 || {
+    echo "COMMIT BLOCKED: full-game soak failed."
+    sed -n '/FAILURES/,$p' /tmp/aytg-soak.log | head -20
+    echo "  (full output: /tmp/aytg-soak.log)"
+    exit 1
+  }
+  grep -E "games completed|FAILURES" /tmp/aytg-soak.log
+fi

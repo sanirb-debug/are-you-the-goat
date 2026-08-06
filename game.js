@@ -137,8 +137,17 @@ function categoryRating(player, category) {
 // missing; if nothing on a skill list is affordable, the budget bin keeps
 // the game from dead-ending. extraBudget covers edit mode, where the
 // current pick's cost is refunded before the swap.
+// NO-REPEAT, matching spinnablePlayers. Classic filtered its spin pool by
+// usedPickNames from the start; this list never did, so Salary Cap could hand the
+// same real player to two different slots whenever he appears on two teams —
+// measured at ~1% of builds over a 6000-game soak (Allen Iverson, DeMarcus Cousins
+// and Randy Foye each turning up twice in one build). `category` is excepted so
+// the EDIT screen still shows the pick currently occupying the slot, and the
+// BUDGET_BIN fallback below is deliberately outside the filter: those are generic
+// filler, not real players, and may legitimately repeat.
 function getRosterOptions(category, team = state.scoutTeam, extraBudget = 0) {
-  const roster = TEAM_ROSTERS[team.abbr] || [];
+  const used = new Set(usedPickNames(category));
+  const roster = (TEAM_ROSTERS[team.abbr] || []).filter(p => !used.has(p.name));
   const remaining = budgetRemaining() + extraBudget;
   const options = roster.map(p => {
     const rating = categoryRating(p, category);

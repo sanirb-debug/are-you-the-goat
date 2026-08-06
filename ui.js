@@ -2395,7 +2395,19 @@ function encodeBuild() {
     // the remaining budget) — encode by bin index + the clamped cost.
     return ["*", BUDGET_BIN.findIndex(x => x.name === p.name), p.cost];
   };
-  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, ab: state.activeBadges, sb: state.sandbox ? 1 : 0, ap: state.autoPick ? 1 : 0, k: CATEGORIES.map(ref) };
+  // `c` = the CHOSEN STAT per slot, and it is not optional decoration: in Classic
+  // and Sandbox, buildStatPick lets a slot be filled with an OFF-CATEGORY rating
+  // (Bill Russell's Rebounding 97 dropped into the Shooting slot). That free-stat
+  // choice IS the Classic mechanic, and without it a shared link rebuilt the slot
+  // from the player's own Shooting (52) instead — measured on that exact build,
+  // the recipient saw OVR 76 and a 464 GOAT Score where the author had 86 and 560.
+  // Written as null wherever the pick was on-category so old and new links stay
+  // the same size for Salary Cap, which never uses the mechanic.
+  const chosen = CATEGORIES.map(cat => {
+    const p = currentPick(cat);
+    return p.chosenStat && p.chosenStat !== cat ? p.chosenStat : null;
+  });
+  const data = { v: 1, n: state.name, s: state.seed, p: state.position, t: state.team.abbr, sh: state.shadowTarget, ab: state.activeBadges, sb: state.sandbox ? 1 : 0, ap: state.autoPick ? 1 : 0, k: CATEGORIES.map(ref), c: chosen };
   return b64urlEncode(JSON.stringify(data));
 }
 
@@ -2424,9 +2436,20 @@ function decodeBuild(str) {
       const roster = TEAM_ROSTERS[abbr];
       if (!team || !roster || !roster[idx]) throw new Error("unknown pick");
       const pl = roster[idx];
-      const rating = categoryRating(pl, cat);
-      const label = cat === "height" ? pl.height.label : cat === "athleticism" ? pl.athleticism.label : null;
-      pick = { name: pl.name, era: pl.era, label, rating, cost: wheelCost(rating), team };
+      // Mirror buildStatPick: an off-category `chosenStat` means the slot carries
+      // THAT rating, and a physical slot then synthesises its band label from it
+      // rather than borrowing the player's own. Links minted before `c` existed
+      // have no entry here and decode exactly as they used to.
+      const chosenStat = Array.isArray(data.c) && data.c[i] && CATEGORIES.includes(data.c[i]) ? data.c[i] : null;
+      const rating = categoryRating(pl, chosenStat || cat);
+      const label = chosenStat
+        ? (cat === "height" || cat === "athleticism" ? physicalBandLabel(cat, rating) : null)
+        : (cat === "height" ? pl.height.label : cat === "athleticism" ? pl.athleticism.label : null);
+      // Free-stat modes charge nothing, so a shared Classic/Sandbox build must not
+      // report a salary it never spent (budgetSpent is summed from these below).
+      const cost = (data.ap || data.sb) ? 0 : wheelCost(rating);
+      pick = { name: pl.name, era: pl.era, label, rating, cost, team };
+      if (chosenStat) pick.chosenStat = chosenStat;
     }
     if (cat === "height" || cat === "athleticism") state[cat] = pick; else state.skills[cat] = pick;
   });
@@ -2438,7 +2461,10 @@ function decodeBuild(str) {
   state.sandbox = !!data.sb; // a shared sandbox build keeps its banner rather than posing as a real run
   state.autoPick = !!data.ap;
   // Active Signature Traits (older links omit; activeBadgeMods filters to acquired).
-  state.activeBadges = Array.isArray(data.ab) ? data.ab.slice(0, 2) : [];
+  // Cap must match the picker (renderChooseBadges: 3 in Classic, 2 otherwise), or a
+  // shared Classic build silently loses its third trait — measured, that dropped
+  // the author's 9.9 APG best season to 8.9 for everyone who opened the link.
+  state.activeBadges = Array.isArray(data.ab) ? data.ab.slice(0, data.ap ? 3 : 2) : [];
   state.position = data.p;
   state.positionFit = checkPositionFit(data.p);
   // BUG FIXED WHEN THE MIGRATION COMPLETED: this recomputed teamNeedMet from the
