@@ -1365,7 +1365,21 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
   wrap.appendChild(el("div", "player-reel landed",
     `${p.name} <span class="era-tag">${p.era}</span>`));
   wrap.appendChild(el("p", "stat-card-hint center",
-    `Click any <strong>open</strong> stat to lock ${p.name.split(" ").slice(-1)[0]}'s rating into that slot. Filled slots are greyed out.`));
+    `Click any <strong>open</strong> stat to lock ${p.name.split(" ").slice(-1)[0]}'s rating into that slot — his strongest open rating is marked <strong>best</strong>. Filled slots are greyed out.`));
+
+  // BEST AVAILABLE. The card is eight bare numbers with no indication that the
+  // choice matters, and a playtest showed exactly how much it does: clicking the
+  // highest open stat every round finishes bust-tier 44% of the time, while
+  // clicking the FIRST open cell every round — an entirely plausible "I didn't
+  // realise this was a decision" click — finishes bust-tier 95% of the time, at a
+  // mean OVR of 60.8 with 1.0 career All-Stars. Marking the strongest open cell
+  // closes that gap without making the choice for anyone: taking the marked stat is
+  // often still wrong (a 92 you cannot use beats nothing), it just stops the floor
+  // case from being invisible.
+  const openCats = CATEGORIES.filter(c => !currentPick(c));
+  const bestOpen = openCats.length
+    ? openCats.reduce((a2, b2) => (categoryRating(p, b2) > categoryRating(p, a2) ? b2 : a2))
+    : null;
 
   const card = el("div", "stat-card");
   CATEGORIES.forEach(cat => {
@@ -1374,8 +1388,9 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
     const filled = !!currentPick(cat);
     const badge = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[p.name + "|" + cat] : null;
     const starTip = badge ? ` <span class="trait-pill sc-star-pill" ${traitTipAttrs(badge)}>★</span>` : "";
-    const cell = el("button", "stat-cell" + (filled ? " filled" : ""),
-      `<span class="sc-cat">${categoryLabel(cat)}${filled ? ` <span class="sc-taken">filled</span>` : starTip}</span>
+    const isBest = !filled && cat === bestOpen && openCats.length > 1;
+    const cell = el("button", "stat-cell" + (filled ? " filled" : "") + (isBest ? " best-open" : ""),
+      `<span class="sc-cat">${categoryLabel(cat)}${filled ? ` <span class="sc-taken">filled</span>` : (isBest ? ` <span class="sc-best">best</span>` : "") + starTip}</span>
        <span class="sc-val">${bandLabel ? (cat === "height" ? bandLabel : `${bandLabel} <span class="sc-sub">${rating}</span>`) : rating}</span>`);
     cell.disabled = filled;
     cell.onclick = () => {
@@ -1496,9 +1511,19 @@ function renderRosterStep(category, title, sub, onLock) {
     : "Spin for the franchise you're scouting this pick from.";
   // Cap space, or the reason there isn't one. The no-budget team-spin mode lets
   // you pick freely from the spun team, minus anyone already on your roster.
+  // CAP SPACE ALONE IS NOT ACTIONABLE, and a playtest showed exactly how badly.
+  // Clicking the top of each list \u2014 the most natural way to play \u2014 spends $28.1M on
+  // Height, $28.8M on Athleticism, $23.9M on Shooting and $17.3M on Finishing:
+  // $98.1M of $100M gone in four of eight picks, and 100% of those runs finish with
+  // budget-bin filler. An even share is $12.5M, so the top of a height list is 2.2x
+  // what the build can afford. "Cap space: $43M" never says that; "$43M \u00b7 5 slots
+  // left \u00b7 ~$8.6M each" does, and it is arithmetic the player can act on rather
+  // than a rule the game enforces silently.
+  const slotsLeft = CATEGORIES.filter(c => !currentPick(c)).length;
+  const perSlot = slotsLeft > 0 ? budgetRemaining() / slotsLeft : 0;
   const capNote = state.sandbox ? "Sandbox \u2014 no cap"
     : state.autoPick ? `${openLeft} slot${openLeft === 1 ? "" : "s"} left to fill \u2014 no repeats`
-    : "Cap space: " + fmtSalary(budgetRemaining());
+    : `Cap space: ${fmtSalary(budgetRemaining())} &nbsp;\u00b7&nbsp; ${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} left &nbsp;\u00b7&nbsp; <span class="cap-pace">~${fmtSalary(perSlot)} each</span>`;
   const subLine = state.autoPick
     ? "Spin a team — a player spins up automatically — then take one of their ratings into any open slot."
     : sub;
@@ -1581,16 +1606,34 @@ function renderRosterStep(category, title, sub, onLock) {
   app.appendChild(wrap);
 }
 
-// ---- Step 1: Position (chosen first, before the build) ----
+// ---- Position (chosen AFTER the build — see the copy note below) ----
 function renderPositionStep() {
   const wrap = el("div", "card center");
   wrap.appendChild(el("h1", "step-title", "Choose Your Position"));
-  wrap.appendChild(el("p", "step-sub", "Lock your position first, then build toward it. A body that fits the position (right height) earns a +3 OVR fit bonus — go off-position for a higher-risk anomaly run."));
+  // THE OLD COPY SAID "Lock your position first, then build toward it" — which is
+  // simply false: this is step 13 of 17 and all eight picks are already locked. It
+  // told the player to do something the flow does not allow.
+  //
+  // It also hid information the game already has. Fit is decided by ONE number the
+  // player chose several screens ago, and checkPositionFit() answers instantly, yet
+  // the buttons said nothing — so a playtest had informed players fitting 100% of
+  // the time and everyone else ~30%, purely on whether they happened to know the
+  // height bands. The +3 OVR was a bonus for prior knowledge. Now the fit is shown.
+  const h = state.height ? state.height.rating : null;
+  const fits = h == null ? [] : Object.keys(POSITIONS).filter(k => checkPositionFit(k));
+  wrap.appendChild(el("p", "step-sub",
+    `Your build is locked — this decides how it's judged. A position your <strong>height</strong> suits earns a <strong>+3 OVR</strong> fit bonus; going off-position is a higher-risk anomaly run.${
+      fits.length ? ` At ${state.height.label} you fit <strong>${fits.join(" / ")}</strong>.` : ""}`));
 
   const grid = el("div", "position-grid");
   Object.entries(POSITIONS).forEach(([key, pos]) => {
-    const btn = el("button", "pos-btn",
-      `<div class="pos-key">${key}</div><div class="pos-label">${pos.label}</div>`);
+    const fit = h != null && checkPositionFit(key);
+    const btn = el("button", "pos-btn" + (fit ? " fits" : ""),
+      `<div class="pos-key">${key}${fit ? ' <span class="pos-fit">+3 fit</span>' : ""}</div>` +
+      `<div class="pos-label">${pos.label}</div>`);
+    btn.title = fit
+      ? `Your ${state.height.label} frame fits ${pos.label} — worth +3 OVR`
+      : `Off-position for a ${state.height ? state.height.label : "build"} — no fit bonus, higher risk`;
     btn.onclick = () => {
       state.position = key;
       state.currentStep++;

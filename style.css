@@ -2883,3 +2883,33 @@ body.modal-open { overflow: hidden; }
   margin: 8px 0 0;
 }
 .modal-note strong { color: var(--gold-bright); }
+
+/* Classic stat card: mark the strongest STILL-OPEN rating. A playtest had players
+   who clicked the first open cell every round finishing bust-tier 95% of the time
+   versus 44% for those who took the best one — the card gave no signal that the
+   choice carried that much. Gold hairline only: it points, it does not decide. */
+.stat-cell.best-open { border-color: var(--line-gold); }
+.sc-best {
+  font-family: var(--font-cond);
+  font-size: 8.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #0a1120;
+  background: var(--gold);
+  border-radius: 2px;
+  padding: 0 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+/* Per-slot pace in the cap line — the number that stops a 4-pick bankruptcy. */
+.cap-pace { color: var(--gold-bright); }
+/* Position buttons that the build's height actually suits. */
+.pos-btn.fits { border-color: var(--line-gold); background: rgba(212, 167, 44, 0.08); }
+.pos-fit {
+  font-family: var(--font-cond);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-left: 5px;
+}

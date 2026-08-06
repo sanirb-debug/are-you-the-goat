@@ -668,7 +668,31 @@ function simSeason(ovr, scr, varianceRange, defRating = 0) {
     let opponentBase = 70;
     for (let round = 1; round <= 4; round++) {
       const oppRating = clamp(opponentBase + round * 5 + randInt(-5, 5), 60, 98);
-      const gameWinPct = clamp(0.5 + (((ovr + scr) / 2) - oppRating) * 0.01, 0.15, 0.85);
+      // PLAYOFF STRENGTH IS 65% THE PLAYER, 35% THE CAST — it used to be a flat
+      // 50/50 average, and that had two problems a persona playtest surfaced.
+      //
+      // First, the ladder was unwinnable at the top. Opponents run 75/80/85/90, but
+      // (ovr + scr) / 2 tops out at 86 even for a maxed build on the best team in
+      // the league — so the best player the game can produce was a FINALS UNDERDOG,
+      // and retired with a measured 1.78 rings. A 20-year all-time great should be
+      // somewhere in 3-6, and a genuine contender should win 15-25% of the titles
+      // it plays for, not 10%.
+      //
+      // Second, a flat average says a 99-OVR player on a 60-cast team is exactly as
+      // likely to win a title as a 60-OVR player on a 99-cast team. Playoff
+      // basketball is the one place that is least true — stars carry postseason
+      // series. Weighting the player is both more accurate and self-limiting: it
+      // lifts elite builds sharply while leaving weak ones where they were, because
+      // a weak build's own OVR is the low number in the blend.
+      // 60/40 and not 65/35, decided by measurement. 65/35 gave the maxed build a
+      // better lift (15.3% titles, 2.68 rings) but cost Salary Cap its top outcome —
+      // Legend fell 2.4% -> 1.6%, because a capped build's own OVR (75) sits BELOW
+      // its team's cast rating (87), so weighting the player harder quietly down-
+      // weights the good supporting cast the cap forces you to lean on. 60/40 keeps
+      // nearly all the elite gain (13.2% titles, 2.31 rings) and leaves Salary Cap
+      // Legend at 2.2%, inside noise of where it was.
+      const playoffStrength = ovr * 0.60 + scr * 0.40;
+      const gameWinPct = clamp(0.5 + (playoffStrength - oppRating) * 0.01, 0.15, 0.85);
       let wWins = 0, lWins = 0;
       while (wWins < 4 && lWins < 4) {
         if (rng() < gameWinPct) wWins++; else lWins++;
@@ -1151,8 +1175,16 @@ function simCareer(ovr, team, mods = {}) {
   // for strong builds is reproduced bit for bit and their tier distribution is
   // untouched. A midpoint-plus-jitter version clamped at 20 quietly truncated
   // the upper tail and pushed the perfect build's GOAT rate up ~7 points.
+  //
+  // FLOOR OF 6, ADDED AFTER A PERSONA PLAYTEST. Failure was compounding: a weak
+  // build got worse seasons AND fewer of them, so an unlucky run could end after
+  // three, which reads as the game giving up on you rather than as a bust. A bust
+  // should be a bust, not a stub. Applied as a floor on the RESULT rather than by
+  // moving the curve, so every build above the bottom tail keeps its exact old
+  // range — OVR 78+ still resolves to randInt(15, 20) bit for bit, and the tier
+  // distribution above the floor is untouched (verified in sim-difficulty).
   const lenT = clamp((ovr - 45) / 33, 0, 1);  // 45 -> 0.0, 78+ -> 1.0
-  const numSeasons = randInt(Math.round(3 + lenT * 12), Math.round(7 + lenT * 13));
+  const numSeasons = Math.max(6, randInt(Math.round(3 + lenT * 12), Math.round(7 + lenT * 13)));
   const seasons = [];
   let rings = 0, mvps = 0, finalsMVPs = 0, allNBAs = 0, allStars = 0, careerWins = 0, peakOVR = scaleOVR(ovr);
   let bestMVPOVR = 0; // OVR of the strongest MVP-winning season (0 if none)
