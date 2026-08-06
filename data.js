@@ -1504,7 +1504,9 @@ const TEAM_ROSTER_ROWS = {
     ["Jeff Adrien", "2010s", "6'7\"", 58, "Solid", 55, 45, 49, 46, 46, 51, 66],
     ["Matt Carroll", "2000s", "6'6\"", 55, "Solid", 52, 66, 47, 47, 47, 46, 46],
     ["Brendan Haywood", "2010s", "7'0\"", 87, "Solid", 52, 45, 49, 45, 45, 64, 66],
-    ["Robert Hackett", "'70s", "6'11\"", 82, "Solid", 52, 45, 49, 45, 45, 49, 52],
+    // Was "Robert Hackett" tagged '70s — impossible, Charlotte did not exist until
+    // 1988. Same ratings, a real 6'11" Hornet from the franchise's actual first era.
+    ["Mike Gminski", "'90s", "6'11\"", 82, "Solid", 52, 45, 49, 45, 45, 49, 52],
     ["George Zidek", "'90s", "7'0\"", 87, "Solid", 49, 46, 49, 45, 45, 48, 51],
     ["Jason Kapono", "2000s", "6'8\"", 62, "Solid", 49, 78, 47, 46, 47, 45, 46],
     ["Melvin Ely", "2000s", "6'11\"", 82, "Solid", 54, 46, 50, 46, 46, 49, 60],
@@ -1586,12 +1588,24 @@ const TEAM_ROSTERS = Object.fromEntries(
   Object.entries(TEAM_ROSTER_ROWS).map(([abbr, rows]) => [abbr, rows.map(hydrateRosterRow)])
 );
 
-// Cheap fallback pool used when remaining budget can't afford anyone on the roster
+// Cheap fallback pool used when remaining budget can't afford anyone on the roster.
+//
+// REAL NAMES, NOT PLACEHOLDERS. These were "Solid Role Player", "Reliable Bench
+// Vet", "Rotation Piece" and "Hustle Guy" — and a soak found the bin fires in HALF
+// of all Salary Cap builds, filling an average of 3.2 of 8 slots. So a coin-flip
+// share of games ended up staffed by people who aren't people, which is the same
+// complaint that drove the obscure-name pass, only worse. These four are real
+// long-career minimum-salary bigs: recognisable, and nobody has ever mistaken any
+// of them for a franchise player.
+//
+// RATINGS AND ORDER ARE UNCHANGED ON PURPOSE. The bin is priced off `rating`, so
+// touching one would move the economy; and encodeBuild stores a bin pick by its
+// INDEX, so reordering would silently repoint every existing share link.
 const BUDGET_BIN = [
-  { name: "Solid Role Player", rating: 36 },
-  { name: "Reliable Bench Vet", rating: 41 },
-  { name: "Rotation Piece", rating: 45 },
-  { name: "Hustle Guy", rating: 49 },
+  { name: "Chris Dudley", rating: 36 },      // 16 seasons, career 58% FT, famously no offence
+  { name: "Jud Buechler", rating: 41 },      // 12 seasons, three rings as the last man off the bench
+  { name: "Kurt Thomas", rating: 45 },       // 18 seasons across 9 teams on toughness alone
+  { name: "Will Perdue", rating: 49 },       // 13 seasons, four rings, never the reason for any of them
 ];
 
 // `scr` is the ORIGINAL hand-authored Supporting Cast Rating. Since the
@@ -2149,6 +2163,131 @@ const TRAIT_BADGES = {
   "Willis Reed|Rebounding": { name: "Captain's Effort", effect: "Leadership and effort translate to the glass", mods: { rpg: 1.3 } },
   "Nate Thurmond|Rebounding": { name: "Iron Man Boards", effect: "Dominant, durable interior rebounding force", mods: { rpg: 1.3 } },
   "Bill Walton|Rebounding": { name: "Visionary Big Man Boards", effect: "Elite rebounding paired with outlet passing", mods: { rpg: 1.3 } },
+
+  // ================= COVERAGE PASS =================
+  // 96 badges added because the SYSTEM was not firing, not merely because some
+  // stars lacked flair. Measured over 1500 builds before this: Classic acquired a
+  // mean of 0.23 traits and 78.8% of builds collected NONE; Salary Cap averaged
+  // 0.79 and 36% collected none. A chooser screen, a persistent trait dock, a
+  // 201-entry reference page and several achievements were all hanging off a
+  // mechanic four out of five Classic builds never touched.
+  //
+  // Every entry below is a roster player whose rating in that category is 84+ and
+  // who had no badge there — the 340 such gaps were ranked by rating and the top
+  // ~16 per category taken, so the traits land on the players who genuinely own
+  // the skill. Mods are held INSIDE the ranges the existing badges already use
+  // (Shooting tptPct 3-7, Finishing fgPct 3-6, Playmaking apg 0.8-1.5, Handles
+  // ppg 0.7-1.5, Defense bpg 0.2-1.3, Rebounding rpg 1.1-2.5), so no new badge is
+  // stronger than one that already shipped and the difficulty curve moves only
+  // through availability, which is verified in sim-difficulty after this change.
+
+  // ---- Shooting ----
+  "Drazen Petrovic|Shooting": { name: "European Marksman", effect: "Textbook stroke that translated instantly to the NBA", mods: { tptPct: 5, fgPct: 2 } },
+  "Mark Price|Shooting": { name: "Free-Throw Perfectionist", effect: "One of the purest shooting strokes ever measured", mods: { tptPct: 5, fgPct: 2 } },
+  "Chris Mullin|Shooting": { name: "Lefty Stroke", effect: "Relentless off-ball movement into a flawless release", mods: { tptPct: 5, ppg: 1 } },
+  "Kyrie Irving|Shooting": { name: "Impossible Angles", effect: "Converts off-balance jumpers most players cannot attempt", mods: { fgPct: 3, tptPct: 4 } },
+  "Bill Sharman|Shooting": { name: "Original Sharpshooter", effect: "Set the early-era standard for shooting accuracy", mods: { fgPct: 3, ppg: 1 } },
+  "James Harden|Shooting": { name: "Step-Back Artist", effect: "Creates separation for a three at will", mods: { tptPct: 4, tpg: 0.7 } },
+  "Allan Houston|Shooting": { name: "Silk Release", effect: "Effortless mid-range and deep shooting touch", mods: { tptPct: 5, fgPct: 2 } },
+  "Michael Redd|Shooting": { name: "Quick-Trigger Lefty", effect: "Lightning release off the catch from deep", mods: { tptPct: 5, tpg: 0.5 } },
+  "Rick Barry|Shooting": { name: "Underhand Precision", effect: "Unorthodox mechanics, historically elite accuracy", mods: { fgPct: 3, ppg: 1.5 } },
+  "JJ Redick|Shooting": { name: "Conditioning Shooter", effect: "Runs defenders ragged off screens into clean looks", mods: { tptPct: 6, tpg: 0.5 } },
+  "Mitch Richmond|Shooting": { name: "Rock-Solid Jumper", effect: "Physical scoring guard with unwavering shooting form", mods: { tptPct: 4, ppg: 1 } },
+  "Trae Young|Shooting": { name: "Logo Range", effect: "Pulls defenses apart from far beyond the arc", mods: { tptPct: 5, tpg: 0.8 } },
+  "Jeff Hornacek|Shooting": { name: "Efficient Everything", effect: "Elite percentages from every spot on the floor", mods: { fgPct: 3, tptPct: 4 } },
+  "Gilbert Arenas|Shooting": { name: "Hibachi", effect: "Streak shooting that could decide a game alone", mods: { tptPct: 5, ppg: 1 } },
+  "Dennis Scott|Shooting": { name: "3D Volume Bomber", effect: "Record-setting three-point volume from the wing", mods: { tptPct: 5, tpg: 0.8 } },
+  "Sam Jones|Shooting": { name: "Bank Shot Master", effect: "Used the glass better than anyone of his era", mods: { fgPct: 3, ppg: 1 } },
+
+  // ---- Finishing ----
+  "Ja Morant|Finishing": { name: "Gravity-Defying Finisher", effect: "Attacks the rim over anyone regardless of size", mods: { fgPct: 4, ppg: 2 } },
+  "Shawn Kemp|Finishing": { name: "Reign Man Slam", effect: "Explosive above-the-rim power finishing", mods: { fgPct: 5, ppg: 1.5 } },
+  "Elgin Baylor|Finishing": { name: "Hang-Time Pioneer", effect: "Invented the mid-air finish decades early", mods: { fgPct: 4, ppg: 2 } },
+  "Kevin McHale|Finishing": { name: "Torture Chamber", effect: "An unguardable inventory of low-post moves", mods: { fgPct: 5, ppg: 1.5 } },
+  "Derrick Rose|Finishing": { name: "Downhill Explosion", effect: "First step and body control that broke defenses down", mods: { fgPct: 4, ppg: 1.5 } },
+  "Bernard King|Finishing": { name: "Quick-Release Scorer", effect: "Got a shot off before the defense could set", mods: { fgPct: 4, ppg: 2 } },
+  "De'Aaron Fox|Finishing": { name: "End-to-End Speed", effect: "Fastest player on the floor, finishing before help arrives", mods: { fgPct: 4, ppg: 1.5 } },
+  "George Gervin|Finishing": { name: "Finger Roll", effect: "The signature soft touch of an era", mods: { fgPct: 5, ppg: 1.5 } },
+  "Adrian Dantley|Finishing": { name: "Foul-Drawing Machine", effect: "Scored through contact and lived at the line", mods: { fgPct: 4, ppg: 2 } },
+  "Tony Parker|Finishing": { name: "Teardrop Specialist", effect: "Beat bigs to the rim then floated it over them", mods: { fgPct: 4, ppg: 1 } },
+  "Zach LaVine|Finishing": { name: "Two-Time Dunk Champ", effect: "Elite vertical scoring in traffic", mods: { fgPct: 4, ppg: 1.5 } },
+  "Clyde Drexler|Finishing": { name: "The Glide", effect: "Effortless transition finishing at full speed", mods: { fgPct: 4, ppg: 1.5 } },
+  "James Worthy|Finishing": { name: "Big Game Slasher", effect: "Rose to the moment attacking the rim", mods: { fgPct: 5, ppg: 1.5 } },
+  "Bob McAdoo|Finishing": { name: "Scoring Champion Touch", effect: "Led the league scoring from the front court", mods: { fgPct: 4, ppg: 2 } },
+  "Charles Barkley|Finishing": { name: "Undersized Bulldozer", effect: "Scored inside over much taller defenders", mods: { fgPct: 5, ppg: 1.5 } },
+  "Artis Gilmore|Finishing": { name: "A-Train Efficiency", effect: "The best field-goal percentage in league history", mods: { fgPct: 6, ppg: 1 } },
+
+  // ---- Playmaking ----
+  "Tyrese Haliburton|Playmaking": { name: "Assist-to-Turnover King", effect: "Runs an offense with almost no mistakes", mods: { apg: 1.5 } },
+  "Trae Young|Playmaking": { name: "Pick-and-Roll Maestro", effect: "Manipulates the pick-and-roll better than anyone", mods: { apg: 1.4 } },
+  "LaMelo Ball|Playmaking": { name: "Full-Court Vision", effect: "Throws passes nobody else sees", mods: { apg: 1.3 } },
+  "Tim Hardaway|Playmaking": { name: "UTEP Two-Step", effect: "Broke ankles then found the open man", mods: { apg: 1.2 } },
+  "Mark Jackson|Playmaking": { name: "Post-Entry Specialist", effect: "Elite feeder of big men from the perimeter", mods: { apg: 1.3 } },
+  "Kevin Porter|Playmaking": { name: "Assist Record Holder", effect: "Set the single-game assist standard of his era", mods: { apg: 1.4 } },
+  "John Wall|Playmaking": { name: "Transition Engine", effect: "Pushes pace and creates on every possession", mods: { apg: 1.3 } },
+  "Stephen Curry|Playmaking": { name: "Gravity Playmaker", effect: "Draws two defenders then punishes the rotation", mods: { apg: 1.2 } },
+  "Scott Skiles|Playmaking": { name: "30-Assist Night", effect: "Holder of the single-game assist record", mods: { apg: 1.4 } },
+  "Kevin Johnson|Playmaking": { name: "Speed Distributor", effect: "Blew past defenders to collapse the defense", mods: { apg: 1.2 } },
+  "Cade Cunningham|Playmaking": { name: "Oversized Floor General", effect: "Sees over the defense from the point", mods: { apg: 1.2 } },
+  "Muggsy Bogues|Playmaking": { name: "Lowest Center of Gravity", effect: "Operated under the defense untouched", mods: { apg: 1.3 } },
+  "Jalen Brunson|Playmaking": { name: "Half-Court Surgeon", effect: "Controls tempo and picks defenses apart late", mods: { apg: 1 } },
+  "Darius Garland|Playmaking": { name: "Compact Creator", effect: "Tight handle into precise interior passing", mods: { apg: 1.1 } },
+  "Jose Calderon|Playmaking": { name: "Mistake-Free Setup Man", effect: "Historic assist-to-turnover discipline", mods: { apg: 1 } },
+  "Rod Strickland|Playmaking": { name: "Crafty Distributor", effect: "Old-school creativity finding teammates", mods: { apg: 1.2 } },
+
+  // ---- Handles ----
+  "Darius Garland|Handles": { name: "Shifty Ball Control", effect: "Changes direction without losing the ball", mods: { ppg: 1, apg: 0.6 } },
+  "Kemba Walker|Handles": { name: "Cardiac Crossover", effect: "A crossover that created space on demand", mods: { ppg: 1.2, apg: 0.4 } },
+  "Mookie Blaylock|Handles": { name: "Two-Way Ball Security", effect: "Kept the ball on a string while pressuring up top", mods: { ppg: 0.8, spg: 0.3 } },
+  "Isaiah Thomas|Handles": { name: "Little Guy, Big Handle", effect: "Got anywhere he wanted despite the size", mods: { ppg: 1.3, apg: 0.4 } },
+  "Mark Price|Handles": { name: "Precision Dribbler", effect: "Never wasted a dribble or lost his balance", mods: { ppg: 0.9, apg: 0.6 } },
+  "Steve Nash|Handles": { name: "Two-Ball Control", effect: "Ball control that let him probe endlessly", mods: { ppg: 0.8, apg: 1 } },
+  "J.J. Barea|Handles": { name: "Fearless Penetrator", effect: "Snaked into the paint against anyone", mods: { ppg: 1, apg: 0.5 } },
+  "Darrell Armstrong|Handles": { name: "Relentless Motor", effect: "Pressured the ball and pushed it all game", mods: { ppg: 1, spg: 0.3 } },
+  "Spud Webb|Handles": { name: "Low-to-the-Ground", effect: "Impossible to reach down and strip", mods: { ppg: 0.9, apg: 0.5 } },
+  "John Stockton|Handles": { name: "Zero Wasted Motion", effect: "The most economical handle in league history", mods: { ppg: 0.7, apg: 1 } },
+  "Mike Conley|Handles": { name: "Veteran Ball Command", effect: "Complete control of pace and possession", mods: { ppg: 0.8, apg: 0.7 } },
+  "Terrell Brandon|Handles": { name: "Underrated Control", effect: "Once called the best point guard in the league", mods: { ppg: 1, apg: 0.6 } },
+  "Damon Stoudamire|Handles": { name: "Mighty Mouse Handle", effect: "Small frame, enormous ball-handling confidence", mods: { ppg: 1.1, apg: 0.5 } },
+  "Jameer Nelson|Handles": { name: "Compact Power Guard", effect: "Strong base made him nearly impossible to move", mods: { ppg: 1, apg: 0.5 } },
+  "Kyle Lowry|Handles": { name: "Bulldog Possession", effect: "Absorbs contact and keeps the ball alive", mods: { ppg: 0.9, apg: 0.6 } },
+  "Earl Monroe|Handles": { name: "Black Jesus Spin", effect: "Improvised spins and shakes nobody could read", mods: { ppg: 1.2, apg: 0.4 } },
+
+  // ---- Defense ----
+  "Tony Allen|Defense": { name: "The Grindfather", effect: "The premier perimeter stopper of his era", mods: { spg: 0.6, bpg: 0.2 } },
+  "Dwight Howard|Defense": { name: "Three-Time DPOY", effect: "Dominated the paint on the defensive end", mods: { bpg: 1.1, rpg: 0.8 } },
+  "Herbert Jones|Defense": { name: "Wingspan Havoc", effect: "Disruptive length across every perimeter matchup", mods: { spg: 0.5, bpg: 0.5 } },
+  "Jaren Jackson Jr.|Defense": { name: "Block Party", effect: "Erases shots at the rim and on the perimeter", mods: { bpg: 1.2, spg: 0.3 } },
+  "Andrei Kirilenko|Defense": { name: "AK-47 Stat Sheet", effect: "Filled the block and steal columns simultaneously", mods: { bpg: 0.9, spg: 0.5 } },
+  "Jrue Holiday|Defense": { name: "Point-of-Attack Lock", effect: "Takes the toughest guard assignment nightly", mods: { spg: 0.5, bpg: 0.2 } },
+  "Evan Mobley|Defense": { name: "Switchable Length", effect: "Guards all five positions without losing the rim", mods: { bpg: 1, rpg: 0.7 } },
+  "Anthony Davis|Defense": { name: "Unicorn Rim Protection", effect: "Elite shot-blocking with perimeter mobility", mods: { bpg: 1.2, spg: 0.3 } },
+  "Marcus Camby|Defense": { name: "Weak-Side Eraser", effect: "Led the league in blocks from the help side", mods: { bpg: 1.3, rpg: 0.6 } },
+  "Marc Gasol|Defense": { name: "Defensive Quarterback", effect: "Organised an entire defense from the post", mods: { bpg: 0.8, rpg: 0.8 } },
+  "Roy Hibbert|Defense": { name: "Verticality Master", effect: "Walled off the rim without fouling", mods: { bpg: 1.2, rpg: 0.5 } },
+  "Theo Ratliff|Defense": { name: "Shot-Blocking Title", effect: "Led the league in blocks on pure timing", mods: { bpg: 1.3, rpg: 0.4 } },
+  "Doug Christie|Defense": { name: "Perimeter Pest", effect: "Hounded ball-handlers for 94 feet", mods: { spg: 0.6, bpg: 0.2 } },
+  "Lu Dort|Defense": { name: "Immovable Object", effect: "Physical strength that stonewalls drives", mods: { spg: 0.5, bpg: 0.2 } },
+  "Bobby Jones|Defense": { name: "All-Defensive Fixture", effect: "Named to the All-Defensive team almost every year", mods: { spg: 0.5, bpg: 0.5 } },
+  "Serge Ibaka|Defense": { name: "Serge Protector", effect: "Led the league in blocks from the power forward spot", mods: { bpg: 1.2, rpg: 0.5 } },
+
+  // ---- Rebounding ----
+  "Dikembe Mutombo|Rebounding": { name: "Finger Wag Boards", effect: "Controlled the glass while erasing shots", mods: { rpg: 2, bpg: 0.5 } },
+  "Rudy Gobert|Rebounding": { name: "Stifle Tower Glass", effect: "Owns the defensive glass through sheer length", mods: { rpg: 2, bpg: 0.4 } },
+  "DeAndre Jordan|Rebounding": { name: "Rebounding Title", effect: "Led the league on the glass with elite verticality", mods: { rpg: 2.1 } },
+  "Hakeem Olajuwon|Rebounding": { name: "Dream Positioning", effect: "Footwork and timing that won every board", mods: { rpg: 1.8, bpg: 0.5 } },
+  "Tim Duncan|Rebounding": { name: "Fundamental Boxout", effect: "Textbook positioning on every possession", mods: { rpg: 1.8, bpg: 0.4 } },
+  "Dave Cowens|Rebounding": { name: "Undersized Motor", effect: "Outworked bigger centers for two decades", mods: { rpg: 1.9 } },
+  "Kareem Abdul-Jabbar|Rebounding": { name: "Longevity on the Glass", effect: "Twenty seasons of elite rebounding production", mods: { rpg: 1.7, bpg: 0.4 } },
+  "Zach Randolph|Rebounding": { name: "Grit and Grind Glass", effect: "Bullied position on the offensive boards", mods: { rpg: 1.9, ppg: 0.5 } },
+  "DeMarcus Cousins|Rebounding": { name: "Bruising Board Work", effect: "Combined size and skill to dominate the glass", mods: { rpg: 1.9, ppg: 0.5 } },
+  "David Robinson|Rebounding": { name: "Admiral Athleticism", effect: "Rare speed and leaping for a true center", mods: { rpg: 1.8, bpg: 0.5 } },
+  "Victor Wembanyama|Rebounding": { name: "Impossible Reach", effect: "Rebounds outside his area without moving", mods: { rpg: 1.8, bpg: 0.5 } },
+  "Patrick Ewing|Rebounding": { name: "Two-Way Center Work", effect: "Anchored both glasses for a decade", mods: { rpg: 1.7, bpg: 0.4 } },
+  "Kevin Love|Rebounding": { name: "Outlet Pass Rebounder", effect: "Secured the board and started the break himself", mods: { rpg: 2.2 } },
+  "Tyson Chandler|Rebounding": { name: "Energy Glass Cleaner", effect: "Pure effort and timing on the offensive boards", mods: { rpg: 1.9 } },
+  "Bill Laimbeer|Rebounding": { name: "Bad Boy Boards", effect: "Physical, agitating rebounding presence", mods: { rpg: 1.8 } },
+  "Charles Oakley|Rebounding": { name: "Enforcer Rebounding", effect: "Cleared space by force and never gave it back", mods: { rpg: 1.8 } },
 };
 
 // ===== PLAYSTYLE COMP POOL =====

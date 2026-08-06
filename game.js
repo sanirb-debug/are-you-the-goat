@@ -1100,13 +1100,23 @@ const GAMES_PER_SEASON = 82;
 
 // Peak OVR is reported on a full 25-99 scale, while the SIMULATION keeps running
 // on its own raw scale. Those are deliberately different things. Under the $100M
-// cap the best possible allocation tops out at a raw peak of 83 (solved exactly:
-// concave-hull optimisation over every height/athleticism pair, cross-checked by
-// randomized local search), so a raw peak is compressed into 25..83 and the top
-// of the published ladder would be unreachable. This maps that achievable band
-// onto the full 25..99 the player sees, so the tier floors read as the published
-// numbers (Bust <60 ... GOAT 95+) without touching the economy, the award gates
-// or generateSeasonStats — all of which stay on the raw scale.
+// cap the best possible allocation tops out at a raw peak of 75, so a raw peak is
+// compressed into 25..75 and the top of the published ladder would be unreachable.
+// This maps that achievable band onto the full 25..99 the player sees, so the tier
+// floors read as the published numbers (Bust <60 ... GOAT 95+) without touching the
+// economy, the award gates or generateSeasonStats — all of which stay on the raw scale.
+//
+// THE 83 IN THIS COMMENT WAS WRONG, AND THE EXPANSION BELOW IS STILL CALIBRATED ON
+// IT. Re-solved with a 400-restart randomised local search over every roster option
+// under the real no-repeat-player and no-repeat-team rules: the true optimum is raw
+// 75 at $99.3M, which sim-difficulty's greedy build independently also reaches.
+// 74/58 was chosen to send raw 83 to 99; with the real ceiling at 75 it only sends
+// the best legal build to scaled 89. CONSEQUENCE: the Legend floor (90) is cleared
+// only on a lucky season's variance, and the GOAT floor (98) cannot be reached in
+// Salary Cap at all — GOAT also needs 4 MVPs, and the capped optimum measures 0.
+// Left as-is deliberately: re-tuning the divisor would move the entire Salary Cap
+// difficulty curve, which is a design call, not a comment fix. The UI now says
+// plainly that GOAT is a Classic/Sandbox tier instead of hiding an unreachable goal.
 //
 // CRITICAL: that 25..83 premise only holds while a cap is actually constraining
 // the build. The no-cap modes (Classic, Sandbox) can buy elite ratings in every

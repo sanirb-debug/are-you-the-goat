@@ -7,6 +7,28 @@ let simRunToken = 0; // invalidates sim-screen timers from earlier runs
 let runUnlocks = []; // achievements earned during THIS playthrough (for the verdict toast)
 let sandboxQuery = ""; // Sandbox roster search text, persists across re-renders within a pick
 let prevBestAtSim = 0;   // personal best as it stood BEFORE this run (see the Simulate handler)
+// FAST SPINS. A full Classic build is 8 slots x (3.0s wheel + 1.9s player reel),
+// so ~40 seconds of every playthrough is spent watching animations that carry no
+// information after the first time you see them. Measured on a click-driven run:
+// the animations, not the decisions, were the bulk of the wall clock. This is the
+// opt-out, persisted so it survives a reload, and it reuses the exact short
+// durations the reduced-motion path already had rather than inventing new ones.
+const FAST_SPIN_KEY = "aytg_fast_spins";
+let fastSpins = (function () {
+  try { return localStorage.getItem(FAST_SPIN_KEY) === "1"; } catch (e) { return false; }
+})();
+function setFastSpins(on) {
+  fastSpins = !!on;
+  try { localStorage.setItem(FAST_SPIN_KEY, fastSpins ? "1" : "0"); } catch (e) { /* private mode */ }
+}
+// One definition for both the wheel and the player reel. Reduced-motion still
+// forces the short path regardless of the toggle — an accessibility preference is
+// not something a game setting gets to override.
+function quickSpins() {
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return fastSpins || reduce;
+}
+
 // No-budget team wheel. Rotation accumulates so every spin turns forward; the
 // token invalidates an in-flight spin if the screen re-renders under it (e.g. Back).
 let wheelRotation = 0;
@@ -170,6 +192,19 @@ function renderTopBar() {
   if (!state.sandbox && !state.autoPick && (step === "height" || step === "athleticism" || SKILL_ORDER.includes(step))) {
     right.appendChild(el("div", "budget-pill", budgetPillHTML()));
   }
+  // Fast Spins only appears where there is actually a spin to skip: the free-stat
+  // modes (Classic / Sandbox) during the picking phase. Salary Cap has no wheel,
+  // so offering the toggle there would be a control that does nothing.
+  if ((state.autoPick || state.sandbox) && inPickingPhase() && !state.sharedView) {
+    const fs = el("button", "nav-btn nav-fast" + (fastSpins ? " on" : ""),
+      (fastSpins ? "⏩" : "▶") + " Fast Spins");
+    fs.title = fastSpins
+      ? "Fast Spins ON — wheel and reel settle immediately. Click to restore the full animation."
+      : "Skip the 3s wheel and 1.9s reel on every pick (~40s a build). Click to turn on.";
+    fs.setAttribute("aria-pressed", fastSpins ? "true" : "false");
+    fs.onclick = () => { setFastSpins(!fastSpins); render(); };
+    right.appendChild(fs);
+  }
   const attrs = el("button", "nav-btn", "Attributes");
   attrs.title = "What each attribute does and how it factors in";
   attrs.onclick = () => showAttributes(attrs);
@@ -323,13 +358,42 @@ function showHowToPlay(trigger) {
   const panel = el("div", "howto-steps");
   body.appendChild(panel);
 
-  // Shared tier ladder — shown once, since tiers work the same in both modes.
-  body.appendChild(el("p", "modal-text", "Your career earns a spot on the ladder — awards and rings matter as much as ratings:"));
-  body.appendChild(el("div", "howto-ladder", TIERS.map(t => `<span>${t.name}</span>`).join("")));
+  // The ladder used to be bare tier names under the line "tiers work the same in
+  // both modes". They do not: the $100M cap tops out at a raw peak of 75, which
+  // scales to 89, so the GOAT floor of 98 is unreachable in Salary Cap — and GOAT
+  // additionally needs 4 MVPs, which the capped optimum never wins. A player could
+  // chase that tier forever. Showing each tier's actual peak-OVR requirement, and
+  // saying which are out of reach under the cap, turns an invisible dead end into a
+  // legible goal. Requirements are read from TIER_OVR_FLOORS, so retuning the band
+  // updates this text with it.
+  body.appendChild(el("p", "modal-text", "Your career earns a spot on the ladder — awards and rings matter as much as ratings. The number is the peak OVR each tier needs:"));
+  const ladder = el("div", "howto-ladder");
+  body.appendChild(ladder);
+  const ladderNote = el("p", "modal-note");
+  body.appendChild(ladderNote);
 
   function select(mode) {
     panel.innerHTML = HOWTO_STEPS[mode];
     MODE_KEYS.forEach(k => modeBtns[k].classList.toggle("active", k === mode));
+    // The best legal $100M build BASES at scaled peak 89, but peakOVR tracks the
+    // best SEASON, and season OVR carries +/-3 of variance — so the highest peak a
+    // capped career actually records is 93 (measured as the max over 600
+    // greedy-optimal builds; Legend at 90 lands 2.0% of the time on exactly that
+    // variance). Using 89 here would have told players Legend was impossible when
+    // they reach it one run in fifty, which is a worse lie than saying nothing.
+    const CAP_PEAK_CEILING = 93;
+    const capped = mode === "cap";
+    ladder.innerHTML = TIERS.map(t => {
+      const need = TIER_OVR_FLOORS[t.name];
+      const out = capped && need && need > CAP_PEAK_CEILING;
+      return `<span class="${out ? "tier-oor" : ""}" title="${out
+        ? `Needs peak ${need} — above what the $100M cap can buy`
+        : need ? `Needs peak ${need}+` : "No peak requirement"}">${t.name}${need ? ` <em>${need}</em>` : ""}</span>`;
+    }).join("");
+    const unreachable = TIERS.filter(t => capped && TIER_OVR_FLOORS[t.name] > CAP_PEAK_CEILING).map(t => t.name);
+    ladderNote.innerHTML = unreachable.length
+      ? `The $100M cap tops out at a peak of about <strong>${CAP_PEAK_CEILING}</strong> even on a perfect allocation, so <strong>${unreachable.join(" and ")}</strong> ${unreachable.length > 1 ? "are" : "is"} out of reach here — ${unreachable.length > 1 ? "those need" : "it needs"} Classic or Sandbox, where no budget holds your ratings down. <strong>Legend</strong> is reachable but rare: it takes a career-best season on top of a maxed build.`
+      : `No salary cap here, so every tier is reachable — including <strong>GOAT</strong>, which needs a peak of ${TIER_OVR_FLOORS["GOAT"]} and four MVPs. It is the rarest outcome in the game.`;
   }
   // Open on the mode you're actually playing (Classic when in the no-budget mode,
   // Salary Cap otherwise — Sandbox has no tab, so it falls to Salary Cap). Both
@@ -1220,9 +1284,9 @@ function renderTeamWheel(category, team, rerollsLeft, wrap) {
     wheelSpinning = true;
     btn.disabled = true;
     const tok = wheelSpinToken;
-    // Respect reduced-motion: a quick settle instead of the long spin.
-    const reduceMotion = window.matchMedia
-      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Reduced-motion OR the Fast Spins toggle: a quick settle instead of the long
+    // spin. Same 350ms path either way — see quickSpins().
+    const reduceMotion = quickSpins();
     const durMs = reduceMotion ? 350 : 3000;
 
     // Landing is driven by a timer, NOT by transitionend alone — under
@@ -1391,18 +1455,22 @@ function runPlayerShuffle(category, team, reel, btn) {
     render();
   };
 
-  const total = 1900;
-  let elapsed = 0, delay = 55;
+  // The reel flashes names then decelerates; Fast Spins keeps the effect but
+  // compresses it to roughly the wheel's quick-settle length instead of removing
+  // it, so the slot-machine read is preserved and only the waiting goes.
+  const total = quickSpins() ? 260 : 1900;
+  let elapsed = 0, delay = quickSpins() ? 26 : 55;
   const tick = () => {
     if (tok !== playerSpinToken) return; // stop flashing if superseded
     reel.textContent = names[Math.floor(Math.random() * names.length)];
     elapsed += delay;
     if (elapsed >= total) { reel.textContent = target.name; land(); return; }
-    delay = 55 + Math.pow(elapsed / total, 2) * 240; // ramp the gap -> visibly slow down
+    // ramp the gap -> visibly slow down (scaled so the fast path still decelerates)
+    delay = (quickSpins() ? 26 : 55) + Math.pow(elapsed / total, 2) * (quickSpins() ? 60 : 240);
     setTimeout(tick, delay);
   };
   tick();
-  setTimeout(land, total + 900); // guaranteed landing even if the flash chain stalls
+  setTimeout(land, total + (quickSpins() ? 200 : 900)); // guaranteed landing even if the flash chain stalls
 }
 
 // ---- Shared roster picker (Height, Athleticism, and all 5 skills) ----

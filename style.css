@@ -2852,3 +2852,34 @@ body.modal-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .bd-caret { transition: none; }
 }
+
+/* Fast Spins toggle — a nav-btn that reads as ON at a glance without adding a
+   second control style. Gold fill mirrors how .badge-group-head.open signals an
+   active state elsewhere. */
+.nav-btn.nav-fast.on {
+  color: var(--gold-bright);
+  border-color: var(--line-gold);
+  background: rgba(212, 167, 44, 0.12);
+}
+
+/* How-to-Play ladder: the peak-OVR requirement under each tier name, and the
+   tiers a $100M build cannot reach shown as struck-through rather than hidden —
+   the point is that the player can SEE the goal exists and where to chase it. */
+.howto-ladder span em {
+  display: block;
+  font-style: normal;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--gold-bright);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+.howto-ladder span.tier-oor { opacity: 0.45; border-style: dashed; }
+.howto-ladder span.tier-oor em { color: var(--text-dim); text-decoration: line-through; }
+.modal-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 8px 0 0;
+}
+.modal-note strong { color: var(--gold-bright); }
