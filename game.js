@@ -2327,15 +2327,24 @@ function generateShadowVerdict(career) {
 // pre-breakout ones, and nothing a player would expect to work.
 const BADGE_MIN_RATING = 70;
 
+// THE one place that answers "does this pick carry a badge". Everything — the
+// roster list's star pill, Classic's stat card, the picks panel, and the actual
+// award in acquiredBadges — has to route through here, or the UI advertises a
+// trait the build will not receive. That drift is not hypothetical: the late-career
+// rows put a lot of famous, badge-named, low-rated players in front of the player.
+function badgeFor(name, category, rating) {
+  if (!SKILL_ORDER.includes(category)) return null;
+  if (!(rating >= BADGE_MIN_RATING)) return null;
+  return TRAIT_BADGES[name + "|" + category] || null;
+}
+
 function acquiredBadges() {
   const out = [];
   for (const cat of SKILL_ORDER) {
     const pick = state.skills[cat];
     if (!pick) continue;
-    if (pick.rating < BADGE_MIN_RATING) continue;
-    const key = pick.name + "|" + cat;
-    const b = TRAIT_BADGES[key];
-    if (b) out.push({ key, category: cat, player: pick.name, name: b.name, effect: b.effect, mods: b.mods });
+    const b = badgeFor(pick.name, cat, pick.rating);
+    if (b) out.push({ key: pick.name + "|" + cat, category: cat, player: pick.name, name: b.name, effect: b.effect, mods: b.mods });
   }
   return out;
 }
@@ -2678,7 +2687,7 @@ if (typeof module !== "undefined") {
     compDistance, accompDistance, accompOf, compCaliber, archetypePenalty, signatureOfDims, tierRank,
     CALIBER_MATCH_WEIGHT, ACCOMP_MATCH_WEIGHT, ARCHETYPE_MATCH_WEIGHT,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
-    TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList, BADGE_MIN_RATING,
+    TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList, BADGE_MIN_RATING, badgeFor,
     TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, clampTierToPeak, highestTierIndexForPeak, TIER_OVR_FLOORS, isHallOfFame,
     isNameBlocked, nameTokens, PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
     MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,

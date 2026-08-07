@@ -1543,6 +1543,15 @@ check("awardReasons is safe on a season with no stats",
   }
   check("no roster row awards a badge it is not rated for",
     offenders.length, 0, offenders.slice(0, 8).join("; "));
+  // The UI must agree with the award. badgeFor is the single gate both go through;
+  // when they drifted, the roster list showed a star pill for a trait the build
+  // never received — worst on the late-career rows, which are famous AND weak.
+  check("the display gate refuses a badge below the rating floor",
+    G.badgeFor("Allen Iverson", "Handles", 66), null);
+  check("the display gate allows it at the floor",
+    !!G.badgeFor("Allen Iverson", "Handles", G.BADGE_MIN_RATING), true);
+  check("the display gate ignores non-skill categories",
+    G.badgeFor("Allen Iverson", "height", 99), null);
   // Guard the other direction: the gate must not have silenced the good rows.
   const bucks = G.TEAM_ROSTERS["MIL"].find(p => p.name === "Khris Middleton");
   G.state.sandbox = true;

@@ -606,9 +606,8 @@ function rosterCostHTML(cost) {
 }
 // Signature-Trait pill for a roster row: only for skill categories, only if this
 // exact player carries a badge there.
-function traitPillHTML(name, category) {
-  if (!SKILL_ORDER.includes(category)) return "";
-  const b = TRAIT_BADGES[name + "|" + category];
+function traitPillHTML(name, category, rating) {
+  const b = badgeFor(name, category, rating);
   if (!b) return "";
   const tip = `${b.name} — ${b.effect}`;
   const mods = fmtMods(b.mods); // same "3PT% +3 · FG% +2" format as the verdict cards
@@ -731,7 +730,7 @@ function renderPicksPanel() {
   CATEGORIES.forEach(cat => {
     const pick = currentPick(cat);
     if (pick) {
-      const b = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[pick.name + "|" + cat] : null;
+      const b = badgeFor(pick.name, cat, pick.rating);
       const badgeLine = b ? `<span class="picks-badge"><span class="trait-pill" ${traitTipAttrs(b)}>★ ${b.name}</span></span>` : "";
       // Meta line: team, the pick's RATING, then what it cost. Every mode shows the
       // rating (Classic had it first; the capped modes were missing it) and Height
@@ -813,7 +812,7 @@ function renderEditStep(category) {
     const isCurrent = opt.name === pick.name && opt.cost === pick.cost;
     const display = opt.label ? (category === "height" ? opt.label : `${opt.label} <span class="sub-rating">${opt.rating}</span>`) : opt.rating;
     const row = el("button", "roster-row" + (opt.affordable ? "" : " locked") + (isCurrent ? " current" : ""),
-      `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}${traitPillHTML(opt.name, category)}</span>
+      `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${isCurrent ? ' <span class="era-tag current-tag">current</span>' : ""}${traitPillHTML(opt.name, category, opt.rating)}</span>
        <span class="roster-rating">${display}</span>
        <span class="roster-cost">${rosterCostHTML(opt.cost)}</span>`);
     row.disabled = !opt.affordable;
@@ -1386,7 +1385,7 @@ function renderPlayerSpinner(category, team, onLock, wrap) {
     const rating = categoryRating(p, cat);
     const bandLabel = cat === "height" ? p.height.label : cat === "athleticism" ? p.athleticism.label : null;
     const filled = !!currentPick(cat);
-    const badge = SKILL_ORDER.includes(cat) ? TRAIT_BADGES[p.name + "|" + cat] : null;
+    const badge = badgeFor(p.name, cat, rating);
     const starTip = badge ? ` <span class="trait-pill sc-star-pill" ${traitTipAttrs(badge)}>★</span>` : "";
     const isBest = !filled && cat === bestOpen && openCats.length > 1;
     const cell = el("button", "stat-cell" + (filled ? " filled" : "") + (isBest ? " best-open" : ""),
@@ -1587,7 +1586,7 @@ function renderRosterStep(category, title, sub, onLock) {
       // skills show the rating alone.
       const display = opt.label ? (category === "height" ? opt.label : `${opt.label} <span class="sub-rating">${opt.rating}</span>`) : opt.rating;
       const row = el("button", "roster-row" + (!opt.affordable ? " locked" : ""),
-        `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${q ? ` <span class="era-tag team-tag">${opt.team.abbr}</span>` : ""}${traitPillHTML(opt.name, category)}</span>
+        `<span class="roster-name">${opt.name} <span class="era-tag">${opt.era}</span>${q ? ` <span class="era-tag team-tag">${opt.team.abbr}</span>` : ""}${traitPillHTML(opt.name, category, opt.rating)}</span>
          <span class="roster-rating">${display}</span>
          <span class="roster-cost">${rosterCostHTML(opt.cost)}</span>`);
       row.disabled = !opt.affordable;
