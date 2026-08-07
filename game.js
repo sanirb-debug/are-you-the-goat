@@ -2317,11 +2317,22 @@ function generateShadowVerdict(career) {
 // Which badges the current build has ACQUIRED: one per skill pick whose player
 // carries a TRAIT_BADGES entry for that category. Recomputed live from picks, so
 // editing a pick updates the set. Returns [{ key, category, player, name, effect, mods }].
+// A badge is keyed by (player|category), but the same player appears on several
+// teams across their career at very different levels. Without a floor, the
+// rookie-era Pistons row for Khris Middleton (Shooting 62) handed out
+// "Mid-Range Assassin", and 38-year-old Clippers Antawn Jamison (Finishing 58)
+// handed out "Unorthodox Flip" — the badge promised elite, the pick delivered
+// replacement level. Gate on the rating of the row actually picked. At 70 this
+// suppresses 9 of 714 badge-carrying rows: exactly the late-career and
+// pre-breakout ones, and nothing a player would expect to work.
+const BADGE_MIN_RATING = 70;
+
 function acquiredBadges() {
   const out = [];
   for (const cat of SKILL_ORDER) {
     const pick = state.skills[cat];
     if (!pick) continue;
+    if (pick.rating < BADGE_MIN_RATING) continue;
     const key = pick.name + "|" + cat;
     const b = TRAIT_BADGES[key];
     if (b) out.push({ key, category: cat, player: pick.name, name: b.name, effect: b.effect, mods: b.mods });
@@ -2667,7 +2678,7 @@ if (typeof module !== "undefined") {
     compDistance, accompDistance, accompOf, compCaliber, archetypePenalty, signatureOfDims, tierRank,
     CALIBER_MATCH_WEIGHT, ACCOMP_MATCH_WEIGHT, ARCHETYPE_MATCH_WEIGHT,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
-    TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList,
+    TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList, BADGE_MIN_RATING,
     TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, clampTierToPeak, highestTierIndexForPeak, TIER_OVR_FLOORS, isHallOfFame,
     isNameBlocked, nameTokens, PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
     MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,

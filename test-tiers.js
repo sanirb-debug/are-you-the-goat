@@ -1518,6 +1518,39 @@ check("a season with no honors produces no explanations",
 check("awardReasons is safe on a season with no stats",
   Object.keys(G.awardReasons({ mvp: true })).length, 0);
 
+// ---- Badge / rating agreement ----
+// A badge is keyed (player|category) but a player has rows on several teams
+// across their career. Rookie-era Pistons Khris Middleton (Shooting 62) was
+// handing out "Mid-Range Assassin"; 38-year-old Clippers Antawn Jamison
+// (Finishing 58) was handing out "Unorthodox Flip". Adding a badge is cheap and
+// this contradiction is invisible until someone spins that exact row, so gate it.
+{
+  const CATS = G.SKILL_ORDER;
+  const offenders = [];
+  for (const abbr of Object.keys(G.TEAM_ROSTERS)) {
+    for (const p of G.TEAM_ROSTERS[abbr]) {
+      for (const cat of CATS) {
+        if (!G.TRAIT_BADGES[p.name + "|" + cat]) continue;
+        const rating = p.skills[cat];
+        if (rating >= G.BADGE_MIN_RATING) continue;
+        // Data says this row is weak here; the runtime must refuse the badge.
+        const team = G.TEAMS.find(t => t.abbr === abbr);
+        G.state.sandbox = true;
+        G.state.skills = { [cat]: G.buildStatPick(p, team, cat, cat) };
+        if (G.acquiredBadges().length) offenders.push(`${abbr} ${p.name} ${cat} @${rating}`);
+      }
+    }
+  }
+  check("no roster row awards a badge it is not rated for",
+    offenders.length, 0, offenders.slice(0, 8).join("; "));
+  // Guard the other direction: the gate must not have silenced the good rows.
+  const bucks = G.TEAM_ROSTERS["MIL"].find(p => p.name === "Khris Middleton");
+  G.state.sandbox = true;
+  G.state.skills = { Shooting: G.buildStatPick(bucks, G.TEAMS.find(t => t.abbr === "MIL"), "Shooting", "Shooting") };
+  check("a player still earns their badge on the row they are actually good on",
+    G.acquiredBadges().map(b => b.name)[0], "Mid-Range Assassin");
+}
+
 console.log("\n" + "=".repeat(52));
 if (failures.length) {
   console.log(`FAILED  ${failures.length} of ${passed + failures.length}`);
