@@ -970,7 +970,7 @@ check("Towns is caliber 3, not the caliber 2 that let him through",
   caliberOfName("Karl-Anthony Towns"), 3);
 check("selection floors did not disturb the top of the caliber scale",
   ["Michael Jordan", "Magic Johnson", "Kareem Abdul-Jabbar"].every(n => caliberOfName(n) === 6), true);
-check("a zero-accolade journeyman is still caliber 1", caliberOfName("Jason Smith"), 1);
+check("a zero-accolade journeyman is still caliber 1", caliberOfName("Frank Kaminsky"), 1);
 {
   const ovr = compBuild({ pos: "PF", h: 82, a: 70,
     sk: { Shooting: 93, Finishing: 88, Playmaking: 62, Handles: 64, Defense: 60, Rebounding: 86 } });
@@ -1558,6 +1558,62 @@ check("awardReasons is safe on a season with no stats",
   G.state.skills = { Shooting: G.buildStatPick(bucks, G.TEAMS.find(t => t.abbr === "MIL"), "Shooting", "Shooting") };
   check("a player still earns their badge on the row they are actually good on",
     G.acquiredBadges().map(b => b.name)[0], "Mid-Range Assassin");
+}
+
+// ---- Comp-pool recognisability ----
+// The comp IS the payoff line of the game, so an unknown name there costs more
+// than an unknown name on a roster. The pool used to end careers with "you're
+// most like Von Wafer" / "Jannero Pargo" — players obscure enough that they had
+// already been cut from the rosters. A comp must be someone the game itself
+// presents elsewhere: on a roster, or in a current starting five.
+{
+  const known = new Set();
+  for (const abbr of Object.keys(G.TEAM_ROSTERS)) for (const p of G.TEAM_ROSTERS[abbr]) known.add(p.name);
+  for (const five of Object.values(G.TEAM_FIVES || {})) for (const p of five) known.add(p.name);
+  // Caruso is a current player the roster data does not carry; allow-list him
+  // explicitly so the check stays strict for everyone else.
+  const ALLOWED_OFF_ROSTER = new Set(["Alex Caruso"]);
+  const strangers = G.COMP_PLAYERS
+    .map(c => c.name)
+    .filter(n => !known.has(n) && !ALLOWED_OFF_ROSTER.has(n));
+  check("every comp is a player the game shows somewhere else", strangers.length, 0, strangers.join(", "));
+
+  // Every comp carries hand-written reasoning shown on the verdict; a swapped-in
+  // name with the previous player's text would be worse than no text at all.
+  const noReason = G.COMP_PLAYERS.filter(c => !c.reasoning || c.reasoning.length < 30).map(c => c.name);
+  check("every comp has its own reasoning text", noReason.length, 0, noReason.join(", "));
+}
+
+// ---- Height label / rating agreement ----
+// Height is a PICK, and its rating sets both the cost and the OVR contribution.
+// The late-career rows were authored by hand with their own numbers, so 6'8" was
+// worth 62 on one row and 72 on another: same height on screen, better pick,
+// different price. Any hand-authored row can reintroduce that, so pin it.
+{
+  const byLabel = {};
+  for (const abbr of Object.keys(G.TEAM_ROSTERS)) {
+    for (const p of G.TEAM_ROSTERS[abbr]) {
+      (byLabel[p.height.label] = byLabel[p.height.label] || new Set()).add(p.height.rating);
+    }
+  }
+  const split = Object.entries(byLabel)
+    .filter(([, set]) => set.size > 1)
+    .map(([lab, set]) => `${lab}=${[...set].sort((a, b) => a - b).join("/")}`);
+  check("one height label maps to exactly one height rating", split.length, 0, split.join(" "));
+
+  // Taller must never be worth less, or the ladder inverts and a shorter pick
+  // dominates a taller one at the same price.
+  const ladder = Object.entries(byLabel)
+    .map(([lab, set]) => {
+      const m = lab.match(/^(\d+)'(\d+)/);
+      return m ? { inches: +m[1] * 12 + +m[2], rating: [...set][0], lab } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.inches - b.inches);
+  const inversions = ladder
+    .filter((h, i) => i > 0 && h.rating < ladder[i - 1].rating)
+    .map(h => `${h.lab} rated below the height under it`);
+  check("the height ladder rises with actual height", inversions.length, 0, inversions.join(", "));
 }
 
 console.log("\n" + "=".repeat(52));
