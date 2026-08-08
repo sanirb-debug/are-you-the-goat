@@ -2185,6 +2185,31 @@ const SHADOW_METRICS = [
 ];
 // The résumé pillars that gate a true "dethroning": you must match ALL THREE.
 const SHADOW_PILLARS = ["rings", "mvps", "allNBA"];
+
+// THE RING PILLAR IS CAPPED, AND ONLY BILL RUSSELL IS AFFECTED.
+//
+// Russell's target is 11 rings. The playoff model deliberately makes titles
+// scarce — the tuning note above `playoffStrength` records the measurements: a
+// genuine contender wins ~13% of the titles it plays for and a 20-year all-time
+// great retires with ~2.3 rings. That calibration is load-bearing (it is what
+// keeps Salary Cap's Legend rate where it belongs), so it is not moving.
+//
+// The consequence was silent dead content. Across 2000 OPTIMAL careers — best
+// pick at every slot, best team in the league — the most rings anyone got was 10,
+// and 11+ came up zero times. So `dethrone_bill_russell` could never fire, and
+// neither could `dethrone_all` ("Cast Your Own Shadow"), the completion capstone
+// that requires all 16. Two achievements were unreachable by construction.
+//
+// Capping the pillar bar is the honest fix rather than inflating rings, because
+// the real error is the comparison itself: Russell won 11 titles in 13 seasons in
+// an eight-to-fourteen-team league, and this sim runs a 30-team one. Matching that
+// raw count in this league is not the same feat, so the pillar asks for the most
+// this league can actually produce. The shadow GRID is untouched — it still shows
+// his true 11 and still marks the row unbeaten unless you really get there — and
+// the verdict says the bar was era-capped, so nothing is hidden from the player.
+// 8 leaves Russell far and away the hardest legend (8 rings + 5 MVPs + 11 All-NBA,
+// versus 6 rings for the next-toughest) while making him beatable.
+const RING_PILLAR_CEILING = 8;
 // Prose enumeration skips awards (they get their own aside) AND the career
 // volume totals — the narrative is about pillars + peak greatness, not who piled
 // up more counting stats; the totals still show in the grid and count toward
@@ -2216,10 +2241,17 @@ function compareToShadow(career) {
   const weightedBeat = scored.filter(r => r.beat).reduce((s, r) => s + r.weight, 0);
   const weightedTotal = scored.reduce((s, r) => s + r.weight, 0);
   // The prestige gate: all three résumé pillars (rings, MVPs, All-NBA) beaten.
-  const resumeCleared = SHADOW_PILLARS.every(k => rows.find(r => r.key === k).beat);
+  // The rings bar is capped at what this league can produce — see
+  // RING_PILLAR_CEILING. The row itself keeps the true target and its true beat
+  // flag; only the pillar test uses the capped bar, and ringsEraCapped tells the
+  // verdict to say so out loud.
+  const ringsEraCapped = target.rings > RING_PILLAR_CEILING;
+  const ringBar = Math.min(target.rings, RING_PILLAR_CEILING);
+  const resumeCleared = SHADOW_PILLARS.every(k =>
+    k === "rings" ? career.rings >= ringBar : rows.find(r => r.key === k).beat);
   return {
     targetName, targetLabel: target.label, target, rows, beatCount, total: scored.length,
-    weightedBeat, weightedTotal, resumeCleared,
+    weightedBeat, weightedTotal, resumeCleared, ringsEraCapped, ringBar,
     majority: weightedBeat * 2 >= weightedTotal, // weighted majority (informational)
   };
 }
@@ -2262,7 +2294,15 @@ function generateShadowVerdict(career) {
   const isLegendPlus = TIERS.findIndex(t => t.name === tier.name) >= TIERS.findIndex(t => t.name === "Legend");
   const resume = cmp.resumeCleared;
   const pillarRows = SHADOW_PILLARS.map(k => cmp.rows.find(r => r.key === k));
-  const lostPillars = pillarRows.filter(r => !r.beat);
+  // The rings pillar can be era-capped (Russell only). When it is, and the build
+  // met the capped bar without matching the true count, the row is still "not
+  // beaten" in the grid — but it is no longer held against the dethroning, so it
+  // must not be listed as a reason the dethroning failed. `eraNote` says why.
+  const lostPillars = pillarRows.filter(r =>
+    !r.beat && !(r.key === "rings" && cmp.ringsEraCapped && career.rings >= cmp.ringBar));
+  const eraNote = (cmp.ringsEraCapped && career.rings >= cmp.ringBar && career.rings < cmp.target.rings)
+    ? ` ${T} won ${cmp.target.rings} in a league of eight to fourteen teams; against thirty, ${cmp.ringBar} is the bar that means the same thing.`
+    : "";
 
   // ROTY/DPOY get their own editorial aside below, so keep them out of the
   // generic prose enumeration — otherwise each award would be named twice in
@@ -2290,12 +2330,12 @@ function generateShadowVerdict(career) {
   //    All-NBA) AND backed it with a Legend/GOAT-tier career. Only here does the
   //    "stepped out of the shadow" language fire.
   if (resume && isLegendPlus) {
-    return `Matched or beat ${T} on ${cmp.beatCount} of ${cmp.total} measures — the rings, the MVPs and the All-NBA nods included. ${name} didn't just chase the shadow; he stepped out of it and cast his own.${awardAside()}`;
+    return `Matched or beat ${T} on ${cmp.beatCount} of ${cmp.total} measures — the rings, the MVPs and the All-NBA nods included. ${name} didn't just chase the shadow; he stepped out of it and cast his own.${eraNote}${awardAside()}`;
   }
   // B) Cleared the pillars on paper, but the career itself never reached Legend
   //    tier — measured, not triumphant.
   if (resume) {
-    return `On paper ${name} matched ${T} where it counts — ${list(pillarRows)} — but a ${tier.name}-tier career never built the sustained, year-after-year résumé to call it a dethroning. A hell of a run in the shadow, not out of it.${awardAside()}`;
+    return `On paper ${name} matched ${T} where it counts — ${list(pillarRows)} — but a ${tier.name}-tier career never built the sustained, year-after-year résumé to call it a dethroning. A hell of a run in the shadow, not out of it.${eraNote}${awardAside()}`;
   }
   // C) A Legend/GOAT in his own right, but didn't clear the target's pillars —
   //    respectful concession rather than a fall-short.
@@ -2688,7 +2728,7 @@ if (typeof module !== "undefined") {
     CALIBER_MATCH_WEIGHT, ACCOMP_MATCH_WEIGHT, ARCHETYPE_MATCH_WEIGHT,
     compareToShadow, generateShadowVerdict, SHADOW_METRICS, SHADOW_PILLARS, isDethroned, tierIsLegendPlus,
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList, BADGE_MIN_RATING, badgeFor,
-    TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, clampTierToPeak, highestTierIndexForPeak, TIER_OVR_FLOORS, isHallOfFame,
+    RING_PILLAR_CEILING, TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, clampTierToPeak, highestTierIndexForPeak, TIER_OVR_FLOORS, isHallOfFame,
     isNameBlocked, nameTokens, PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
     MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,
   };

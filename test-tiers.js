@@ -1560,6 +1560,32 @@ check("awardReasons is safe on a season with no stats",
     G.acquiredBadges().map(b => b.name)[0], "Mid-Range Assassin");
 }
 
+// ---- Every shadow legend must be dethroneable ----
+// There are 16 per-legend dethrone achievements plus "Cast Your Own Shadow",
+// which needs all 16. Russell asks for 11 rings; the playoff model tops out at 10
+// across 2000 optimal careers, so two achievements were unreachable by
+// construction and nothing said so. A ring target above the pillar ceiling is now
+// era-capped — this asserts no legend's pillars sit outside what the sim can
+// produce, so a future target edit cannot silently orphan an achievement again.
+{
+  const CEILING_OK = G.SHADOW_ORDER.filter(nameStr => {
+    const t = G.SHADOW_TARGETS[nameStr];
+    return Math.min(t.rings, G.RING_PILLAR_CEILING) > G.RING_PILLAR_CEILING;
+  });
+  check("no legend's ring pillar exceeds the ceiling", CEILING_OK.length, 0, CEILING_OK.join(", "));
+
+  // The pillars a build must actually clear, against the best the sim can do.
+  // Ceilings measured over optimal play: 10 rings, 17 MVPs, 20 All-NBA.
+  const SIM_MAX = { rings: 10, mvps: 17, allNBA: 20 };
+  const impossible = G.SHADOW_ORDER.filter(nameStr => {
+    const t = G.SHADOW_TARGETS[nameStr];
+    return Math.min(t.rings, G.RING_PILLAR_CEILING) > SIM_MAX.rings
+      || t.mvps > SIM_MAX.mvps || t.allNBA > SIM_MAX.allNBA;
+  });
+  check("every shadow legend's resume is inside what the sim can produce",
+    impossible.length, 0, impossible.join(", "));
+}
+
 // ---- Comp-pool recognisability ----
 // The comp IS the payoff line of the game, so an unknown name there costs more
 // than an unknown name on a roster. The pool used to end careers with "you're
