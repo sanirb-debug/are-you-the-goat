@@ -141,5 +141,133 @@ console.log("\n=== BACKWARD COMPAT: a pre-expansion save must load ===");
   ok(typeof p.totalAllStars === "number" && typeof p.totalAllNBAs === "number", "new counters default to numbers");
 }
 
+
+// =====================================================================
+// REACHABILITY: can the GAME actually produce each achievement's trigger?
+// =====================================================================
+// Every check above hands the achievement a hand-built run object with the field
+// already set, which proves the check function works and nothing more. Three
+// achievements shipped that no build could ever satisfy — "two badges from the
+// same player" (pick lists forbid repeat players), "two Defense badges" (there is
+// one Defense slot), and dethroning Russell (11 rings, sim tops out at 10). Each
+// passed this suite the whole time.
+//
+// So: play real games with strategies aimed at each trigger, and assert the run
+// objects the game builds actually contain the values the checks look for.
+console.log("\n=== REACHABILITY (real builds, not fixtures) ===");
+{
+  const S = G.state;
+  const rngPick = (arr, i) => arr[i % arr.length];
+
+  // Play one full game. `slotChoice(slot, options)` picks from real roster options.
+  function play(seed, mode, slotChoice, shadow) {
+    S.sandbox = false; S.autoPick = mode === "classic"; S.name = "T";
+    S.shadowTarget = shadow || G.SHADOW_ORDER[0];
+    S.height = null; S.athleticism = null; S.skills = {}; S.budgetSpent = 0;
+    S.pickOrder = []; S.activeBadges = []; S.teamRerollsUsed = 0; S.playerRerollsUsed = 0;
+    S.position = null; S.positionFit = null; S.team = null; S.teamNeedMet = false;
+    S.scoutTeam = null; S.editingCategory = null; S.sharedView = false;
+    G.seedRng(seed);
+    for (const slot of ["height", "athleticism", ...G.SKILL_ORDER]) {
+      const teams = G.availableTeams();
+      if (!teams.length) return null;
+      let opts = [];
+      for (const t of teams) {
+        if (mode === "classic") {
+          for (const p2 of G.spinnablePlayers(t)) {
+            opts.push({ player: p2, team: t, rating: G.categoryRating(p2, slot), cost: 0 });
+          }
+        } else {
+          for (const o of G.getRosterOptions(slot, t)) if (o.affordable) opts.push({ opt: o, team: t, rating: o.rating, cost: o.cost });
+        }
+      }
+      if (!opts.length) return null;
+      const chosen = slotChoice(slot, opts);
+      if (!chosen) return null;
+      S.scoutTeam = chosen.team;
+      const pick = mode === "classic"
+        ? G.buildStatPick(chosen.player, chosen.team, slot, slot)
+        : chosen.opt;
+      if (slot === "height" || slot === "athleticism") G.lockPhysical(slot, pick);
+      else G.lockSkill(slot, pick);
+      S.pickOrder.push(slot);
+    }
+    return true;
+  }
+  const finish = (car, activate, pos, team) => {
+    const acq = G.acquiredBadges();
+    S.activeBadges = (activate ? activate(acq) : acq.slice(0, 3)).map(b => b.key);
+    S.position = pos || Object.keys(G.POSITIONS).find(p2 => G.checkPositionFit(p2)) || "SF";
+    S.positionFit = G.checkPositionFit(S.position);
+    S.team = team || [...G.TEAMS].sort((a, b) => G.effectiveScr(b.abbr) - G.effectiveScr(a.abbr))[0];
+    S.teamNeedMet = G.teamNeedPosition(S.team.abbr) === S.position;
+    return G.buildCareerRun(car);
+  };
+  const strongest = (slot, opts) => opts.reduce((a, b) => (b.rating > a.rating ? b : a));
+  const weakest   = (slot, opts) => opts.reduce((a, b) => (b.rating < a.rating ? b : a));
+  const badgey    = (slot, opts) => {
+    const withBadge = opts.filter(o => G.badgeFor((o.player || o.opt).name, slot, o.rating));
+    return (withBadge.length ? withBadge : opts).reduce((a, b) => (b.rating > a.rating ? b : a));
+  };
+  const sim = () => G.simCareer(G.computeOVR(), S.team || G.TEAMS_BY_ABBR.BOS, G.activeBadgeMods());
+
+  // --- full_stack: six badges collected on one build ---
+  let bestAcq = 0;
+  for (let i = 0; i < 12 && bestAcq < 6; i++) {
+    if (!play(4000 + i, "classic", badgey)) continue;
+    S.team = G.TEAMS_BY_ABBR.BOS; const run = finish(sim());
+    bestAcq = Math.max(bestAcq, run.acquiredBadgeCount);
+  }
+  ok(bestAcq >= 6, `a real build can collect 6 badges (best seen ${bestAcq}) — full_stack is reachable`);
+
+  // --- badge_defense: a Defense AND a Rebounding badge, both active ---
+  let defPair = false;
+  for (let i = 0; i < 12 && !defPair; i++) {
+    if (!play(5000 + i, "classic", badgey)) continue;
+    S.team = G.TEAMS_BY_ABBR.BOS;
+    const run = finish(sim(), acq => {
+      const d = acq.find(b => b.category === "Defense"), r = acq.find(b => b.category === "Rebounding");
+      return d && r ? [d, r] : acq.slice(0, 2);
+    });
+    defPair = run.badgeDefensivePair;
+  }
+  ok(defPair, "a real build can hold a Defense + Rebounding badge pair — badge_defense is reachable");
+
+  // --- no build can ever put two badges on one player (the old full_stack) ---
+  let maxPerPlayer = 0;
+  for (let i = 0; i < 8; i++) {
+    if (!play(6000 + i, "classic", badgey)) continue;
+    const byP = {};
+    G.acquiredBadges().forEach(b => { byP[b.player] = (byP[b.player] || 0) + 1; });
+    maxPerPlayer = Math.max(maxPerPlayer, 0, ...Object.values(byP));
+  }
+  ok(maxPerPlayer === 1, `repeat players stay impossible, so a per-player badge stack must not be an achievement (max ${maxPerPlayer})`);
+
+  // --- draft_bust / a genuinely bad build still reaches the verdict ---
+  let bust = false;
+  for (let i = 0; i < 8 && !bust; i++) {
+    if (!play(7000 + i, "classic", weakest)) continue;
+    S.team = G.TEAMS_BY_ABBR.BOS;
+    const run = finish(sim());
+    if (run.tierName === "Draft Bust" || run.tierName === "Bench Piece") bust = true;
+  }
+  ok(bust, "deliberately weak play reaches the bottom tiers — draft_bust is reachable");
+
+  // --- Salary Cap: a build can finish well under the cap ---
+  let cheapest = Infinity;
+  for (let i = 0; i < 8; i++) {
+    if (!play(8000 + i, "cap", weakest)) continue;
+    cheapest = Math.min(cheapest, S.budgetSpent);
+  }
+  ok(cheapest < 6000, `a cap build can come in under $60M (cheapest ${(cheapest / 100).toFixed(1)}M) — cap_minimum is reachable`);
+
+  // --- every shadow legend can be dethroned ---
+  const undethronable = G.SHADOW_ORDER.filter(nm => {
+    const t = G.SHADOW_TARGETS[nm];
+    return Math.min(t.rings, G.RING_PILLAR_CEILING) > 10 || t.mvps > 17 || t.allNBA > 20;
+  });
+  ok(undethronable.length === 0, `no legend's resume is outside what the sim can produce (${undethronable.join(", ") || "all reachable"})`);
+}
+
 console.log(fails ? `\n${fails} CHECK(S) FAILED` : `\nALL CHECKS PASSED (${G.ACHIEVEMENTS.length} achievements defined)`);
 process.exit(fails ? 1 : 0);

@@ -2674,6 +2674,87 @@ const ACHIEVEMENTS = [
   })),
 ];
 
+// Assemble the plain fact-sheet recordCareerRun() consumes.
+//
+// This used to live in ui.js, on the stated grounds that it read "UI-side state
+// (budget spent, active badges)". That was wrong — state.budgetSpent and
+// state.activeBadges are game state, and nothing here touches the DOM. Being over
+// there is what let three achievements ship that no build could ever satisfy:
+// test-achievements could only reach it with hand-built run objects, so it proved
+// the check functions worked while never asking whether the game produces those
+// fields. It lives here now so the achievement suite can play real games.
+function buildCareerRun(car) {
+  const tier = tierForCareer(car);
+  const active = activeBadgeList();
+  const byPlayer = {};
+  active.forEach(b => { byPlayer[b.player] = (byPlayer[b.player] || 0) + 1; });
+  const fullStack = active.length >= 2 && Object.values(byPlayer).some(n => n >= 2);
+  const sh = compareToShadow(car);
+
+  // Two ACTIVE badges whose players really shared a franchise. Team membership is
+  // derived from TEAM_ROSTERS (the same source usedTeamAbbrs reads) rather than
+  // stored on the badge, so it can't drift from the roster data.
+  const teamsOf = name => {
+    const out = new Set();
+    for (const [abbr, roster] of Object.entries(TEAM_ROSTERS)) {
+      if (roster.some(p => p.name === name)) out.add(abbr);
+    }
+    return out;
+  };
+  const players = [...new Set(active.map(b => b.player))];
+  let badgeSameTeam = false;
+  for (let i = 0; i < players.length && !badgeSameTeam; i++) {
+    for (let j = i + 1; j < players.length && !badgeSameTeam; j++) {
+      const a = teamsOf(players[i]), b = teamsOf(players[j]);
+      for (const t of a) if (b.has(t)) { badgeSameTeam = true; break; }
+    }
+  }
+  const catCount = c => active.filter(b => b.category === c).length;
+  const best = car.bestSeason || { ppg: 0, rpg: 0, apg: 0 };
+
+  return {
+    // Which pool this run credits. Sandbox never reaches recordCareerRun.
+    mode: state.autoPick ? "classic" : "cap",
+    goatScore: car.goatScore,
+    tierIdx: TIERS.findIndex(t => t.name === tier.name),
+    tierName: tier.name,
+    isHOF: isHallOfFame(car, tier),
+    rings: car.rings, mvps: car.mvps, dpoys: car.dpoys, rotys: car.roty,
+    // Gate the "Out of the Shadow" achievement + lifetime dethroned list on the
+    // true weighted/tier outcome, not the old flat benchmark count.
+    dethroned: sh && isDethroned(car) ? sh.targetName : null,
+    activatedBadgeKeys: active.map(b => b.key),
+    fullStack,
+    budgetExact: state.budgetSpent === BUDGET_CAP,
+    // "Unanimous": an MVP won in a 99-caliber peak season.
+    unanimous: car.mvps >= 1 && car.bestMVPOVR >= 95,
+
+    // ---- Fields the expanded achievement set reads ----
+    allStars: car.allStars, allNBAs: car.allNBAs, allDefensives: car.allDefensives,
+    numSeasons: car.numSeasons,
+    baseOVR: computeOVR(),           // raw axis, so the Classic threshold means one thing
+    peakOVR: car.peakOVR,
+    budgetSpent: state.budgetSpent,  // internal hundredths of $M (8000 = $80M)
+    heightRating: state.height.rating,
+    athleticismRating: state.athleticism.rating,
+    position: state.position,
+    teamAbbr: state.team ? state.team.abbr : null,
+    positionFit: !!state.positionFit,
+    teamNeedMet: !!state.teamNeedMet,
+    // Classic's "Purist" reads both pools; Salary Cap uses only the team pool.
+    rerollsUsed: state.teamRerollsUsed + state.playerRerollsUsed,
+    activeBadgeCount: active.length,
+    acquiredBadgeCount: acquiredBadges().length,
+    badgeSameTeam,
+    // Defense + Rebounding, mirroring badgeScoringPair below. It used to ask for
+    // two Defense badges, which no build can hold: badges are keyed per category
+    // and there is exactly one Defense slot, so catCount("Defense") caps at 1.
+    badgeDefensivePair: catCount("Defense") + catCount("Rebounding") >= 2,
+    badgeScoringPair: catCount("Shooting") + catCount("Finishing") >= 2,
+    peakPPG: best.ppg, peakRPG: best.rpg, peakAPG: best.apg,
+  };
+}
+
 // Fold a finished career into lifetime progress and unlock anything newly
 // earned. `run` is a plain fact-sheet the UI assembles (kept free of DOM/state
 // so this is unit-testable). Returns { progress, newlyUnlocked: [achievement] }.
@@ -2733,6 +2814,6 @@ if (typeof module !== "undefined") {
     TRAIT_BADGES, acquiredBadges, activeBadgeMods, activeBadgeList, BADGE_MIN_RATING, badgeFor,
     RING_PILLAR_CEILING, TIER_AWARD_FLOORS, TIER_ALT_PATHS, hasAltPath, altPathWaivesMvp, meetsAwardFloor, meetsTierFloors, clampTierToPeak, highestTierIndexForPeak, TIER_OVR_FLOORS, isHallOfFame,
     isNameBlocked, nameTokens, PROGRESS_KEY, LEGACY_BEST_KEY, blankProgress, loadProgress, saveProgress, recordCareerRun, ACHIEVEMENTS,
-    MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,
+    buildCareerRun, MODE_KEYS, MODE_LABELS, DEFAULT_MODE, loadAllProgress, saveAllProgress,
   };
 }
