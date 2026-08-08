@@ -1816,8 +1816,12 @@ function buildCareerRun(car) {
     // Classic's "Purist" reads both pools; Salary Cap uses only the team pool.
     rerollsUsed: state.teamRerollsUsed + state.playerRerollsUsed,
     activeBadgeCount: active.length,
+    acquiredBadgeCount: acquiredBadges().length,
     badgeSameTeam,
-    badgeDefensivePair: catCount("Defense") >= 2,
+    // Defense + Rebounding, mirroring badgeScoringPair below. It used to ask for
+    // two Defense badges, which no build can hold: badges are keyed per category
+    // and there is exactly one Defense slot, so catCount("Defense") caps at 1.
+    badgeDefensivePair: catCount("Defense") + catCount("Rebounding") >= 2,
     badgeScoringPair: catCount("Shooting") + catCount("Finishing") >= 2,
     peakPPG: best.ppg, peakRPG: best.rpg, peakAPG: best.apg,
   };

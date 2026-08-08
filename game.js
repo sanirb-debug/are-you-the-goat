@@ -223,8 +223,8 @@ function getAllRosterOptions(category) {
 // Names already locked into the build, across categories (optionally excluding
 // one — the category being (re)picked right now, whose own slot must not count
 // against itself). The no-budget team-spin mode forbids reusing a player, so
-// its roster list filters against this. Salary Cap and Sandbox allow repeats
-// and never call it.
+// its roster list filters against this. Salary Cap filters too (getRosterOptions
+// calls it — see the no-repeat note there). Sandbox allows repeats.
 function usedPickNames(exceptCategory = null) {
   return CATEGORIES
     .filter(c => c !== exceptCategory)
@@ -2594,7 +2594,10 @@ const ACHIEVEMENTS = [
   // Extreme builds
   { id: "perfect_spend", name: "Perfect Spend",   desc: "Finish a build spending the cap to the last dollar.", check: (r) => r.budgetExact },
   { id: "draft_bust",  name: "Bust on Purpose",   desc: "Land the Draft Bust tier.",                          check: (r) => r.tierName === "Draft Bust" },
-  { id: "full_stack",  name: "Full Stack",        desc: "Activate two trait badges from the same player in one build.", check: (r) => r.fullStack },
+  // WAS "two badges from the same player", which no build could ever satisfy:
+  // both pick lists filter out already-used players (see usedPickNames), so a
+  // player occupies at most one slot and can contribute at most one badge.
+  { id: "full_stack",  name: "Full Stack",        desc: "Collect a trait badge on all six of your skill picks.", check: (r) => (r.acquiredBadgeCount || 0) >= 6 },
   // Career milestones
   { id: "unanimous",   name: "Unanimous",         desc: "Win MVP in a near-perfect season (99-caliber peak).", check: (r) => r.unanimous },
   { id: "two_way",     name: "Two-Way Great",     desc: "Win both MVP and DPOY in one career.",               check: (r) => r.mvps >= 1 && r.dpoys >= 1 },
@@ -2631,7 +2634,7 @@ const ACHIEVEMENTS = [
 
   // ---- Badge combinations ----
   { id: "badge_same_team", name: "Franchise Chemistry", desc: "Activate badges from two players who really shared a franchise.", check: (r) => r.badgeSameTeam },
-  { id: "badge_defense",   name: "Lockdown Duo",        desc: "Activate two Defense trait badges in one build.",     check: (r) => r.badgeDefensivePair },
+  { id: "badge_defense",   name: "Lockdown Duo",        desc: "Activate a Defense and a Rebounding trait badge in one build.", check: (r) => r.badgeDefensivePair },
   { id: "badge_offense",   name: "Bucket Brigade",      desc: "Activate two Shooting or Finishing badges in one build.", check: (r) => r.badgeScoringPair },
   { id: "life_badges_50",  name: "Badge Baron",         desc: "Activate 50 different trait badges across all careers.", check: (r, L) => L.activatedBadges.length >= 50 },
 
